@@ -1,0 +1,220 @@
+{
+  "node": {
+    "005e20e2e268d812762b030e4aac3b7693066871b6": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getMyRoles",
+          "filename": "lib/actions/employee-actions.ts"
+        },
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getMyRoles",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc",
+        "app/dashboard/profile/page": "rsc"
+      },
+      "filename": "lib/actions/employee-actions.ts",
+      "exportedName": "getMyRoles"
+    },
+    "00636a7c2e61bd285b975ea815e7fbbefdffae959f": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getMyEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        },
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getMyEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc",
+        "app/dashboard/profile/page": "rsc"
+      },
+      "filename": "lib/actions/employee-actions.ts",
+      "exportedName": "getMyEmployee"
+    },
+    "00b0c7f0352396833a3aa70b738bb3a8c2a485efae": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "listEmployees",
+          "filename": "lib/actions/employee-actions.ts"
+        },
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "listEmployees",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc",
+        "app/dashboard/profile/page": "rsc"
+      },
+      "filename": "lib/actions/employee-actions.ts",
+      "exportedName": "listEmployees"
+    },
+    "4072cdebcca1df607d08f62096843ddf91d2cf29f6": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        },
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc",
+        "app/dashboard/profile/page": "rsc"
+      },
+      "filename": "lib/actions/employee-actions.ts",
+      "exportedName": "createEmployee"
+    },
+    "407a7f2085358134fb9b61998dbd9fa880ad52c2cf": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateMyProfile",
+          "filename": "lib/actions/employee-actions.ts"
+        },
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateMyProfile",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc",
+        "app/dashboard/profile/page": "action-browser"
+      },
+      "filename": "lib/actions/employee-actions.ts",
+      "exportedName": "updateMyProfile"
+    },
+    "409df3c5b25ea33596f872aab0b186da47271a8e80": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        },
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc",
+        "app/dashboard/profile/page": "rsc"
+      },
+      "filename": "lib/actions/employee-actions.ts",
+      "exportedName": "getEmployee"
+    },
+    "60e7529b55507157f11112b5c625757ac226a23a7c": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        },
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc",
+        "app/dashboard/profile/page": "rsc"
+      },
+      "filename": "lib/actions/employee-actions.ts",
+      "exportedName": "updateEmployee"
+    },
+    "00a7b0eb530c1dc0860ad907a2b4ca6b37a0b9a499": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "listPositions",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc"
+      },
+      "filename": "lib/actions/department-actions.ts",
+      "exportedName": "listPositions"
+    },
+    "00c65c5a01ab8a9197dc80e277b1c810297c84835b": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "listDepartments",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc"
+      },
+      "filename": "lib/actions/department-actions.ts",
+      "exportedName": "listDepartments"
+    },
+    "403f54aab920d72630f1950530679072dce425d89b": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createDepartment",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc"
+      },
+      "filename": "lib/actions/department-actions.ts",
+      "exportedName": "createDepartment"
+    },
+    "607ed26f2ae230819db894ad494358f3f62fa91173": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateDepartment",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc"
+      },
+      "filename": "lib/actions/department-actions.ts",
+      "exportedName": "updateDepartment"
+    }
+  },
+  "edge": {},
+  "encryptionKey": "tpQPBHxTcEY82p89nOFdEvByi2ZVg8IrXUkONeHpJjM="
+}

@@ -1,0 +1,65 @@
+[00:00:00.984] Server  WARN     ⚠ Minimum recommended TypeScript version is v5.1.0, older versions can potentially be incompatible with Next.js. Detected: 5.0.2
+[00:00:01.112] Server  LOG      ✓ Ready in 789ms
+[00:00:03.972] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:05.215] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:00:05.215] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/login","route":"/login"}
+[00:00:05.215] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766419590757}
+[00:00:15.613] Server  ERROR   Error fetching employee: {}
+[00:00:16.094] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:16.264] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:00:16.264] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:00:16.264] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766419602722}
+[00:00:55.105] Server  ERROR   Error fetching employee: {}
+[00:00:55.386] Browser ERROR   In HTML, %s cannot be a descendant of <%s>.
+This will cause a hydration error.%s <li> li 
+
+  ...
+    <SegmentViewNode type="page" pagePath="dashboard/...">
+      <SegmentTrieNode>
+      <ProfilePage>
+        <DashboardLayout>
+          <SidebarProvider>
+            ...
+              <TooltipProvider data-slot="tooltip-pr..." delayDuration={0}>
+                <TooltipProviderProvider scope={undefined} isOpenDelayed={true} delayDuration={0} ...>
+                  <div data-slot="sidebar-wr..." style={{...}} className="group/side...">
+                    <AppSidebar>
+                    <SidebarInset>
+                      <main data-slot="sidebar-inset" className="bg-backgro...">
+                        <header className="flex h-14 ...">
+                          <SidebarTrigger>
+                          <Separator>
+                          <Breadcrumb>
+                            <nav aria-label="breadcrumb" data-slot="breadcrumb">
+                              <BreadcrumbList>
+                                <ol data-slot="breadcrumb..." className="text-muted...">
+                                  <li>
+                                  <BreadcrumbItem>
+>                                   <li data-slot="breadcrumb-item" className="inline-flex items-center gap-1.5">
+                                      <BreadcrumbSeparator>
+>                                       <li
+>                                         data-slot="breadcrumb-separator"
+>                                         role="presentation"
+>                                         aria-hidden="true"
+>                                         className={"[&>svg]:size-3.5"}
+>                                       >
+                                      ...
+                        ...
+    ...
+
+[00:00:55.386] Browser ERROR   <%s> cannot contain a nested %s.
+See this log for the ancestor stack trace. li <li>
+[00:00:55.386] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766419641824}
+[00:02:10.632] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766419717090}
+[00:02:14.658] Server  ERROR   Error fetching employee: {}
+[00:02:15.248] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:15.452] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:02:15.452] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:02:15.452] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766419721909}
+[00:02:21.718] Server  ERROR   Error fetching employee: {}
+[00:04:04.933] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766419831392}
+[00:05:19.246] Server  ERROR   Error fetching employee: {}
+[00:05:19.392] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:05:19.557] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:05:19.557] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:05:19.557] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766419906017}
