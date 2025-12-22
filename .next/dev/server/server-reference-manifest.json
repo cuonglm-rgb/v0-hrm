@@ -7,17 +7,10 @@
           "async": false,
           "exportedName": "getMyRoles",
           "filename": "lib/actions/employee-actions.ts"
-        },
-        "app/dashboard/profile/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "getMyRoles",
-          "filename": "lib/actions/employee-actions.ts"
         }
       },
       "layer": {
-        "app/dashboard/page": "rsc",
-        "app/dashboard/profile/page": "rsc"
+        "app/dashboard/page": "rsc"
       },
       "filename": "lib/actions/employee-actions.ts",
       "exportedName": "getMyRoles"
@@ -29,17 +22,10 @@
           "async": false,
           "exportedName": "getMyEmployee",
           "filename": "lib/actions/employee-actions.ts"
-        },
-        "app/dashboard/profile/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "getMyEmployee",
-          "filename": "lib/actions/employee-actions.ts"
         }
       },
       "layer": {
-        "app/dashboard/page": "rsc",
-        "app/dashboard/profile/page": "rsc"
+        "app/dashboard/page": "rsc"
       },
       "filename": "lib/actions/employee-actions.ts",
       "exportedName": "getMyEmployee"
@@ -51,17 +37,10 @@
           "async": false,
           "exportedName": "listEmployees",
           "filename": "lib/actions/employee-actions.ts"
-        },
-        "app/dashboard/profile/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "listEmployees",
-          "filename": "lib/actions/employee-actions.ts"
         }
       },
       "layer": {
-        "app/dashboard/page": "rsc",
-        "app/dashboard/profile/page": "rsc"
+        "app/dashboard/page": "rsc"
       },
       "filename": "lib/actions/employee-actions.ts",
       "exportedName": "listEmployees"
@@ -73,17 +52,10 @@
           "async": false,
           "exportedName": "createEmployee",
           "filename": "lib/actions/employee-actions.ts"
-        },
-        "app/dashboard/profile/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "createEmployee",
-          "filename": "lib/actions/employee-actions.ts"
         }
       },
       "layer": {
-        "app/dashboard/page": "rsc",
-        "app/dashboard/profile/page": "rsc"
+        "app/dashboard/page": "rsc"
       },
       "filename": "lib/actions/employee-actions.ts",
       "exportedName": "createEmployee"
@@ -95,17 +67,10 @@
           "async": false,
           "exportedName": "updateMyProfile",
           "filename": "lib/actions/employee-actions.ts"
-        },
-        "app/dashboard/profile/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "updateMyProfile",
-          "filename": "lib/actions/employee-actions.ts"
         }
       },
       "layer": {
-        "app/dashboard/page": "rsc",
-        "app/dashboard/profile/page": "action-browser"
+        "app/dashboard/page": "rsc"
       },
       "filename": "lib/actions/employee-actions.ts",
       "exportedName": "updateMyProfile"
@@ -117,17 +82,10 @@
           "async": false,
           "exportedName": "getEmployee",
           "filename": "lib/actions/employee-actions.ts"
-        },
-        "app/dashboard/profile/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "getEmployee",
-          "filename": "lib/actions/employee-actions.ts"
         }
       },
       "layer": {
-        "app/dashboard/page": "rsc",
-        "app/dashboard/profile/page": "rsc"
+        "app/dashboard/page": "rsc"
       },
       "filename": "lib/actions/employee-actions.ts",
       "exportedName": "getEmployee"
@@ -139,17 +97,10 @@
           "async": false,
           "exportedName": "updateEmployee",
           "filename": "lib/actions/employee-actions.ts"
-        },
-        "app/dashboard/profile/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "updateEmployee",
-          "filename": "lib/actions/employee-actions.ts"
         }
       },
       "layer": {
-        "app/dashboard/page": "rsc",
-        "app/dashboard/profile/page": "rsc"
+        "app/dashboard/page": "rsc"
       },
       "filename": "lib/actions/employee-actions.ts",
       "exportedName": "updateEmployee"
