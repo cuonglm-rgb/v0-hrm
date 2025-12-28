@@ -165,6 +165,21 @@
       "exportedName": "listDepartments",
       "filename": "lib/actions/department-actions.ts"
     },
+    "402616c2ab184155e396b1e6bcc02aabf0a6699775": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "deleteDepartment",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc"
+      },
+      "exportedName": "deleteDepartment",
+      "filename": "lib/actions/department-actions.ts"
+    },
     "403f54aab920d72630f1950530679072dce425d89b": {
       "workers": {
         "app/dashboard/page": {
@@ -178,6 +193,51 @@
         "app/dashboard/page": "rsc"
       },
       "exportedName": "createDepartment",
+      "filename": "lib/actions/department-actions.ts"
+    },
+    "409e900c57851e187b3336b2167f1492044da6a704": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createPosition",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc"
+      },
+      "exportedName": "createPosition",
+      "filename": "lib/actions/department-actions.ts"
+    },
+    "40aea3118faebbf9d172394b8bba6bb810349e9ab4": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "deletePosition",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc"
+      },
+      "exportedName": "deletePosition",
+      "filename": "lib/actions/department-actions.ts"
+    },
+    "6071aab31133d8547de504c62c5c9a87df6b39a753": {
+      "workers": {
+        "app/dashboard/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updatePosition",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/page": "rsc"
+      },
+      "exportedName": "updatePosition",
       "filename": "lib/actions/department-actions.ts"
     },
     "607ed26f2ae230819db894ad494358f3f62fa91173": {

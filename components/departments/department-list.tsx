@@ -16,9 +16,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Building2, Plus, Pencil } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Building2, Plus, Pencil, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import { createDepartment, updateDepartment } from "@/lib/actions/department-actions"
+import { createDepartment, updateDepartment, deleteDepartment } from "@/lib/actions/department-actions"
 import type { Department } from "@/lib/types/database"
 
 interface DepartmentListProps {
@@ -30,6 +40,7 @@ export function DepartmentList({ departments, isHROrAdmin }: DepartmentListProps
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [editingDept, setEditingDept] = useState<Department | null>(null)
+  const [deleteDept, setDeleteDept] = useState<Department | null>(null)
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({ name: "", code: "" })
 
@@ -47,7 +58,7 @@ export function DepartmentList({ departments, isHROrAdmin }: DepartmentListProps
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      toast.error("Name is required")
+      toast.error("Tên phòng ban là bắt buộc")
       return
     }
 
@@ -56,10 +67,10 @@ export function DepartmentList({ departments, isHROrAdmin }: DepartmentListProps
       if (editingDept) {
         const result = await updateDepartment(editingDept.id, {
           name: formData.name,
-          code: formData.code || null,
+          code: formData.code || undefined,
         })
         if (result.success) {
-          toast.success("Department updated")
+          toast.success("Đã cập nhật phòng ban")
           setOpen(false)
           router.refresh()
         } else {
@@ -71,7 +82,7 @@ export function DepartmentList({ departments, isHROrAdmin }: DepartmentListProps
           code: formData.code || undefined,
         })
         if (result.success) {
-          toast.success("Department created")
+          toast.success("Đã tạo phòng ban mới")
           setOpen(false)
           router.refresh()
         } else {
@@ -83,77 +94,86 @@ export function DepartmentList({ departments, isHROrAdmin }: DepartmentListProps
     }
   }
 
+  const handleDelete = async () => {
+    if (!deleteDept) return
+
+    const result = await deleteDepartment(deleteDept.id)
+    if (result.success) {
+      toast.success("Đã xóa phòng ban")
+      router.refresh()
+    } else {
+      toast.error(result.error)
+    }
+    setDeleteDept(null)
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Departments</h1>
-          <p className="text-muted-foreground">Organization structure</p>
-        </div>
-        {isHROrAdmin && (
+      {isHROrAdmin && (
+        <div className="flex justify-end">
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button onClick={handleOpenCreate}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Department
+                Thêm phòng ban
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingDept ? "Edit Department" : "Create Department"}</DialogTitle>
+                <DialogTitle>{editingDept ? "Sửa phòng ban" : "Thêm phòng ban mới"}</DialogTitle>
                 <DialogDescription>
-                  {editingDept ? "Update the department information" : "Add a new department to your organization"}
+                  {editingDept ? "Cập nhật thông tin phòng ban" : "Tạo phòng ban mới trong tổ chức"}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Name *</Label>
+                  <Label htmlFor="name">Tên phòng ban *</Label>
                   <Input
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="e.g., Human Resources"
+                    placeholder="VD: Phòng Nhân sự"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="code">Code</Label>
+                  <Label htmlFor="code">Mã phòng ban</Label>
                   <Input
                     id="code"
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                    placeholder="e.g., HR"
+                    placeholder="VD: HR"
                   />
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>
-                  Cancel
+                  Hủy
                 </Button>
                 <Button onClick={handleSave} disabled={saving}>
-                  {saving ? "Saving..." : "Save"}
+                  {saving ? "Đang lưu..." : "Lưu"}
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
-      </div>
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-6">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Department</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Created</TableHead>
-                {isHROrAdmin && <TableHead className="text-right">Actions</TableHead>}
+                <TableHead>Phòng ban</TableHead>
+                <TableHead>Mã</TableHead>
+                <TableHead>Ngày tạo</TableHead>
+                {isHROrAdmin && <TableHead className="text-right">Thao tác</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {departments.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={isHROrAdmin ? 4 : 3} className="text-center py-8 text-muted-foreground">
-                    No departments found
+                    Chưa có phòng ban nào
                   </TableCell>
                 </TableRow>
               ) : (
@@ -175,14 +195,23 @@ export function DepartmentList({ departments, isHROrAdmin }: DepartmentListProps
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(dept.created_at).toLocaleDateString()}
+                      {new Date(dept.created_at).toLocaleDateString("vi-VN")}
                     </TableCell>
                     {isHROrAdmin && (
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(dept)}>
-                          <Pencil className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(dept)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteDept(dept)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
@@ -192,6 +221,24 @@ export function DepartmentList({ departments, isHROrAdmin }: DepartmentListProps
           </Table>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteDept} onOpenChange={() => setDeleteDept(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn xóa phòng ban "{deleteDept?.name}"? Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

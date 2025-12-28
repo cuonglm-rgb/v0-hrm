@@ -64,13 +64,22 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
     setLoading(true)
     setError(null)
 
-    const result = await generatePayroll(parseInt(selectedMonth), parseInt(selectedYear))
+    try {
+      const result = await generatePayroll(parseInt(selectedMonth), parseInt(selectedYear))
 
-    if (!result.success) {
-      setError(result.error || "Không thể tạo bảng lương")
-    } else {
-      setOpen(false)
-      setSelectedMonth("")
+      if (!result.success) {
+        setError(result.error || "Không thể tạo bảng lương")
+      } else {
+        setOpen(false)
+        setSelectedMonth("")
+        // Hiển thị thông báo thành công nếu có message
+        if (result.message) {
+          alert(result.message)
+        }
+      }
+    } catch (err) {
+      setError("Lỗi không xác định khi tạo bảng lương")
+      console.error(err)
     }
     setLoading(false)
   }

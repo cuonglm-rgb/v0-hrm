@@ -2,8 +2,8 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { listDepartments } from "@/lib/actions/department-actions"
-import { DepartmentList } from "@/components/departments/department-list"
+import { listDepartments, listPositions } from "@/lib/actions/department-actions"
+import { OrganizationPanel } from "@/components/departments/organization-panel"
 
 export default async function DepartmentsPage() {
   const supabase = await createClient()
@@ -16,14 +16,23 @@ export default async function DepartmentsPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, departments] = await Promise.all([getMyEmployee(), getMyRoles(), listDepartments()])
+  const [employee, userRoles, departments, positions] = await Promise.all([
+    getMyEmployee(),
+    getMyRoles(),
+    listDepartments(),
+    listPositions(),
+  ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const isHROrAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Departments" }]}>
-      <DepartmentList departments={departments} isHROrAdmin={isHROrAdmin} />
+    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Tổ chức" }]}>
+      <OrganizationPanel
+        departments={departments}
+        positions={positions}
+        isHROrAdmin={isHROrAdmin}
+      />
     </DashboardLayout>
   )
 }

@@ -5,6 +5,7 @@ import { getMyEmployee, getMyRoles, getEmployee } from "@/lib/actions/employee-a
 import { listDepartments, listPositions } from "@/lib/actions/department-actions"
 import { getUserRoles, listRoles } from "@/lib/actions/role-actions"
 import { getEmployeeJobHistory } from "@/lib/actions/job-history-actions"
+import { listSalaryStructure } from "@/lib/actions/payroll-actions"
 import { EmployeeDetail } from "@/components/employees/employee-detail"
 
 interface EmployeeDetailPageProps {
@@ -43,8 +44,13 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
   const isHROrAdmin = currentRoleCodes.includes("hr") || currentRoleCodes.includes("admin")
 
   let targetUserRoles: any[] = []
-  if (isHROrAdmin && targetEmployee.user_id) {
-    targetUserRoles = await getUserRoles(targetEmployee.user_id)
+  let salaryHistory: any[] = []
+  
+  if (isHROrAdmin) {
+    if (targetEmployee.user_id) {
+      targetUserRoles = await getUserRoles(targetEmployee.user_id)
+    }
+    salaryHistory = await listSalaryStructure(id)
   }
 
   return (
@@ -61,6 +67,7 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
         roles={roles}
         isHROrAdmin={isHROrAdmin}
         jobHistory={jobHistory}
+        salaryHistory={salaryHistory}
       />
     </DashboardLayout>
   )

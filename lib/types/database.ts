@@ -171,3 +171,63 @@ export interface PayrollItemWithRelations extends PayrollItem {
   employee?: Employee | null
   payroll_run?: PayrollRun | null
 }
+
+
+// =============================================
+// ALLOWANCE TYPES
+// =============================================
+
+export type AllowanceCalculationType = "fixed" | "daily"
+
+export interface AllowanceDeductionRules {
+  deduct_on_absent?: boolean      // Trừ khi nghỉ làm
+  deduct_on_late?: boolean        // Trừ khi đi muộn
+  late_grace_count?: number       // Số lần đi muộn được miễn
+  late_threshold_minutes?: number // Muộn bao nhiêu phút tính là đi muộn
+  full_deduct_threshold?: number  // Số lần vi phạm để mất toàn bộ
+}
+
+export interface AllowanceType {
+  id: string
+  name: string
+  code: string | null
+  amount: number
+  calculation_type: AllowanceCalculationType
+  is_deductible: boolean
+  deduction_rules: AllowanceDeductionRules | null
+  description: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface EmployeeAllowance {
+  id: string
+  employee_id: string
+  allowance_type_id: string
+  custom_amount: number | null
+  effective_date: string
+  end_date: string | null
+  note: string | null
+  created_at: string
+}
+
+export interface EmployeeAllowanceWithType extends EmployeeAllowance {
+  allowance_type?: AllowanceType | null
+}
+
+export interface PayrollAllowanceDetail {
+  id: string
+  payroll_item_id: string
+  allowance_type_id: string
+  base_amount: number
+  deducted_amount: number
+  final_amount: number
+  deduction_reason: string | null
+  late_count: number
+  absent_days: number
+  created_at: string
+}
+
+export interface PayrollAllowanceDetailWithType extends PayrollAllowanceDetail {
+  allowance_type?: AllowanceType | null
+}

@@ -290,15 +290,23 @@ async function changePosition(employeeId, newPositionId, salary) {
 "[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)", ((__turbopack_context__) => {
 "use strict";
 
-/* __next_internal_action_entry_do_not_use__ [{"00a7b0eb530c1dc0860ad907a2b4ca6b37a0b9a499":"listPositions","00c65c5a01ab8a9197dc80e277b1c810297c84835b":"listDepartments","403f54aab920d72630f1950530679072dce425d89b":"createDepartment","607ed26f2ae230819db894ad494358f3f62fa91173":"updateDepartment"},"",""] */ __turbopack_context__.s([
+/* __next_internal_action_entry_do_not_use__ [{"00a7b0eb530c1dc0860ad907a2b4ca6b37a0b9a499":"listPositions","00c65c5a01ab8a9197dc80e277b1c810297c84835b":"listDepartments","402616c2ab184155e396b1e6bcc02aabf0a6699775":"deleteDepartment","403f54aab920d72630f1950530679072dce425d89b":"createDepartment","409e900c57851e187b3336b2167f1492044da6a704":"createPosition","40aea3118faebbf9d172394b8bba6bb810349e9ab4":"deletePosition","6071aab31133d8547de504c62c5c9a87df6b39a753":"updatePosition","607ed26f2ae230819db894ad494358f3f62fa91173":"updateDepartment"},"",""] */ __turbopack_context__.s([
     "createDepartment",
     ()=>createDepartment,
+    "createPosition",
+    ()=>createPosition,
+    "deleteDepartment",
+    ()=>deleteDepartment,
+    "deletePosition",
+    ()=>deletePosition,
     "listDepartments",
     ()=>listDepartments,
     "listPositions",
     ()=>listPositions,
     "updateDepartment",
-    ()=>updateDepartment
+    ()=>updateDepartment,
+    "updatePosition",
+    ()=>updatePosition
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.0.10_react-dom@19.2.0_react@19.2.0__react@19.2.0/node_modules/next/dist/build/webpack/loaders/next-flight-loader/server-reference.js [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/supabase/server.ts [app-rsc] (ecmascript)");
@@ -357,17 +365,107 @@ async function updateDepartment(id, data) {
         success: true
     };
 }
+async function deleteDepartment(id) {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    // Kiểm tra có nhân viên trong phòng ban không
+    const { count } = await supabase.from("employees").select("*", {
+        count: "exact",
+        head: true
+    }).eq("department_id", id);
+    if (count && count > 0) {
+        return {
+            success: false,
+            error: "Không thể xóa phòng ban đang có nhân viên"
+        };
+    }
+    const { error } = await supabase.from("departments").delete().eq("id", id);
+    if (error) {
+        console.error("Error deleting department:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/departments");
+    return {
+        success: true
+    };
+}
+async function createPosition(data) {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    const { error } = await supabase.from("positions").insert(data);
+    if (error) {
+        console.error("Error creating position:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/departments");
+    return {
+        success: true
+    };
+}
+async function updatePosition(id, data) {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    const { error } = await supabase.from("positions").update(data).eq("id", id);
+    if (error) {
+        console.error("Error updating position:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/departments");
+    return {
+        success: true
+    };
+}
+async function deletePosition(id) {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    // Kiểm tra có nhân viên đang giữ vị trí này không
+    const { count } = await supabase.from("employees").select("*", {
+        count: "exact",
+        head: true
+    }).eq("position_id", id);
+    if (count && count > 0) {
+        return {
+            success: false,
+            error: "Không thể xóa vị trí đang có nhân viên"
+        };
+    }
+    const { error } = await supabase.from("positions").delete().eq("id", id);
+    if (error) {
+        console.error("Error deleting position:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/departments");
+    return {
+        success: true
+    };
+}
 ;
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$action$2d$validate$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["ensureServerEntryExports"])([
     listDepartments,
     listPositions,
     createDepartment,
-    updateDepartment
+    updateDepartment,
+    deleteDepartment,
+    createPosition,
+    updatePosition,
+    deletePosition
 ]);
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listDepartments, "00c65c5a01ab8a9197dc80e277b1c810297c84835b", null);
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listPositions, "00a7b0eb530c1dc0860ad907a2b4ca6b37a0b9a499", null);
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(createDepartment, "403f54aab920d72630f1950530679072dce425d89b", null);
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(updateDepartment, "607ed26f2ae230819db894ad494358f3f62fa91173", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(deleteDepartment, "402616c2ab184155e396b1e6bcc02aabf0a6699775", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(createPosition, "409e900c57851e187b3336b2167f1492044da6a704", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(updatePosition, "6071aab31133d8547de504c62c5c9a87df6b39a753", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(deletePosition, "40aea3118faebbf9d172394b8bba6bb810349e9ab4", null);
 }),
 "[project]/.next-internal/server/app/dashboard/employees/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript) <locals>", ((__turbopack_context__) => {
 "use strict";
@@ -375,6 +473,10 @@ async function updateDepartment(id, data) {
 __turbopack_context__.s([]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)");
+;
+;
+;
+;
 ;
 ;
 ;
@@ -403,6 +505,8 @@ __turbopack_context__.s([
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listEmployees"],
     "00c65c5a01ab8a9197dc80e277b1c810297c84835b",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listDepartments"],
+    "402616c2ab184155e396b1e6bcc02aabf0a6699775",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["deleteDepartment"],
     "403f54aab920d72630f1950530679072dce425d89b",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createDepartment"],
     "4072cdebcca1df607d08f62096843ddf91d2cf29f6",
@@ -411,6 +515,12 @@ __turbopack_context__.s([
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateMyProfile"],
     "409df3c5b25ea33596f872aab0b186da47271a8e80",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getEmployee"],
+    "409e900c57851e187b3336b2167f1492044da6a704",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createPosition"],
+    "40aea3118faebbf9d172394b8bba6bb810349e9ab4",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["deletePosition"],
+    "6071aab31133d8547de504c62c5c9a87df6b39a753",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updatePosition"],
     "607ed26f2ae230819db894ad494358f3f62fa91173",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateDepartment"],
     "60e7529b55507157f11112b5c625757ac226a23a7c",

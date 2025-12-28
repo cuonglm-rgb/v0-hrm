@@ -736,6 +736,7 @@ async function generateAttendanceTemplate() {
                 "Phòng ban"
             ],
             ...employees?.map((e)=>{
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const dept = e.departments;
                 return [
                     e.employee_code,

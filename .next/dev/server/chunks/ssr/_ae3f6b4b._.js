@@ -411,25 +411,39 @@ async function generatePayroll(month, year) {
             error: runError.message
         };
     }
-    // Lấy danh sách nhân viên active
-    const { data: employees } = await supabase.from("employees").select("id").eq("status", "active");
+    // Lấy danh sách nhân viên active hoặc onboarding (không tính resigned)
+    const { data: employees, error: empError } = await supabase.from("employees").select("id, full_name, employee_code").in("status", [
+        "active",
+        "onboarding"
+    ]);
+    if (empError) {
+        console.error("Error fetching employees:", empError);
+        return {
+            success: false,
+            error: "Lỗi khi lấy danh sách nhân viên: " + empError.message
+        };
+    }
     if (!employees || employees.length === 0) {
         return {
             success: false,
-            error: "Không có nhân viên active"
+            error: "Không có nhân viên. Vui lòng kiểm tra trạng thái nhân viên."
         };
     }
+    console.log(`Found ${employees.length} employees (active/onboarding)`);
     // Tính ngày đầu và cuối tháng
     const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
     const endDate = new Date(year, month, 0).toISOString().split("T")[0];
     // Tạo payroll items cho từng nhân viên
+    let processedCount = 0;
     for (const emp of employees){
         // Lấy lương hiệu lực
         const { data: salary } = await supabase.from("salary_structure").select("*").eq("employee_id", emp.id).lte("effective_date", endDate).order("effective_date", {
             ascending: false
-        }).limit(1).single();
+        }).limit(1).maybeSingle();
+        // Nếu không có salary structure, vẫn tạo payroll item với lương = 0
         const baseSalary = salary?.base_salary || 0;
         const allowance = salary?.allowance || 0;
+        console.log(`Processing ${emp.full_name}: base=${baseSalary}, allowance=${allowance}`);
         // Đếm ngày công (có check_in)
         const { count: workingDaysCount } = await supabase.from("attendance_logs").select("*", {
             count: "exact",
@@ -461,7 +475,7 @@ async function generatePayroll(month, year) {
         const deduction = dailySalary * unpaidLeaveDays;
         // Net = Gross - Khấu trừ
         const netSalary = grossSalary - deduction;
-        await supabase.from("payroll_items").insert({
+        const { error: insertError } = await supabase.from("payroll_items").insert({
             payroll_run_id: run.id,
             employee_id: emp.id,
             working_days: workingDays,
@@ -473,11 +487,18 @@ async function generatePayroll(month, year) {
             total_deduction: deduction,
             net_salary: netSalary
         });
+        if (insertError) {
+            console.error(`Error inserting payroll item for ${emp.full_name}:`, insertError);
+        } else {
+            processedCount++;
+        }
     }
+    console.log(`Processed ${processedCount}/${employees.length} employees`);
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/payroll");
     return {
         success: true,
-        data: run
+        data: run,
+        message: `Đã tạo bảng lương cho ${processedCount} nhân viên`
     };
 }
 async function lockPayroll(id) {

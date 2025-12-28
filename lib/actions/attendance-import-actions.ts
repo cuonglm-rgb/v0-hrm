@@ -282,7 +282,8 @@ export async function generateAttendanceTemplate(): Promise<{
     const employeeData: (string | null | undefined)[][] = [
       ["Mã N.Viên", "Tên nhân viên", "Phòng ban"],
       ...(employees?.map((e) => {
-        const dept = e.departments as { name: string } | null
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dept = (e as any).departments as { name: string } | null
         return [e.employee_code, e.full_name, dept?.name || ""]
       }) || []),
     ]

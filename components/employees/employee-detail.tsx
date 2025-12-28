@@ -13,10 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
-import { Save, ArrowLeft, Shield, Building2, User, Briefcase, History } from "lucide-react"
+import { Save, ArrowLeft, Shield, Building2, User, Briefcase, History, Wallet } from "lucide-react"
 import { updateEmployee } from "@/lib/actions/employee-actions"
 import { assignRole, removeRole } from "@/lib/actions/role-actions"
-import type { EmployeeWithRelations, Department, Position, Role, RoleCode, EmployeeJobHistoryWithRelations } from "@/lib/types/database"
+import { EmployeeSalaryTab } from "./employee-salary-tab"
+import type { EmployeeWithRelations, Department, Position, Role, RoleCode, EmployeeJobHistoryWithRelations, SalaryStructure } from "@/lib/types/database"
 import Link from "next/link"
 
 interface EmployeeDetailProps {
@@ -27,6 +28,7 @@ interface EmployeeDetailProps {
   roles: Role[]
   isHROrAdmin: boolean
   jobHistory?: EmployeeJobHistoryWithRelations[]
+  salaryHistory?: SalaryStructure[]
 }
 
 const statusColors: Record<string, string> = {
@@ -36,9 +38,9 @@ const statusColors: Record<string, string> = {
 }
 
 const statusLabels: Record<string, string> = {
-  onboarding: "Onboarding",
-  active: "Active",
-  resigned: "Resigned",
+  onboarding: "Đang onboard",
+  active: "Đang làm việc",
+  resigned: "Đã nghỉ việc",
 }
 
 export function EmployeeDetail({
@@ -49,6 +51,7 @@ export function EmployeeDetail({
   roles,
   isHROrAdmin,
   jobHistory = [],
+  salaryHistory = [],
 }: EmployeeDetailProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
@@ -82,10 +85,10 @@ export function EmployeeDetail({
       })
 
       if (result.success) {
-        toast.success("Employee updated successfully")
+        toast.success("Cập nhật nhân viên thành công")
         router.refresh()
       } else {
-        toast.error(result.error || "Failed to update employee")
+        toast.error(result.error || "Không thể cập nhật nhân viên")
       }
     } finally {
       setSaving(false)
@@ -100,7 +103,7 @@ export function EmployeeDetail({
     if (hasRole) {
       const result = await removeRole(employee.user_id, roleCode)
       if (result.success) {
-        toast.success(`Role ${roleCode} removed`)
+        toast.success(`Đã gỡ quyền ${roleCode}`)
         router.refresh()
       } else {
         toast.error(result.error)
@@ -108,7 +111,7 @@ export function EmployeeDetail({
     } else {
       const result = await assignRole(employee.user_id, roleCode)
       if (result.success) {
-        toast.success(`Role ${roleCode} assigned`)
+        toast.success(`Đã gán quyền ${roleCode}`)
         router.refresh()
       } else {
         toast.error(result.error)
@@ -135,7 +138,7 @@ export function EmployeeDetail({
         {isHROrAdmin && (
           <Button onClick={handleSave} disabled={saving}>
             <Save className="h-4 w-4 mr-2" />
-            {saving ? "Saving..." : "Save Changes"}
+            {saving ? "Đang lưu..." : "Lưu thay đổi"}
           </Button>
         )}
       </div>
@@ -178,20 +181,26 @@ export function EmployeeDetail({
           <Tabs defaultValue="info">
             <CardHeader>
               <TabsList>
-                <TabsTrigger value="info">Information</TabsTrigger>
-                <TabsTrigger value="work">Work</TabsTrigger>
+                <TabsTrigger value="info">Thông tin</TabsTrigger>
+                <TabsTrigger value="work">Công việc</TabsTrigger>
                 <TabsTrigger value="history">
                   <History className="h-4 w-4 mr-1" />
-                  Job History
+                  Lịch sử
                 </TabsTrigger>
-                {isHROrAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
+                {isHROrAdmin && (
+                  <TabsTrigger value="salary">
+                    <Wallet className="h-4 w-4 mr-1" />
+                    Lương
+                  </TabsTrigger>
+                )}
+                {isHROrAdmin && <TabsTrigger value="roles">Quyền</TabsTrigger>}
               </TabsList>
             </CardHeader>
             <CardContent>
               <TabsContent value="info" className="space-y-4 mt-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="full_name">Full Name</Label>
+                    <Label htmlFor="full_name">Họ và tên</Label>
                     <Input
                       id="full_name"
                       value={formData.full_name}
@@ -204,17 +213,17 @@ export function EmployeeDetail({
                     <Input id="email" value={employee.email} disabled />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone</Label>
+                    <Label htmlFor="phone">Số điện thoại</Label>
                     <Input
                       id="phone"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       disabled={!isHROrAdmin}
-                      placeholder="Enter phone number"
+                      placeholder="Nhập số điện thoại"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="employee_code">Employee Code</Label>
+                    <Label htmlFor="employee_code">Mã nhân viên</Label>
                     <Input id="employee_code" value={employee.employee_code || ""} disabled />
                   </div>
                 </div>
@@ -223,14 +232,14 @@ export function EmployeeDetail({
               <TabsContent value="work" className="space-y-4 mt-0">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="department">Department</Label>
+                    <Label htmlFor="department">Phòng ban</Label>
                     <Select
                       value={formData.department_id}
                       onValueChange={(value) => setFormData({ ...formData, department_id: value })}
                       disabled={!isHROrAdmin}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
+                        <SelectValue placeholder="Chọn phòng ban" />
                       </SelectTrigger>
                       <SelectContent>
                         {departments.map((dept) => (
@@ -242,14 +251,14 @@ export function EmployeeDetail({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="position">Position</Label>
+                    <Label htmlFor="position">Vị trí</Label>
                     <Select
                       value={formData.position_id}
                       onValueChange={(value) => setFormData({ ...formData, position_id: value })}
                       disabled={!isHROrAdmin}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select position" />
+                        <SelectValue placeholder="Chọn vị trí" />
                       </SelectTrigger>
                       <SelectContent>
                         {positions.map((pos) => (
@@ -261,7 +270,7 @@ export function EmployeeDetail({
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
+                    <Label htmlFor="status">Trạng thái</Label>
                     <Select
                       value={formData.status}
                       onValueChange={(value) => setFormData({ ...formData, status: value as any })}
@@ -271,14 +280,14 @@ export function EmployeeDetail({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="onboarding">Onboarding</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="resigned">Resigned</SelectItem>
+                        <SelectItem value="onboarding">Đang onboard</SelectItem>
+                        <SelectItem value="active">Đang làm việc</SelectItem>
+                        <SelectItem value="resigned">Đã nghỉ việc</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="join_date">Join Date</Label>
+                    <Label htmlFor="join_date">Ngày vào làm</Label>
                     <Input
                       id="join_date"
                       type="date"
@@ -294,19 +303,19 @@ export function EmployeeDetail({
                 <div className="space-y-4">
                   <h4 className="font-medium flex items-center gap-2">
                     <History className="h-4 w-4" />
-                    Employment History
+                    Lịch sử công việc
                   </h4>
                   {jobHistory.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">No job history records</p>
+                    <p className="text-muted-foreground text-sm">Chưa có lịch sử công việc</p>
                   ) : (
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Position</TableHead>
-                          <TableHead>Salary</TableHead>
-                          <TableHead>Start Date</TableHead>
-                          <TableHead>End Date</TableHead>
+                          <TableHead>Phòng ban</TableHead>
+                          <TableHead>Vị trí</TableHead>
+                          <TableHead>Lương</TableHead>
+                          <TableHead>Ngày bắt đầu</TableHead>
+                          <TableHead>Ngày kết thúc</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -321,7 +330,7 @@ export function EmployeeDetail({
                             </TableCell>
                             <TableCell>{record.start_date}</TableCell>
                             <TableCell>
-                              {record.end_date || <Badge variant="outline">Current</Badge>}
+                              {record.end_date || <Badge variant="outline">Hiện tại</Badge>}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -332,11 +341,21 @@ export function EmployeeDetail({
               </TabsContent>
 
               {isHROrAdmin && (
+                <TabsContent value="salary" className="mt-0">
+                  <EmployeeSalaryTab
+                    employeeId={employee.id}
+                    salaryHistory={salaryHistory}
+                    isHROrAdmin={isHROrAdmin}
+                  />
+                </TabsContent>
+              )}
+
+              {isHROrAdmin && (
                 <TabsContent value="roles" className="space-y-4 mt-0">
                   <div>
                     <h4 className="font-medium mb-3 flex items-center gap-2">
                       <Shield className="h-4 w-4" />
-                      Assigned Roles
+                      Quyền được gán
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {roles.map((role) => {
@@ -357,7 +376,7 @@ export function EmployeeDetail({
                               size="sm"
                               onClick={() => handleToggleRole(role.code as RoleCode)}
                             >
-                              {hasRole ? "Remove" : "Assign"}
+                              {hasRole ? "Gỡ bỏ" : "Gán"}
                             </Button>
                           </div>
                         )
