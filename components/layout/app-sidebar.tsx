@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut, Clock, CalendarDays, CheckSquare, Wallet, Receipt, FileSpreadsheet } from "lucide-react"
+import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut, Clock, CalendarDays, CheckSquare, Wallet, Receipt, FileSpreadsheet, Coins } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -58,6 +58,12 @@ const mainNavItems = [
     title: "Bảng lương",
     url: "/dashboard/payroll",
     icon: Wallet,
+    roles: ["hr", "admin"],
+  },
+  {
+    title: "Phụ cấp",
+    url: "/dashboard/allowances",
+    icon: Coins,
     roles: ["hr", "admin"],
   },
   {

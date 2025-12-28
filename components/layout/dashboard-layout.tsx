@@ -1,4 +1,5 @@
 import type React from "react"
+import { Fragment } from "react"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -33,14 +34,16 @@ export function DashboardLayout({ children, employee, userRoles, breadcrumbs = [
                 <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
               </BreadcrumbItem>
               {breadcrumbs.map((item, index) => (
-                <BreadcrumbItem key={index}>
+                <Fragment key={index}>
                   <BreadcrumbSeparator />
-                  {item.href ? (
-                    <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
-                  ) : (
-                    <BreadcrumbPage>{item.label}</BreadcrumbPage>
-                  )}
-                </BreadcrumbItem>
+                  <BreadcrumbItem>
+                    {item.href ? (
+                      <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
+                    ) : (
+                      <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                    )}
+                  </BreadcrumbItem>
+                </Fragment>
               ))}
             </BreadcrumbList>
           </Breadcrumb>

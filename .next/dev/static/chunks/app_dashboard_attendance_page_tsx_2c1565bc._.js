@@ -5,7 +5,7 @@
   "static/chunks/0894d_tailwind-merge_dist_bundle-mjs_mjs_705de4d7._.js",
   "static/chunks/c5101_@supabase_realtime-js_dist_module_4f8b52ae._.js",
   "static/chunks/cd977_@supabase_auth-js_dist_module_7b3787de._.js",
-  "static/chunks/node_modules__pnpm_33c225ad._.js"
+  "static/chunks/node_modules__pnpm_e22f2119._.js"
 ],
     source: "dynamic"
 });

@@ -8804,3 +8804,142 @@ See this log for the ancestor stack trace. li <li>
 [00:40:17.711] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766939687678}
 [00:40:22.063] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766939692022}
 [00:40:24.811] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees","o":"http://localhost:3000/dashboard/employees","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766939694714}
+[00:43:48.869] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/settings color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/settings","o":"http://localhost:3000/dashboard/settings","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766939898838}
+[00:44:11.316] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766939921284}
+[00:44:26.792] Server  LOG      ✓ Compiled in 265ms
+[00:45:11.261] Server  LOG      ✓ Compiled in 331ms
+[00:45:35.414] Server  LOG      ✓ Compiled in 233ms
+[00:45:45.626] Server  LOG      ✓ Compiled in 250ms
+[00:46:27.546] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:46:28.018] Browser ERROR   In HTML, %s cannot be a descendant of <%s>.
+This will cause a hydration error.%s <li> li 
+
+  ...
+    <SegmentViewNode type="page" pagePath="dashboard/...">
+      <SegmentTrieNode>
+      <ProfilePage>
+        <DashboardLayout>
+          <SidebarProvider>
+            ...
+              <TooltipProvider data-slot="tooltip-pr..." delayDuration={0}>
+                <TooltipProviderProvider scope={undefined} isOpenDelayed={true} delayDuration={0} ...>
+                  <div data-slot="sidebar-wr..." style={{...}} className="group/side...">
+                    <AppSidebar>
+                    <SidebarInset>
+                      <main data-slot="sidebar-inset" className="bg-backgro...">
+                        <header className="flex h-14 ...">
+                          <SidebarTrigger>
+                          <Separator>
+                          <Breadcrumb>
+                            <nav aria-label="breadcrumb" data-slot="breadcrumb">
+                              <BreadcrumbList>
+                                <ol data-slot="breadcrumb..." className="text-muted...">
+                                  <li>
+                                  <BreadcrumbItem>
+>                                   <li data-slot="breadcrumb-item" className="inline-flex items-center gap-1.5">
+                                      <BreadcrumbSeparator>
+>                                       <li
+>                                         data-slot="breadcrumb-separator"
+>                                         role="presentation"
+>                                         aria-hidden="true"
+>                                         className={"[&>svg]:size-3.5"}
+>                                       >
+                                      ...
+                        ...
+    ...
+
+[00:46:28.018] Browser ERROR   <%s> cannot contain a nested %s.
+See this log for the ancestor stack trace. li <li>
+[00:46:28.018] Browser ERROR   uncaughtError: Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+[00:46:28.018] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:46:28.018] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/profile","route":"/dashboard/profile"}
+[00:46:28.018] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/profile","route":"/dashboard/profile"}
+[00:46:28.018] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766940057987}
+[00:46:28.018] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/profile color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/profile","o":"http://localhost:3000/dashboard/profile","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766940057987}
+[00:47:03.812] Server  ERROR   Error listing allowance types: {}
+[00:47:04.266] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766940094229}
+[00:47:14.733] Server  LOG      ✓ Compiled in 296ms
+[00:47:16.118] Server  ERROR   Error listing allowance types: {}
+[00:47:16.144] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:16.955] Server  ERROR   Error listing allowance types: {}
+[00:47:16.959] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:17.704] Server  ERROR   Error listing allowance types: {}
+[00:47:17.711] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:18.446] Server  ERROR   Error listing allowance types: {}
+[00:47:18.451] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:19.209] Server  ERROR   Error listing allowance types: {}
+[00:47:19.214] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:19.969] Server  ERROR   Error listing allowance types: {}
+[00:47:19.973] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:20.714] Server  ERROR   Error listing allowance types: {}
+[00:47:20.719] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:21.996] Server  ERROR   Error listing allowance types: {}
+[00:47:22.240] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:22.975] Server  ERROR   Error listing allowance types: {}
+[00:47:22.981] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:23.774] Server  ERROR   Error listing allowance types: {}
+[00:47:23.778] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:24.439] Server  ERROR   Error listing allowance types: {}
+[00:47:24.444] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:25.255] Server  ERROR   Error listing allowance types: {}
+[00:47:25.260] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:25.994] Server  ERROR   Error listing allowance types: {}
+[00:47:25.999] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:26.744] Server  ERROR   Error listing allowance types: {}
+[00:47:26.750] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:27.498] Server  ERROR   Error listing allowance types: {}
+[00:47:27.503] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:28.222] Server  ERROR   Error listing allowance types: {}
+[00:47:28.229] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:28.999] Server  ERROR   Error listing allowance types: {}
+[00:47:29.007] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:29.783] Server  ERROR   Error listing allowance types: {}
+[00:47:29.790] Server  ERROR   Each child in a list should have a unique "key" prop. See https://react.dev/link/warning-keys for more information.
+[00:47:30.768] Server  LOG      ✓ Compiled in 283ms
+[00:47:31.064] Server  ERROR   Error listing allowance types: {}
+[00:47:32.015] Server  ERROR   Error listing allowance types: {}
+[00:47:32.671] Server  ERROR   Error listing allowance types: {}
+[00:47:33.432] Server  ERROR   Error listing allowance types: {}
+[00:47:34.186] Server  ERROR   Error listing allowance types: {}
+[00:47:34.916] Server  ERROR   Error listing allowance types: {}
+[00:47:35.669] Server  ERROR   Error listing allowance types: {}
+[00:47:36.402] Server  ERROR   Error listing allowance types: {}
+[00:47:37.154] Server  ERROR   Error listing allowance types: {}
+[00:47:37.949] Server  ERROR   Error listing allowance types: {}
+[00:47:38.690] Server  ERROR   Error listing allowance types: {}
+[00:47:39.474] Server  ERROR   Error listing allowance types: {}
+[00:47:40.238] Server  ERROR   Error listing allowance types: {}
+[00:47:40.981] Server  ERROR   Error listing allowance types: {}
+[00:47:41.723] Server  ERROR   Error listing allowance types: {}
+[00:47:42.458] Server  ERROR   Error listing allowance types: {}
+[00:47:43.206] Server  ERROR   Error listing allowance types: {}
+[00:47:43.919] Server  ERROR   Error listing allowance types: {}
+[00:47:44.672] Server  ERROR   Error listing allowance types: {}
+[00:47:45.407] Server  ERROR   Error listing allowance types: {}
+[00:47:47.754] Server  ERROR   Error listing allowance types: {}
+[00:47:48.595] Server  ERROR   Error listing allowance types: {}
+[00:47:49.319] Server  ERROR   Error listing allowance types: {}
+[00:47:50.104] Server  ERROR   Error listing allowance types: {}
+[00:47:50.831] Server  ERROR   Error listing allowance types: {}
+[00:47:51.568] Server  ERROR   Error listing allowance types: {}
+[00:47:52.443] Server  ERROR   Error listing allowance types: {}
+[00:48:03.766] Server  ERROR   Error creating allowance type: {}
+[00:48:09.948] Server  ERROR   Error creating allowance type: {}
+[00:48:13.765] Server  ERROR   Error listing allowance types: {}
+[00:48:14.630] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:48:14.932] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:48:14.932] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/allowances","route":"/dashboard/allowances"}
+[00:48:14.932] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766940164906}
+[00:48:42.041] Server  LOG      ✓ Compiled in 223ms
+[00:48:43.398] Server  ERROR   Error listing allowance types: "Could not find the table 'public.allowance_types' in the schema cache"
+[00:48:48.989] Server  LOG      ✓ Compiled in 215ms
