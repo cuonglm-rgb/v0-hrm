@@ -104,6 +104,36 @@
       },
       "exportedName": "updateEmployee",
       "filename": "lib/actions/employee-actions.ts"
+    },
+    "701419c868154523741dd2880ac65e97064ceb8620": {
+      "workers": {
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "changeDepartment",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/profile/page": "rsc"
+      },
+      "exportedName": "changeDepartment",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "70daddb01ea9f495d095baa024616ddfa6ee94f8dd": {
+      "workers": {
+        "app/dashboard/profile/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/profile/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "changePosition",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/profile/page": "rsc"
+      },
+      "exportedName": "changePosition",
+      "filename": "lib/actions/employee-actions.ts"
     }
   },
   "edge": {}

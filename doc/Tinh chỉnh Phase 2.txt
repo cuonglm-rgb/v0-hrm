@@ -1,0 +1,194 @@
+PHASE 2+ – TINH CHỈNH ATTENDANCE & LEAVE
+
+(đã chạy được → làm cho ĐÚNG – ĐẸP – KHÔNG SAI)
+
+Nội dung tinh chỉnh
+
+1️⃣ Ca làm (work shift)
+2️⃣ Validation backend (chống chấm công bừa)
+3️⃣ Attendance logic chuẩn
+4️⃣ Leave validation (đè ngày, sửa sau duyệt)
+5️⃣ UX thực tế cho HR / Employee / Manager
+
+1️⃣ CA LÀM (WORK SHIFT) – BẮT BUỘC
+1.1 Database: work_shifts
+create table work_shifts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  start_time time not null,
+  end_time time not null,
+  break_minutes int default 0,
+  created_at timestamptz default now()
+);
+
+
+Ví dụ:
+
+name	start	end
+HC	08:30	17:30
+Night	22:00	06:00
+1.2 Gán ca cho nhân viên
+alter table employees
+add column shift_id uuid references work_shifts(id);
+
+
+👉 KHÔNG gán ca trong attendance
+👉 Attendance chỉ ghi thực tế
+
+2️⃣ ATTENDANCE – VALIDATION BACKEND
+2.1 Chống check-in nhiều lần/ngày
+export async function checkIn() {
+  const supabase = supabaseServer()
+
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('id')
+    .single()
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { data: existed } = await supabase
+    .from('attendance_logs')
+    .select('id')
+    .eq('employee_id', emp.id)
+    .gte('check_in', `${today}T00:00:00`)
+    .single()
+
+  if (existed) throw new Error('Already checked in today')
+
+  await supabase.from('attendance_logs').insert({
+    employee_id: emp.id,
+    check_in: new Date().toISOString()
+  })
+}
+
+2.2 Chống checkout khi chưa checkin
+export async function checkOut() {
+  const supabase = supabaseServer()
+
+  const { data: emp } = await supabase
+    .from('employees')
+    .select('id')
+    .single()
+
+  const { data: log } = await supabase
+    .from('attendance_logs')
+    .select('id')
+    .eq('employee_id', emp.id)
+    .is('check_out', null)
+    .order('check_in', { ascending: false })
+    .single()
+
+  if (!log) throw new Error('No active check-in')
+
+  await supabase
+    .from('attendance_logs')
+    .update({ check_out: new Date().toISOString() })
+    .eq('id', log.id)
+}
+
+3️⃣ ATTENDANCE – LOGIC CHUẨN (CHO PAYROLL)
+3.1 Không tính công realtime
+
+❌ Sai: tính công ngay khi checkout
+✅ Đúng: raw data → job tính công (Phase 3)
+
+Attendance chỉ có:
+
+check_in
+
+check_out
+
+source
+
+3.2 Chuẩn bị cho ca đêm
+-- check_in: 2025-01-10 22:00
+-- check_out: 2025-01-11 06:00
+
+
+👉 Không split record
+👉 Payroll xử lý sau
+
+4️⃣ LEAVE – VALIDATION NGHIỆP VỤ
+4.1 Chống đè ngày nghỉ
+const { data: overlap } = await supabase
+  .from('leave_requests')
+  .select('id')
+  .eq('employee_id', emp.id)
+  .lte('from_date', form.to_date)
+  .gte('to_date', form.from_date)
+
+if (overlap.length > 0)
+  throw new Error('Leave date overlap')
+
+4.2 Cấm sửa sau khi duyệt (RLS)
+create policy prevent_leave_edit_after_approved
+on leave_requests
+for update
+using (status = 'pending');
+
+5️⃣ UX – EMPLOYEE (THỰC TẾ)
+5.1 Attendance page
+
+Hiển thị:
+
+Ca làm hôm nay
+
+Giờ hiện tại
+
+Trạng thái:
+
+❌ Chưa check-in
+
+✅ Đã check-in lúc 08:32
+
+⏹️ Đã check-out lúc 17:45
+
+<button disabled={checkedIn}>Check In</button>
+<button disabled={!checkedIn || checkedOut}>Check Out</button>
+
+5.2 Leave page
+
+Calendar view
+
+Màu sắc:
+
+Pending: 🟡
+
+Approved: 🟢
+
+Rejected: 🔴
+
+6️⃣ UX – MANAGER
+Leave approval
+
+Group theo nhân viên
+
+Hiển thị:
+
+Số ngày nghỉ
+
+Loại nghỉ
+
+Lịch sử nghỉ gần nhất
+
+7️⃣ UX – HR
+
+Filter:
+
+Phòng ban
+
+Ca làm
+
+Trạng thái
+
+Export CSV attendance
+
+8️⃣ CHECKLIST PHASE 2+ (ĐẠT CHUẨN)
+
+✅ 1 ngày – 1 attendance record
+✅ Có ca làm
+✅ Không overlap leave
+✅ Không sửa leave đã duyệt
+✅ Chuẩn bị sẵn cho payroll
+✅ UX không gây nhầm lẫn

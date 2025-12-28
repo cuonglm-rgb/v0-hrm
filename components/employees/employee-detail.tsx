@@ -11,11 +11,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
-import { Save, ArrowLeft, Shield, Building2, User, Briefcase } from "lucide-react"
+import { Save, ArrowLeft, Shield, Building2, User, Briefcase, History } from "lucide-react"
 import { updateEmployee } from "@/lib/actions/employee-actions"
 import { assignRole, removeRole } from "@/lib/actions/role-actions"
-import type { EmployeeWithRelations, Department, Position, Role, RoleCode } from "@/lib/types/database"
+import type { EmployeeWithRelations, Department, Position, Role, RoleCode, EmployeeJobHistoryWithRelations } from "@/lib/types/database"
 import Link from "next/link"
 
 interface EmployeeDetailProps {
@@ -25,6 +26,7 @@ interface EmployeeDetailProps {
   positions: Position[]
   roles: Role[]
   isHROrAdmin: boolean
+  jobHistory?: EmployeeJobHistoryWithRelations[]
 }
 
 const statusColors: Record<string, string> = {
@@ -46,6 +48,7 @@ export function EmployeeDetail({
   positions,
   roles,
   isHROrAdmin,
+  jobHistory = [],
 }: EmployeeDetailProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
@@ -177,6 +180,10 @@ export function EmployeeDetail({
               <TabsList>
                 <TabsTrigger value="info">Information</TabsTrigger>
                 <TabsTrigger value="work">Work</TabsTrigger>
+                <TabsTrigger value="history">
+                  <History className="h-4 w-4 mr-1" />
+                  Job History
+                </TabsTrigger>
                 {isHROrAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
               </TabsList>
             </CardHeader>
@@ -280,6 +287,47 @@ export function EmployeeDetail({
                       disabled={!isHROrAdmin}
                     />
                   </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="history" className="mt-0">
+                <div className="space-y-4">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    Employment History
+                  </h4>
+                  {jobHistory.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No job history records</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Position</TableHead>
+                          <TableHead>Salary</TableHead>
+                          <TableHead>Start Date</TableHead>
+                          <TableHead>End Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {jobHistory.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell>{record.department?.name || "-"}</TableCell>
+                            <TableCell>{record.position?.name || "-"}</TableCell>
+                            <TableCell>
+                              {record.salary
+                                ? new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(record.salary)
+                                : "-"}
+                            </TableCell>
+                            <TableCell>{record.start_date}</TableCell>
+                            <TableCell>
+                              {record.end_date || <Badge variant="outline">Current</Badge>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </div>
               </TabsContent>
 

@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles, getEmployee } from "@/lib/actions/employee-actions"
 import { listDepartments, listPositions } from "@/lib/actions/department-actions"
 import { getUserRoles, listRoles } from "@/lib/actions/role-actions"
+import { getEmployeeJobHistory } from "@/lib/actions/job-history-actions"
 import { EmployeeDetail } from "@/components/employees/employee-detail"
 
 interface EmployeeDetailPageProps {
@@ -23,13 +24,14 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
     redirect("/login")
   }
 
-  const [currentEmployee, currentUserRoles, targetEmployee, departments, positions, roles] = await Promise.all([
+  const [currentEmployee, currentUserRoles, targetEmployee, departments, positions, roles, jobHistory] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     getEmployee(id),
     listDepartments(),
     listPositions(),
     listRoles(),
+    getEmployeeJobHistory(id),
   ])
 
   if (!targetEmployee) {
@@ -58,6 +60,7 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
         positions={positions}
         roles={roles}
         isHROrAdmin={isHROrAdmin}
+        jobHistory={jobHistory}
       />
     </DashboardLayout>
   )

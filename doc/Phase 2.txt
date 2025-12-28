@@ -1,0 +1,321 @@
+PHASE 2 – ATTENDANCE & LEAVE
+0️⃣ Phạm vi Phase 2 (không làm gì)
+
+❌ Chưa tính công chi tiết
+❌ Chưa OT
+❌ Chưa payroll
+
+→ Phase này chỉ ghi nhận dữ liệu đúng & duyệt đúng
+
+1️⃣ BACKEND – DATABASE (chuẩn production)
+1.1 attendance_logs (nhắc lại + index)
+create table attendance_logs (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid references employees(id),
+  check_in timestamptz not null,
+  check_out timestamptz,
+  source text default 'web',
+  created_at timestamptz default now()
+);
+
+create index idx_attendance_employee_date
+on attendance_logs(employee_id, check_in);
+
+
+📌 Quy ước:
+
+1 ngày → 1 record
+
+check_out có thể null (chưa checkout)
+
+1.2 leave_requests
+create table leave_requests (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid references employees(id),
+  leave_type text, -- annual, sick, unpaid
+  from_date date not null,
+  to_date date not null,
+  reason text,
+  status text check (status in ('pending','approved','rejected')),
+  approver_id uuid references employees(id),
+  approved_at timestamptz,
+  created_at timestamptz default now()
+);
+
+create index idx_leave_employee_date
+on leave_requests(employee_id, from_date, to_date);
+
+2️⃣ BACKEND – RLS POLICIES (CỰC KỸ)
+2.1 attendance_logs – enable RLS
+alter table attendance_logs enable row level security;
+
+Employee chỉ xem & tạo attendance của mình
+create policy employee_attendance_self
+on attendance_logs
+for select
+using (
+  employee_id in (
+    select id from employees where user_id = auth.uid()
+  )
+);
+
+create policy employee_checkin
+on attendance_logs
+for insert
+with check (
+  employee_id in (
+    select id from employees where user_id = auth.uid()
+  )
+);
+
+2.2 leave_requests – enable RLS
+alter table leave_requests enable row level security;
+
+Employee tạo & xem leave của mình
+create policy employee_leave_self
+on leave_requests
+for select
+using (
+  employee_id in (
+    select id from employees where user_id = auth.uid()
+  )
+);
+
+create policy employee_create_leave
+on leave_requests
+for insert
+with check (
+  employee_id in (
+    select id from employees where user_id = auth.uid()
+  )
+);
+
+Manager duyệt leave nhân viên phòng mình
+create policy manager_approve_leave
+on leave_requests
+for update
+using (
+  exists (
+    select 1
+    from employees e
+    where e.id = leave_requests.employee_id
+      and e.department_id = (
+        select department_id
+        from employees
+        where user_id = auth.uid()
+      )
+  )
+);
+
+HR xem & duyệt tất cả
+create policy hr_full_leave_access
+on leave_requests
+for all
+using (
+  exists (
+    select 1
+    from user_roles ur
+    join roles r on ur.role_id = r.id
+    where ur.user_id = auth.uid()
+      and r.code = 'hr'
+  )
+);
+
+3️⃣ BACKEND – SERVER ACTIONS
+3.1 Cấu trúc
+app/actions/
+ ├─ attendance.ts
+ └─ leave.ts
+
+3.2 Attendance actions
+checkIn
+'use server'
+
+import { supabaseServer } from '@/lib/supabase-server'
+
+export async function checkIn() {
+  const supabase = supabaseServer()
+
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id')
+    .single()
+
+  const { error } = await supabase.from('attendance_logs').insert({
+    employee_id: employee.id,
+    check_in: new Date().toISOString()
+  })
+
+  if (error) throw error
+}
+
+checkOut
+export async function checkOut() {
+  const supabase = supabaseServer()
+
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id')
+    .single()
+
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { error } = await supabase
+    .from('attendance_logs')
+    .update({ check_out: new Date().toISOString() })
+    .eq('employee_id', employee.id)
+    .gte('check_in', `${today}T00:00:00`)
+
+  if (error) throw error
+}
+
+3.3 Leave actions
+createLeave
+'use server'
+
+export async function createLeave(form: {
+  from_date: string
+  to_date: string
+  leave_type: string
+  reason: string
+}) {
+  const supabase = supabaseServer()
+
+  const { data: employee } = await supabase
+    .from('employees')
+    .select('id')
+    .single()
+
+  const { error } = await supabase.from('leave_requests').insert({
+    employee_id: employee.id,
+    ...form,
+    status: 'pending'
+  })
+
+  if (error) throw error
+}
+
+approveLeave (Manager / HR)
+export async function approveLeave(
+  leave_id: string,
+  status: 'approved' | 'rejected'
+) {
+  const supabase = supabaseServer()
+
+  const { data: approver } = await supabase
+    .from('employees')
+    .select('id')
+    .single()
+
+  const { error } = await supabase
+    .from('leave_requests')
+    .update({
+      status,
+      approver_id: approver.id,
+      approved_at: new Date().toISOString()
+    })
+    .eq('id', leave_id)
+
+  if (error) throw error
+}
+
+4️⃣ FRONTEND – EMPLOYEE
+4.1 Attendance page
+
+/dashboard/employee/attendance/page.tsx
+
+'use client'
+
+import { checkIn, checkOut } from '@/app/actions/attendance'
+
+export default function AttendancePage() {
+  return (
+    <div>
+      <h1>Attendance</h1>
+      <button onClick={() => checkIn()}>Check In</button>
+      <button onClick={() => checkOut()}>Check Out</button>
+    </div>
+  )
+}
+
+4.2 Leave request page
+
+/dashboard/employee/leave/page.tsx
+
+'use client'
+
+import { createLeave } from '@/app/actions/leave'
+
+export default function LeavePage() {
+  async function submit(formData: FormData) {
+    await createLeave({
+      from_date: formData.get('from') as string,
+      to_date: formData.get('to') as string,
+      leave_type: formData.get('type') as string,
+      reason: formData.get('reason') as string
+    })
+  }
+
+  return (
+    <form action={submit}>
+      <input type="date" name="from" />
+      <input type="date" name="to" />
+      <select name="type">
+        <option value="annual">Annual</option>
+        <option value="sick">Sick</option>
+        <option value="unpaid">Unpaid</option>
+      </select>
+      <textarea name="reason" />
+      <button type="submit">Submit</button>
+    </form>
+  )
+}
+
+5️⃣ FRONTEND – MANAGER
+Leave approval
+
+/dashboard/manager/leave-approval/page.tsx
+
+import { approveLeave } from '@/app/actions/leave'
+import { supabaseServer } from '@/lib/supabase-server'
+
+export default async function LeaveApproval() {
+  const supabase = supabaseServer()
+
+  const { data: leaves } = await supabase
+    .from('leave_requests')
+    .select('id, from_date, to_date, status, employees(full_name)')
+    .eq('status', 'pending')
+
+  return (
+    <div>
+      {leaves.map((l) => (
+        <div key={l.id}>
+          <span>{l.employees.full_name}</span>
+          <button onClick={() => approveLeave(l.id, 'approved')}>
+            Approve
+          </button>
+          <button onClick={() => approveLeave(l.id, 'rejected')}>
+            Reject
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+6️⃣ CHECKLIST PHASE 2
+
+✅ Employee check-in / check-out
+✅ Không chấm công hộ người khác
+✅ Employee xin nghỉ
+✅ Manager duyệt đúng phòng
+✅ HR xem tất cả
+✅ Không leak dữ liệu
+
+7️⃣ LỖI PHỔ BIẾN (TRÁNH)
+
+❌ Không khóa 1 ngày / 1 record attendance
+❌ Cho employee update leave sau khi approved
+❌ Check quyền ở frontend
+❌ Không index theo employee + date

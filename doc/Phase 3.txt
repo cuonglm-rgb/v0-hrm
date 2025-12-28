@@ -1,0 +1,257 @@
+PHASE 3 – PAYROLL (BACKEND + FRONTEND)
+Tổng thể luồng chuẩn
+Attendance (raw)
+   ↓
+Work shift + Leave
+   ↓
+Workday calculation (job)
+   ↓
+Payroll run (draft)
+   ↓
+HR review
+   ↓
+LOCK
+   ↓
+Payslip
+
+1️⃣ BACKEND – DATABASE (PAYROLL CORE)
+1.1 salary_structure (lịch sử lương)
+create table salary_structure (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid references employees(id),
+  base_salary numeric not null,
+  allowance numeric default 0,
+  effective_date date not null,
+  created_at timestamptz default now()
+);
+
+create index idx_salary_employee_date
+on salary_structure(employee_id, effective_date);
+
+
+📌 Quy tắc:
+
+Không update
+
+Mỗi lần đổi lương → insert record mới
+
+1.2 payroll_runs
+create table payroll_runs (
+  id uuid primary key default gen_random_uuid(),
+  month int not null,
+  year int not null,
+  status text check (status in ('draft','locked','paid')),
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now(),
+  unique(month, year)
+);
+
+1.3 payroll_items (kết quả cuối)
+create table payroll_items (
+  id uuid primary key default gen_random_uuid(),
+  payroll_run_id uuid references payroll_runs(id),
+  employee_id uuid references employees(id),
+
+  working_days numeric,
+  leave_days numeric,
+  unpaid_leave_days numeric,
+
+  gross_salary numeric,
+  deduction numeric,
+  net_salary numeric,
+
+  created_at timestamptz default now(),
+  unique(payroll_run_id, employee_id)
+);
+
+2️⃣ BACKEND – WORKDAY CALCULATION (TRÁI TIM)
+2.1 Nguyên tắc tính công (VN chuẩn)
+
+Ví dụ:
+
+Công chuẩn: 26 ngày
+
+Lương tháng / 26 = lương ngày
+
+Nghỉ phép năm: vẫn hưởng lương
+
+Nghỉ không lương: trừ
+
+2.2 SQL helper – lấy lương hiệu lực
+select *
+from salary_structure
+where employee_id = $1
+  and effective_date <= $2
+order by effective_date desc
+limit 1;
+
+2.3 Attendance → working days (pseudo)
+working_days =
+  số ngày có check_in
+  - số ngày nghỉ không lương
+
+
+⚠️ KHÔNG tính theo giờ ở phase này
+(OT làm phase sau)
+
+3️⃣ BACKEND – SERVER ACTION PAYROLL
+3.1 generatePayroll (HR only)
+'use server'
+
+import { supabaseServer } from '@/lib/supabase-server'
+
+export async function generatePayroll(month: number, year: number) {
+  const supabase = supabaseServer()
+
+  // create payroll run
+  const { data: run } = await supabase
+    .from('payroll_runs')
+    .insert({
+      month,
+      year,
+      status: 'draft'
+    })
+    .select()
+    .single()
+
+  // fetch employees
+  const { data: employees } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('status', 'active')
+
+  for (const emp of employees) {
+    // fetch salary
+    const { data: salary } = await supabase
+      .from('salary_structure')
+      .select('*')
+      .eq('employee_id', emp.id)
+      .lte('effective_date', `${year}-${month}-01`)
+      .order('effective_date', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!salary) continue
+
+    // TODO: tính working_days, leave_days
+    const working_days = 26
+    const leave_days = 0
+    const unpaid_leave_days = 0
+
+    const daily_salary = salary.base_salary / 26
+    const gross = daily_salary * working_days
+    const deduction = daily_salary * unpaid_leave_days
+
+    await supabase.from('payroll_items').insert({
+      payroll_run_id: run.id,
+      employee_id: emp.id,
+      working_days,
+      leave_days,
+      unpaid_leave_days,
+      gross_salary: gross,
+      deduction,
+      net_salary: gross - deduction
+    })
+  }
+}
+
+3.2 lockPayroll (KHÓA – RẤT QUAN TRỌNG)
+export async function lockPayroll(run_id: string) {
+  const supabase = supabaseServer()
+
+  await supabase
+    .from('payroll_runs')
+    .update({ status: 'locked' })
+    .eq('id', run_id)
+}
+
+4️⃣ BACKEND – RLS PAYROLL (CỰC NHẠY CẢM)
+4.1 payroll_items – enable RLS
+alter table payroll_items enable row level security;
+
+Employee chỉ xem lương của mình
+create policy employee_view_own_payroll
+on payroll_items
+for select
+using (
+  employee_id in (
+    select id from employees where user_id = auth.uid()
+  )
+);
+
+HR full access
+create policy hr_full_payroll
+on payroll_items
+for all
+using (
+  exists (
+    select 1
+    from user_roles ur
+    join roles r on ur.role_id = r.id
+    where ur.user_id = auth.uid()
+      and r.code = 'hr'
+  )
+);
+
+❌ Manager KHÔNG có policy → không thấy gì
+5️⃣ FRONTEND – HR PAYROLL
+5.1 Payroll list
+/dashboard/hr/payroll
+
+
+Hiển thị:
+
+Tháng / năm
+
+Status
+
+Button:
+
+Generate
+
+Lock
+
+5.2 Payroll detail
+/dashboard/hr/payroll/[run_id]
+
+
+Table:
+
+Tên NV
+
+Công
+
+Gross
+
+Deduction
+
+Net
+
+6️⃣ FRONTEND – EMPLOYEE PAYSLIP
+/dashboard/employee/payroll
+
+
+Hiển thị:
+
+Tháng
+
+Net salary
+
+Chi tiết:
+
+Công
+
+Nghỉ
+
+Khấu trừ
+
+👉 Không cần check role FE
+👉 RLS tự bảo vệ
+
+7️⃣ CHECKLIST PHASE 3 (ĐẠT CHUẨN)
+
+✅ Lương lấy theo effective_date
+✅ Không sửa payroll sau khi lock
+✅ Employee chỉ xem mình
+✅ Manager không xem được
+✅ Payroll tái tạo được nếu xóa draft

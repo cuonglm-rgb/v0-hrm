@@ -174,3 +174,105 @@ export async function createEmployee(data: {
   revalidatePath("/dashboard/employees")
   return { success: true }
 }
+
+// Đổi phòng ban + lưu lịch sử
+export async function changeDepartment(
+  employeeId: string,
+  newDepartmentId: string,
+  salary?: number
+) {
+  const supabase = await createClient()
+
+  // Lấy thông tin hiện tại
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("department_id, position_id")
+    .eq("id", employeeId)
+    .single()
+
+  if (!employee) return { success: false, error: "Employee not found" }
+
+  const today = new Date().toISOString().split("T")[0]
+
+  // Đóng record lịch sử cũ
+  await supabase
+    .from("employee_job_history")
+    .update({ end_date: today })
+    .eq("employee_id", employeeId)
+    .is("end_date", null)
+
+  // Tạo record lịch sử mới
+  await supabase.from("employee_job_history").insert({
+    employee_id: employeeId,
+    department_id: newDepartmentId,
+    position_id: employee.position_id,
+    salary: salary || null,
+    start_date: today,
+  })
+
+  // Update employee
+  const { error } = await supabase
+    .from("employees")
+    .update({ department_id: newDepartmentId, updated_at: new Date().toISOString() })
+    .eq("id", employeeId)
+
+  if (error) {
+    console.error("Error changing department:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/employees")
+  revalidatePath(`/dashboard/employees/${employeeId}`)
+  return { success: true }
+}
+
+// Đổi chức vụ + lưu lịch sử
+export async function changePosition(
+  employeeId: string,
+  newPositionId: string,
+  salary?: number
+) {
+  const supabase = await createClient()
+
+  // Lấy thông tin hiện tại
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("department_id, position_id")
+    .eq("id", employeeId)
+    .single()
+
+  if (!employee) return { success: false, error: "Employee not found" }
+
+  const today = new Date().toISOString().split("T")[0]
+
+  // Đóng record lịch sử cũ
+  await supabase
+    .from("employee_job_history")
+    .update({ end_date: today })
+    .eq("employee_id", employeeId)
+    .is("end_date", null)
+
+  // Tạo record lịch sử mới
+  await supabase.from("employee_job_history").insert({
+    employee_id: employeeId,
+    department_id: employee.department_id,
+    position_id: newPositionId,
+    salary: salary || null,
+    start_date: today,
+  })
+
+  // Update employee
+  const { error } = await supabase
+    .from("employees")
+    .update({ position_id: newPositionId, updated_at: new Date().toISOString() })
+    .eq("id", employeeId)
+
+  if (error) {
+    console.error("Error changing position:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/employees")
+  revalidatePath(`/dashboard/employees/${employeeId}`)
+  return { success: true }
+}

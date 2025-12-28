@@ -1,0 +1,230 @@
+{
+  "node": {
+    "00615a52a55e0a543ef75e5baea30072c1753e165d": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "listEmployees",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "listEmployees",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "00883990eb87fcbb43d391263ac0e80258f50fa142": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "getMyRoles",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "getMyRoles",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "00b03b68086147c4f3c87b418d7c215dd6cb117979": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "getMyEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "getMyEmployee",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "4079a4797cba7170c9f24cb929d39c5458459914fe": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "updateMyProfile",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "updateMyProfile",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "40ddf02cc5e4765fa3a030fd637e5f355c5f442611": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "createEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "createEmployee",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "40e459b772c74c679b1dae2e3f27180379dec5296b": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "getEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "getEmployee",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "602895f5cf22992ec5b7c548983ba3ab1dbcb8093a": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "updateEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "action-browser"
+      },
+      "exportedName": "updateEmployee",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "0031c11a418a59d70344f445ed7cb987eb2d1bd072": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "listPositions",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "listPositions",
+      "filename": "lib/actions/department-actions.ts"
+    },
+    "00cb34bb7586d41871dfb9563a4a3bb133f4f4fb9c": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "listDepartments",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "listDepartments",
+      "filename": "lib/actions/department-actions.ts"
+    },
+    "40d43bd0abacbac93f2bc354b1ff4c566d9c7aa34b": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "createDepartment",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "createDepartment",
+      "filename": "lib/actions/department-actions.ts"
+    },
+    "60f9a1ddfff114a346f6210ccc32da65669ccd624a": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "updateDepartment",
+          "filename": "lib/actions/department-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "updateDepartment",
+      "filename": "lib/actions/department-actions.ts"
+    },
+    "006908b65105a6649dde5900b3192cddc326f6f2a9": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "listRoles",
+          "filename": "lib/actions/role-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "listRoles",
+      "filename": "lib/actions/role-actions.ts"
+    },
+    "40a61802a1e18ea2d934a26f4496a52b4191335753": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "getUserRoles",
+          "filename": "lib/actions/role-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "rsc"
+      },
+      "exportedName": "getUserRoles",
+      "filename": "lib/actions/role-actions.ts"
+    },
+    "605ea632d708723700721e3ac66b7c5364f937262c": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "removeRole",
+          "filename": "lib/actions/role-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "action-browser"
+      },
+      "exportedName": "removeRole",
+      "filename": "lib/actions/role-actions.ts"
+    },
+    "70797d62fb53121d1b1491d358e9110f184df7ce20": {
+      "workers": {
+        "app/dashboard/employees/[id]/page": {
+          "moduleId": 46794,
+          "async": false,
+          "exportedName": "assignRole",
+          "filename": "lib/actions/role-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/employees/[id]/page": "action-browser"
+      },
+      "exportedName": "assignRole",
+      "filename": "lib/actions/role-actions.ts"
+    }
+  },
+  "edge": {}
+}

@@ -1,0 +1,268 @@
+Mình sẽ làm PHASE 1 – EMPLOYEE CRUD (FULL BACKEND + FRONTEND) theo đúng chuẩn Supabase + Next.js App Router, kiểu copy làm được ngay, không lý thuyết thừa.
+
+🎯 Kết quả Phase 1
+HR có thể:
+
+Xem danh sách nhân sự
+
+Tạo / sửa nhân sự
+
+Xem chi tiết + lịch sử công việc
+
+Employee:
+
+Chỉ xem hồ sơ của mình
+
+PHASE 1 – EMPLOYEE CRUD (CORE HR)
+1️⃣ BACKEND – DATABASE (nhắc nhanh)
+
+Bạn đã có:
+
+employees
+
+departments
+
+positions
+
+employee_job_history
+
+RLS
+
+👉 Phase này KHÔNG đụng payroll / attendance
+
+2️⃣ BACKEND – SERVER ACTION (QUAN TRỌNG)
+2.1 Cấu trúc thư mục
+app/
+ ├─ actions/
+ │   └─ employees.ts
+ ├─ dashboard/
+ │   └─ hr/
+ │       └─ employees/
+
+2.2 Supabase server client
+
+lib/supabase-server.ts
+
+import { createServerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+
+export function supabaseServer() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!, // server only
+    { cookies }
+  )
+}
+
+
+⚠️ File này chỉ dùng ở server
+
+2.3 Action: getEmployees (HR list)
+// app/actions/employees.ts
+'use server'
+
+import { supabaseServer } from '@/lib/supabase-server'
+
+export async function getEmployees() {
+  const supabase = supabaseServer()
+
+  const { data, error } = await supabase
+    .from('employees')
+    .select(`
+      id,
+      employee_code,
+      full_name,
+      email,
+      status,
+      departments(name),
+      positions(name)
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data
+}
+
+
+👉 RLS sẽ tự lọc theo role
+
+2.4 Action: createEmployee (HR)
+export async function createEmployee(form: {
+  employee_code: string
+  full_name: string
+  email: string
+  department_id: string
+  position_id: string
+  join_date: string
+}) {
+  const supabase = supabaseServer()
+
+  const { error } = await supabase.from('employees').insert({
+    ...form,
+    status: 'onboarding'
+  })
+
+  if (error) throw error
+}
+
+2.5 Action: updateEmployee
+export async function updateEmployee(
+  id: string,
+  form: Partial<{
+    full_name: string
+    email: string
+    department_id: string
+    position_id: string
+    status: string
+  }>
+) {
+  const supabase = supabaseServer()
+
+  const { error } = await supabase
+    .from('employees')
+    .update(form)
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+2.6 Action: changeJob (ghi lịch sử)
+export async function changeJob(
+  employee_id: string,
+  department_id: string,
+  position_id: string,
+  salary?: number
+) {
+  const supabase = supabaseServer()
+
+  // close old job
+  await supabase
+    .from('employee_job_history')
+    .update({ end_date: new Date().toISOString() })
+    .eq('employee_id', employee_id)
+    .is('end_date', null)
+
+  // insert new job
+  const { error } = await supabase
+    .from('employee_job_history')
+    .insert({
+      employee_id,
+      department_id,
+      position_id,
+      salary,
+      start_date: new Date().toISOString()
+    })
+
+  if (error) throw error
+}
+
+3️⃣ FRONTEND – HR UI
+3.1 Danh sách nhân sự
+
+/dashboard/hr/employees/page.tsx
+
+import { getEmployees } from '@/app/actions/employees'
+
+export default async function EmployeePage() {
+  const employees = await getEmployees()
+
+  return (
+    <div>
+      <h1>Employees</h1>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Mã</th>
+            <th>Tên</th>
+            <th>Phòng</th>
+            <th>Vị trí</th>
+            <th>Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+          {employees.map((e) => (
+            <tr key={e.id}>
+              <td>{e.employee_code}</td>
+              <td>{e.full_name}</td>
+              <td>{e.departments?.name}</td>
+              <td>{e.positions?.name}</td>
+              <td>{e.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+3.2 Tạo nhân sự
+
+/dashboard/hr/employees/new/page.tsx
+
+'use client'
+
+import { createEmployee } from '@/app/actions/employees'
+
+export default function NewEmployee() {
+  async function onSubmit(formData: FormData) {
+    await createEmployee({
+      employee_code: formData.get('code') as string,
+      full_name: formData.get('name') as string,
+      email: formData.get('email') as string,
+      department_id: formData.get('department') as string,
+      position_id: formData.get('position') as string,
+      join_date: formData.get('join_date') as string
+    })
+  }
+
+  return (
+    <form action={onSubmit}>
+      <input name="code" placeholder="Employee Code" />
+      <input name="name" placeholder="Full name" />
+      <input name="email" />
+      <button type="submit">Create</button>
+    </form>
+  )
+}
+
+4️⃣ FRONTEND – EMPLOYEE VIEW (SELF PROFILE)
+
+/dashboard/employee/profile/page.tsx
+
+import { supabaseServer } from '@/lib/supabase-server'
+
+export default async function MyProfile() {
+  const supabase = supabaseServer()
+
+  const { data } = await supabase
+    .from('employees')
+    .select('*')
+    .single()
+
+  return (
+    <div>
+      <h2>{data.full_name}</h2>
+      <p>{data.email}</p>
+      <p>Status: {data.status}</p>
+    </div>
+  )
+}
+
+
+👉 RLS đảm bảo chỉ ra đúng 1 record của user
+
+5️⃣ CHECKLIST PHASE 1 (xong là OK)
+
+✅ HR list nhân sự
+✅ HR tạo / sửa nhân sự
+✅ Lưu lịch sử công việc
+✅ Employee chỉ xem mình
+✅ Không leak data
+
+6️⃣ LỖI THƯỜNG GẶP (NHỚ TRÁNH)
+
+❌ CRUD từ client Supabase trực tiếp
+❌ Không ghi job history khi đổi phòng
+❌ Cho manager sửa lương
+❌ Delete nhân viên

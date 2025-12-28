@@ -1,0 +1,15 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/auth/callback/route": "app/auth/callback/route.js",
+  "/auth/error/page": "app/auth/error/page.js",
+  "/dashboard/departments/page": "app/dashboard/departments/page.js",
+  "/dashboard/employees/[id]/page": "app/dashboard/employees/[id]/page.js",
+  "/dashboard/employees/new/page": "app/dashboard/employees/new/page.js",
+  "/dashboard/employees/page": "app/dashboard/employees/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/profile/page": "app/dashboard/profile/page.js",
+  "/dashboard/settings/page": "app/dashboard/settings/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js"
+}

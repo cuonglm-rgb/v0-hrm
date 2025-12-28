@@ -1,0 +1,186 @@
+PHẦN 1 – DATABASE DESIGN (CORE HRM)
+1. Nguyên tắc thiết kế (rất quan trọng)
+
+✅ Dùng UUID
+✅ Không xóa cứng dữ liệu nhân sự
+✅ Lưu lịch sử thay đổi (job, lương)
+✅ Phân quyền bằng RLS, không check quyền ở frontend
+✅ Tách bảng “log / history”
+
+2. Sơ đồ bảng chính (Core Tables)
+auth.users
+   │
+   └── employees
+         ├── employee_job_history
+         ├── salary_structure
+         ├── attendance_logs
+         ├── leave_requests
+         └── payroll_items
+
+PHẦN 2 – SQL SCHEMA (CORE HR)
+2.1 departments
+create table departments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  parent_id uuid references departments(id),
+  created_at timestamptz default now()
+);
+
+2.2 positions
+create table positions (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  level int,
+  created_at timestamptz default now()
+);
+
+2.3 employees (BẢNG QUAN TRỌNG NHẤT)
+create table employees (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid unique references auth.users(id),
+  employee_code text unique not null,
+  full_name text not null,
+  email text,
+  phone text,
+  dob date,
+
+  department_id uuid references departments(id),
+  position_id uuid references positions(id),
+  manager_id uuid references employees(id),
+
+  join_date date,
+  status text check (status in ('onboarding','active','resigned')),
+
+  created_at timestamptz default now()
+);
+
+
+📌 KHÔNG DELETE nhân viên – chỉ update status
+
+2.4 employee_job_history (lịch sử chức danh & lương)
+create table employee_job_history (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid references employees(id),
+  department_id uuid references departments(id),
+  position_id uuid references positions(id),
+  salary numeric,
+  start_date date not null,
+  end_date date,
+  created_at timestamptz default now()
+);
+
+PHẦN 3 – ATTENDANCE & LEAVE (rút gọn)
+3.1 attendance_logs
+create table attendance_logs (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid references employees(id),
+  check_in timestamptz,
+  check_out timestamptz,
+  source text,
+  created_at timestamptz default now()
+);
+
+3.2 leave_requests
+create table leave_requests (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid references employees(id),
+  leave_type text,
+  from_date date,
+  to_date date,
+  status text check (status in ('pending','approved','rejected')),
+  approver_id uuid references employees(id),
+  created_at timestamptz default now()
+);
+
+PHẦN 4 – PAYROLL (core, chưa full)
+4.1 payroll_runs
+create table payroll_runs (
+  id uuid primary key default gen_random_uuid(),
+  month int,
+  year int,
+  status text check (status in ('draft','locked','paid')),
+  created_at timestamptz default now()
+);
+
+4.2 payroll_items
+create table payroll_items (
+  id uuid primary key default gen_random_uuid(),
+  payroll_run_id uuid references payroll_runs(id),
+  employee_id uuid references employees(id),
+  total_income numeric,
+  total_deduction numeric,
+  net_salary numeric
+);
+
+PHẦN 5 – ROLE MODEL (RBAC)
+5.1 roles
+create table roles (
+  id uuid primary key default gen_random_uuid(),
+  code text unique,
+  name text
+);
+
+Dữ liệu mẫu:
+admin | hr | manager | employee
+
+5.2 user_roles
+create table user_roles (
+  user_id uuid references auth.users(id),
+  role_id uuid references roles(id),
+  department_id uuid references departments(id),
+  primary key (user_id, role_id)
+);
+
+PHẦN 6 – RLS POLICY (TRÁI TIM CỦA SUPABASE)
+6.1 Bật RLS
+alter table employees enable row level security;
+
+6.2 Employee chỉ xem chính mình
+create policy employee_view_self
+on employees
+for select
+using (
+  user_id = auth.uid()
+);
+
+6.3 HR xem toàn bộ nhân sự
+create policy hr_view_all
+on employees
+for select
+using (
+  exists (
+    select 1 from user_roles ur
+    join roles r on ur.role_id = r.id
+    where ur.user_id = auth.uid()
+      and r.code = 'hr'
+  )
+);
+
+6.4 Manager xem nhân viên phòng mình
+create policy manager_view_department
+on employees
+for select
+using (
+  department_id in (
+    select department_id
+    from employees
+    where user_id = auth.uid()
+  )
+);
+
+6.5 Employee tạo leave request cho mình
+alter table leave_requests enable row level security;
+
+create policy employee_create_leave
+on leave_requests
+for insert
+with check (
+  employee_id in (
+    select id from employees where user_id = auth.uid()
+  )
+);
+
+PHẦN 7 – INDEX (BẮT BUỘC CHO PERFORMANCE)
+create index idx_employee_department on employees(department_id);
+create index idx_attendance_employee on attendance_logs(employee_id);
+create index idx_leave_employee on leave_requests(employee_id);

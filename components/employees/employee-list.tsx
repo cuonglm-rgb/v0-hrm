@@ -10,11 +10,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Eye, UserPlus } from "lucide-react"
-import type { EmployeeWithRelations, UserRoleWithRelations } from "@/lib/types/database"
+import type { EmployeeWithRelations, UserRoleWithRelations, Department } from "@/lib/types/database"
 
 interface EmployeeListProps {
   employees: EmployeeWithRelations[]
   userRoles: UserRoleWithRelations[]
+  departments?: Department[]
 }
 
 const statusColors: Record<string, string> = {
@@ -29,9 +30,10 @@ const statusLabels: Record<string, string> = {
   resigned: "Resigned",
 }
 
-export function EmployeeList({ employees, userRoles }: EmployeeListProps) {
+export function EmployeeList({ employees, userRoles, departments = [] }: EmployeeListProps) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all")
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const isHROrAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
@@ -43,8 +45,9 @@ export function EmployeeList({ employees, userRoles }: EmployeeListProps) {
       emp.employee_code?.toLowerCase().includes(search.toLowerCase())
 
     const matchesStatus = statusFilter === "all" || emp.status === statusFilter
+    const matchesDepartment = departmentFilter === "all" || emp.department_id === departmentFilter
 
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesStatus && matchesDepartment
   })
 
   return (
@@ -76,6 +79,19 @@ export function EmployeeList({ employees, userRoles }: EmployeeListProps) {
                 className="pl-9"
               />
             </div>
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Filter by department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filter by status" />

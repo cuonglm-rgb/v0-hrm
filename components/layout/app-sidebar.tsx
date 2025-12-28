@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut } from "lucide-react"
+import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut, Clock, CalendarDays, CheckSquare, Wallet, Receipt, FileSpreadsheet } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -23,23 +23,56 @@ import type { EmployeeWithRelations, UserRoleWithRelations } from "@/lib/types/d
 
 const mainNavItems = [
   {
-    title: "Dashboard",
+    title: "Tổng quan",
     url: "/dashboard",
     icon: LayoutDashboard,
   },
   {
-    title: "Employees",
+    title: "Chấm công",
+    url: "/dashboard/attendance",
+    icon: Clock,
+  },
+  {
+    title: "Nghỉ phép",
+    url: "/dashboard/leave",
+    icon: CalendarDays,
+  },
+  {
+    title: "Phiếu lương",
+    url: "/dashboard/payslip",
+    icon: Receipt,
+  },
+  {
+    title: "Duyệt nghỉ phép",
+    url: "/dashboard/leave-approval",
+    icon: CheckSquare,
+    roles: ["hr", "admin", "manager"],
+  },
+  {
+    title: "Quản lý chấm công",
+    url: "/dashboard/attendance-management",
+    icon: FileSpreadsheet,
+    roles: ["hr", "admin"],
+  },
+  {
+    title: "Bảng lương",
+    url: "/dashboard/payroll",
+    icon: Wallet,
+    roles: ["hr", "admin"],
+  },
+  {
+    title: "Nhân viên",
     url: "/dashboard/employees",
     icon: Users,
     roles: ["hr", "admin", "manager"],
   },
   {
-    title: "Departments",
+    title: "Phòng ban",
     url: "/dashboard/departments",
     icon: Building2,
   },
   {
-    title: "My Profile",
+    title: "Hồ sơ cá nhân",
     url: "/dashboard/profile",
     icon: UserCircle,
   },
@@ -87,7 +120,7 @@ export function AppSidebar({ employee, userRoles }: AppSidebarProps) {
           </div>
           <div className="flex flex-col">
             <span className="font-semibold text-sidebar-foreground">HRM System</span>
-            <span className="text-xs text-sidebar-foreground/60">Phase 1</span>
+            <span className="text-xs text-sidebar-foreground/60">Phase 3</span>
           </div>
         </div>
       </SidebarHeader>
@@ -113,14 +146,14 @@ export function AppSidebar({ employee, userRoles }: AppSidebarProps) {
 
         {isHROrAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupLabel>Quản trị</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings"}>
                     <Link href="/dashboard/settings">
                       <Settings className="h-4 w-4" />
-                      <span>Settings</span>
+                      <span>Cài đặt</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -131,25 +164,23 @@ export function AppSidebar({ employee, userRoles }: AppSidebarProps) {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={employee?.avatar_url || ""} alt={employee?.full_name || ""} />
+            <AvatarFallback className="bg-indigo-100 text-indigo-600 text-sm">{initials}</AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col flex-1 min-w-0">
+            <span className="text-sm font-medium text-sidebar-foreground truncate">
+              {employee?.full_name || "User"}
+            </span>
+            <span className="text-xs text-sidebar-foreground/60 truncate">{employee?.email}</span>
+          </div>
+        </div>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex items-center gap-3 px-2 py-2">
-              <Avatar className="h-8 w-8">
-                <AvatarImage src={employee?.avatar_url || ""} alt={employee?.full_name || ""} />
-                <AvatarFallback className="bg-indigo-100 text-indigo-600 text-sm">{initials}</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-sm font-medium text-sidebar-foreground truncate">
-                  {employee?.full_name || "User"}
-                </span>
-                <span className="text-xs text-sidebar-foreground/60 truncate">{employee?.email}</span>
-              </div>
-            </div>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
-              <span>Logout</span>
+              <span>Đăng xuất</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

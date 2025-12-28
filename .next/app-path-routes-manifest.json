@@ -1,0 +1,15 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/auth/callback/route": "/auth/callback",
+  "/auth/error/page": "/auth/error",
+  "/dashboard/departments/page": "/dashboard/departments",
+  "/dashboard/employees/[id]/page": "/dashboard/employees/[id]",
+  "/dashboard/employees/new/page": "/dashboard/employees/new",
+  "/dashboard/employees/page": "/dashboard/employees",
+  "/dashboard/page": "/dashboard",
+  "/dashboard/profile/page": "/dashboard/profile",
+  "/dashboard/settings/page": "/dashboard/settings",
+  "/login/page": "/login",
+  "/page": "/"
+}

@@ -1,0 +1,230 @@
+{
+  "node": {
+    "005e20e2e268d812762b030e4aac3b7693066871b6": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getMyRoles",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "getMyRoles",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "00636a7c2e61bd285b975ea815e7fbbefdffae959f": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getMyEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "getMyEmployee",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "00b0c7f0352396833a3aa70b738bb3a8c2a485efae": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "listEmployees",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "listEmployees",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "4072cdebcca1df607d08f62096843ddf91d2cf29f6": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "createEmployee",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "407a7f2085358134fb9b61998dbd9fa880ad52c2cf": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateMyProfile",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "updateMyProfile",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "409df3c5b25ea33596f872aab0b186da47271a8e80": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "getEmployee",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "60e7529b55507157f11112b5c625757ac226a23a7c": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateEmployee",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "updateEmployee",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "701419c868154523741dd2880ac65e97064ceb8620": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "changeDepartment",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "changeDepartment",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "70daddb01ea9f495d095baa024616ddfa6ee94f8dd": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "changePosition",
+          "filename": "lib/actions/employee-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "changePosition",
+      "filename": "lib/actions/employee-actions.ts"
+    },
+    "004f8ac509d8c63ac1f75a13f400b490249a90aa6a": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getMyLeaveRequests",
+          "filename": "lib/actions/leave-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "getMyLeaveRequests",
+      "filename": "lib/actions/leave-actions.ts"
+    },
+    "4055415c0a91f32fcfb6f35153606167c5e2561264": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "rejectLeaveRequest",
+          "filename": "lib/actions/leave-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "action-browser"
+      },
+      "exportedName": "rejectLeaveRequest",
+      "filename": "lib/actions/leave-actions.ts"
+    },
+    "4061c5d78bb72b7f647e5946c2c4d50669bd4b22db": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "approveLeaveRequest",
+          "filename": "lib/actions/leave-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "action-browser"
+      },
+      "exportedName": "approveLeaveRequest",
+      "filename": "lib/actions/leave-actions.ts"
+    },
+    "408aaabafb56d86415bd6d2c5804f8915bb7c02357": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "listLeaveRequests",
+          "filename": "lib/actions/leave-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "listLeaveRequests",
+      "filename": "lib/actions/leave-actions.ts"
+    },
+    "408b2507420e745ac1bdcb3611fab83db88edf0f05": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "cancelLeaveRequest",
+          "filename": "lib/actions/leave-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "cancelLeaveRequest",
+      "filename": "lib/actions/leave-actions.ts"
+    },
+    "40d8fbd856953646de7ab8c23a0495f7b607391a05": {
+      "workers": {
+        "app/dashboard/leave-approval/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/leave-approval/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createLeaveRequest",
+          "filename": "lib/actions/leave-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/leave-approval/page": "rsc"
+      },
+      "exportedName": "createLeaveRequest",
+      "filename": "lib/actions/leave-actions.ts"
+    }
+  },
+  "edge": {}
+}
