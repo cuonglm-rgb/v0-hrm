@@ -7,9 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { lockPayroll, markPayrollPaid } from "@/lib/actions/payroll-actions"
+import { PayrollBreakdownDialog } from "./payroll-breakdown-dialog"
 import type { PayrollRun, PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
-import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator } from "lucide-react"
+import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye } from "lucide-react"
+
+const STANDARD_WORKING_DAYS = 26
 
 interface PayrollDetailPanelProps {
   payrollRun: PayrollRun
@@ -18,6 +21,8 @@ interface PayrollDetailPanelProps {
 
 export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPanelProps) {
   const [loading, setLoading] = useState<"lock" | "paid" | null>(null)
+  const [selectedItem, setSelectedItem] = useState<PayrollItemWithRelations | null>(null)
+  const [showBreakdown, setShowBreakdown] = useState(false)
 
   const handleLock = async () => {
     if (!confirm("Sau khi khóa sẽ không thể chỉnh sửa. Bạn có chắc?")) return
@@ -124,7 +129,7 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
         <CardHeader>
           <CardTitle>Chi tiết lương nhân viên</CardTitle>
           <CardDescription>
-            Kỳ lương tháng {payrollRun.month}/{payrollRun.year}
+            Kỳ lương tháng {payrollRun.month}/{payrollRun.year} - Click vào dòng để xem cơ cấu chi tiết
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -140,7 +145,7 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
                 <TableHead className="text-right">Thu nhập</TableHead>
                 <TableHead className="text-right">Khấu trừ</TableHead>
                 <TableHead className="text-right">Thực lĩnh</TableHead>
-                <TableHead>Ghi chú</TableHead>
+                <TableHead className="text-center">Chi tiết</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -152,7 +157,14 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
                 </TableRow>
               ) : (
                 payrollItems.map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow 
+                    key={item.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => {
+                      setSelectedItem(item)
+                      setShowBreakdown(true)
+                    }}
+                  >
                     <TableCell>
                       <div>
                         <div className="font-medium">{item.employee?.full_name}</div>
@@ -175,10 +187,18 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
                     <TableCell className="text-right font-bold text-green-600">
                       {formatCurrency(item.net_salary)}
                     </TableCell>
-                    <TableCell>
-                      {item.note && (
-                        <span className="text-xs text-muted-foreground">{item.note}</span>
-                      )}
+                    <TableCell className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedItem(item)
+                          setShowBreakdown(true)
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -187,6 +207,14 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog chi tiết cơ cấu lương */}
+      <PayrollBreakdownDialog
+        open={showBreakdown}
+        onOpenChange={setShowBreakdown}
+        payrollItem={selectedItem}
+        standardWorkingDays={STANDARD_WORKING_DAYS}
+      />
     </div>
   )
 }

@@ -49,6 +49,7 @@ import type {
   PayrollAdjustmentType,
   AdjustmentAutoRules,
   AdjustmentCategory,
+  ExemptRequestType,
 } from "@/lib/types/database"
 
 interface AllowanceListProps {
@@ -551,11 +552,79 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                         onCheckedChange={(v: boolean) =>
                           setFormData({
                             ...formData,
-                            auto_rules: { ...formData.auto_rules, exempt_with_request: v },
+                            auto_rules: { 
+                              ...formData.auto_rules, 
+                              exempt_with_request: v,
+                              exempt_request_types: v ? (formData.auto_rules.exempt_request_types || ["late_arrival", "early_leave"]) : undefined,
+                            },
                           })
                         }
                       />
                     </div>
+                    {formData.auto_rules.exempt_with_request && (
+                      <div className="space-y-2 pl-4 border-l-2 border-amber-300">
+                        <Label className="text-sm">Loại phiếu được miễn:</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="exempt_late"
+                              checked={formData.auto_rules.exempt_request_types?.includes("late_arrival") ?? true}
+                              onChange={(e) => {
+                                const types = formData.auto_rules.exempt_request_types || ["late_arrival", "early_leave"] as ExemptRequestType[]
+                                const newTypes: ExemptRequestType[] = e.target.checked
+                                  ? [...types.filter(t => t !== "late_arrival"), "late_arrival"]
+                                  : types.filter(t => t !== "late_arrival")
+                                setFormData({
+                                  ...formData,
+                                  auto_rules: { ...formData.auto_rules, exempt_request_types: newTypes },
+                                })
+                              }}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <Label htmlFor="exempt_late" className="text-sm font-normal">Phiếu đi muộn</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="exempt_early"
+                              checked={formData.auto_rules.exempt_request_types?.includes("early_leave") ?? true}
+                              onChange={(e) => {
+                                const types = formData.auto_rules.exempt_request_types || ["late_arrival", "early_leave"] as ExemptRequestType[]
+                                const newTypes: ExemptRequestType[] = e.target.checked
+                                  ? [...types.filter(t => t !== "early_leave"), "early_leave"]
+                                  : types.filter(t => t !== "early_leave")
+                                setFormData({
+                                  ...formData,
+                                  auto_rules: { ...formData.auto_rules, exempt_request_types: newTypes },
+                                })
+                              }}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <Label htmlFor="exempt_early" className="text-sm font-normal">Phiếu về sớm</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="exempt_half_day"
+                              checked={formData.auto_rules.exempt_request_types?.includes("half_day_leave") ?? false}
+                              onChange={(e) => {
+                                const types = formData.auto_rules.exempt_request_types || ["late_arrival", "early_leave"] as ExemptRequestType[]
+                                const newTypes: ExemptRequestType[] = e.target.checked
+                                  ? [...types.filter(t => t !== "half_day_leave"), "half_day_leave"]
+                                  : types.filter(t => t !== "half_day_leave")
+                                setFormData({
+                                  ...formData,
+                                  auto_rules: { ...formData.auto_rules, exempt_request_types: newTypes },
+                                })
+                              }}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <Label htmlFor="exempt_half_day" className="text-sm font-normal">Phiếu nghỉ nửa ngày</Label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

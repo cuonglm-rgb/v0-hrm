@@ -472,7 +472,6 @@ async function generatePayroll(month, year) {
             ascending: false
         }).limit(1).maybeSingle();
         const baseSalary = salary?.base_salary || 0;
-        const salaryAllowance = salary?.allowance || 0;
         const dailySalary = baseSalary / STANDARD_WORKING_DAYS;
         // Đếm ngày công
         const { count: workingDaysCount } = await supabase.from("attendance_logs").select("*", {
@@ -507,7 +506,7 @@ async function generatePayroll(month, year) {
         // =============================================
         // TÍNH TOÁN PHỤ CẤP, KHẤU TRỪ, PHẠT
         // =============================================
-        let totalAllowances = salaryAllowance // Phụ cấp từ salary structure
+        let totalAllowances = 0 // Phụ cấp từ payroll_adjustment_types
         ;
         let totalDeductions = 0;
         let totalPenalties = 0;
@@ -517,19 +516,40 @@ async function generatePayroll(month, year) {
             for (const adjType of adjustmentTypes){
                 if (!adjType.is_auto_applied) continue;
                 const rules = adjType.auto_rules;
-                if (!rules) continue;
+                // ========== KHẤU TRỪ TỰ ĐỘNG (Quỹ chung, BHXH...) ==========
+                if (adjType.category === "deduction") {
+                    let finalAmount = adjType.amount;
+                    // Tính BHXH theo % lương cơ bản nếu có rule
+                    if (rules?.calculate_from === "base_salary" && rules?.percentage) {
+                        finalAmount = baseSalary * rules.percentage / 100;
+                    }
+                    totalDeductions += finalAmount;
+                    adjustmentDetails.push({
+                        adjustment_type_id: adjType.id,
+                        category: "deduction",
+                        base_amount: adjType.amount,
+                        adjusted_amount: 0,
+                        final_amount: finalAmount,
+                        reason: adjType.name,
+                        occurrence_count: 1
+                    });
+                    continue;
+                }
+                // ========== PHỤ CẤP TỰ ĐỘNG ==========
                 if (adjType.category === "allowance") {
-                    // Phụ cấp ăn trưa - tính theo ngày công
+                    // Phụ cấp theo ngày công (ăn trưa)
                     if (adjType.calculation_type === "daily") {
                         let eligibleDays = workingDays;
-                        // Trừ ngày nghỉ
-                        if (rules.deduct_on_absent) {
-                            eligibleDays -= unpaidLeaveDays;
-                        }
-                        // Trừ nếu đi muộn quá số lần cho phép
-                        if (rules.deduct_on_late && rules.late_grace_count !== undefined) {
-                            const excessLateDays = Math.max(0, lateCount - rules.late_grace_count);
-                            eligibleDays -= excessLateDays;
+                        if (rules) {
+                            // Trừ ngày nghỉ
+                            if (rules.deduct_on_absent) {
+                                eligibleDays -= unpaidLeaveDays;
+                            }
+                            // Trừ nếu đi muộn quá số lần cho phép
+                            if (rules.deduct_on_late && rules.late_grace_count !== undefined) {
+                                const excessLateDays = Math.max(0, lateCount - rules.late_grace_count);
+                                eligibleDays -= excessLateDays;
+                            }
                         }
                         eligibleDays = Math.max(0, eligibleDays);
                         const amount = eligibleDays * adjType.amount;
@@ -546,10 +566,35 @@ async function generatePayroll(month, year) {
                             });
                         }
                     }
-                    // Phụ cấp chuyên cần - mất toàn bộ nếu vi phạm
-                    if (adjType.calculation_type === "fixed" && rules.full_deduct_threshold !== undefined) {
-                        const shouldDeduct = lateCount > rules.full_deduct_threshold || unpaidLeaveDays > 0;
-                        if (!shouldDeduct) {
+                    // Phụ cấp cố định (chuyên cần)
+                    if (adjType.calculation_type === "fixed") {
+                        if (rules?.full_deduct_threshold !== undefined) {
+                            // Có điều kiện - mất toàn bộ nếu vi phạm
+                            const shouldDeduct = lateCount > rules.full_deduct_threshold || unpaidLeaveDays > 0;
+                            if (!shouldDeduct) {
+                                totalAllowances += adjType.amount;
+                                adjustmentDetails.push({
+                                    adjustment_type_id: adjType.id,
+                                    category: "allowance",
+                                    base_amount: adjType.amount,
+                                    adjusted_amount: 0,
+                                    final_amount: adjType.amount,
+                                    reason: "Đủ điều kiện chuyên cần",
+                                    occurrence_count: 1
+                                });
+                            } else {
+                                adjustmentDetails.push({
+                                    adjustment_type_id: adjType.id,
+                                    category: "allowance",
+                                    base_amount: adjType.amount,
+                                    adjusted_amount: adjType.amount,
+                                    final_amount: 0,
+                                    reason: `Mất phụ cấp: đi muộn ${lateCount} lần, nghỉ không phép ${unpaidLeaveDays} ngày`,
+                                    occurrence_count: 0
+                                });
+                            }
+                        } else {
+                            // Không có điều kiện - cộng thẳng
                             totalAllowances += adjType.amount;
                             adjustmentDetails.push({
                                 adjustment_type_id: adjType.id,
@@ -557,28 +602,17 @@ async function generatePayroll(month, year) {
                                 base_amount: adjType.amount,
                                 adjusted_amount: 0,
                                 final_amount: adjType.amount,
-                                reason: "Đủ điều kiện chuyên cần",
+                                reason: adjType.name,
                                 occurrence_count: 1
-                            });
-                        } else {
-                            adjustmentDetails.push({
-                                adjustment_type_id: adjType.id,
-                                category: "allowance",
-                                base_amount: adjType.amount,
-                                adjusted_amount: adjType.amount,
-                                final_amount: 0,
-                                reason: `Mất phụ cấp: đi muộn ${lateCount} lần, nghỉ không phép ${unpaidLeaveDays} ngày`,
-                                occurrence_count: 0
                             });
                         }
                     }
+                    continue;
                 }
-                // Phạt đi muộn - đọc threshold từ auto_rules
-                if (adjType.category === "penalty" && rules.trigger === "late") {
+                // ========== PHẠT TỰ ĐỘNG ==========
+                if (adjType.category === "penalty" && rules?.trigger === "late") {
                     const thresholdMinutes = rules.late_threshold_minutes || 30;
-                    const exemptWithRequest = rules.exempt_with_request !== false // Mặc định là true
-                    ;
-                    // Lọc các ngày vi phạm theo threshold từ database
+                    const exemptWithRequest = rules.exempt_with_request !== false;
                     const penaltyDays = violations.filter((v)=>{
                         if (v.lateMinutes <= thresholdMinutes) return false;
                         if (exemptWithRequest && v.hasApprovedRequest) return false;

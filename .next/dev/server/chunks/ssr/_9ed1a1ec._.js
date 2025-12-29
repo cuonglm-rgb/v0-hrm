@@ -111,7 +111,8 @@ async function getEmployee(id) {
       *,
       department:departments(*),
       position:positions(*),
-      manager:employees!manager_id(id, full_name, email)
+      manager:employees!manager_id(id, full_name, email),
+      shift:work_shifts(*)
     `).eq("id", id).single();
     if (error) {
         console.error("Error fetching employee:", error);

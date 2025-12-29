@@ -33,7 +33,7 @@ const mainNavItems = [
     icon: Clock,
   },
   {
-    title: "Nghỉ phép",
+    title: "Tạo phiếu phép",
     url: "/dashboard/leave",
     icon: CalendarDays,
   },
@@ -43,7 +43,7 @@ const mainNavItems = [
     icon: Receipt,
   },
   {
-    title: "Duyệt nghỉ phép",
+    title: "Duyệt phiếu phép",
     url: "/dashboard/leave-approval",
     icon: CheckSquare,
     roles: ["hr", "admin", "manager"],

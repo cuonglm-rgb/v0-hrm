@@ -181,6 +181,7 @@ export interface PayrollItemWithRelations extends PayrollItem {
 
 export type AdjustmentCategory = "allowance" | "deduction" | "penalty"
 export type AdjustmentCalculationType = "fixed" | "daily" | "per_occurrence"
+export type ExemptRequestType = "late_arrival" | "early_leave" | "half_day_leave"
 
 export interface AdjustmentAutoRules {
   trigger?: "attendance" | "late" | "absent"
@@ -191,6 +192,7 @@ export interface AdjustmentAutoRules {
   full_deduct_threshold?: number
   penalty_type?: "half_day_salary" | "full_day_salary" | "fixed_amount"
   exempt_with_request?: boolean
+  exempt_request_types?: ExemptRequestType[] // Loại phiếu được miễn
   multiplier?: number
   calculate_from?: "base_salary"
   percentage?: number
@@ -260,4 +262,53 @@ export interface TimeAdjustmentRequest {
 export interface TimeAdjustmentRequestWithRelations extends TimeAdjustmentRequest {
   employee?: Employee | null
   approver?: Employee | null
+}
+
+// =============================================
+// REQUEST TYPES (Loại phiếu)
+// =============================================
+
+export type RequestStatus = "pending" | "approved" | "rejected"
+
+export interface RequestType {
+  id: string
+  name: string
+  code: string
+  description: string | null
+  requires_date_range: boolean
+  requires_single_date: boolean
+  requires_time: boolean
+  requires_reason: boolean
+  requires_attachment: boolean
+  affects_attendance: boolean
+  affects_payroll: boolean
+  deduct_leave_balance: boolean
+  is_active: boolean
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface EmployeeRequest {
+  id: string
+  employee_id: string
+  request_type_id: string
+  from_date: string | null
+  to_date: string | null
+  request_date: string | null
+  request_time: string | null
+  reason: string | null
+  attachment_url: string | null
+  status: RequestStatus
+  approver_id: string | null
+  approved_at: string | null
+  rejection_reason: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EmployeeRequestWithRelations extends EmployeeRequest {
+  employee?: Employee | null
+  approver?: Employee | null
+  request_type?: RequestType | null
 }

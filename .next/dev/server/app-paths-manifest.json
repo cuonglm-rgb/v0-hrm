@@ -6,6 +6,7 @@
   "/dashboard/employees/[id]/page": "app/dashboard/employees/[id]/page.js",
   "/dashboard/employees/page": "app/dashboard/employees/page.js",
   "/dashboard/leave-approval/page": "app/dashboard/leave-approval/page.js",
+  "/dashboard/leave/page": "app/dashboard/leave/page.js",
   "/dashboard/page": "app/dashboard/page.js",
   "/dashboard/payroll/[id]/page": "app/dashboard/payroll/[id]/page.js",
   "/dashboard/payroll/page": "app/dashboard/payroll/page.js",

@@ -265,7 +265,7 @@
         }
       },
       "layer": {
-        "app/dashboard/payroll/[id]/page": "rsc"
+        "app/dashboard/payroll/[id]/page": "action-browser"
       },
       "exportedName": "getPayrollAdjustmentDetails",
       "filename": "lib/actions/payroll-actions.ts"
