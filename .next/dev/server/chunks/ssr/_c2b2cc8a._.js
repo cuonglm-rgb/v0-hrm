@@ -111,7 +111,8 @@ async function getEmployee(id) {
       *,
       department:departments(*),
       position:positions(*),
-      manager:employees!manager_id(id, full_name, email)
+      manager:employees!manager_id(id, full_name, email),
+      shift:work_shifts(*)
     `).eq("id", id).single();
     if (error) {
         console.error("Error fetching employee:", error);
@@ -408,7 +409,15 @@ async function checkOut() {
 }
 async function listAttendance(filters) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    let query = supabase.from("attendance_logs").select(`*, employee:employees(id, full_name, employee_code)`).order("check_in", {
+    let query = supabase.from("attendance_logs").select(`
+      *,
+      employee:employees(
+        id,
+        full_name,
+        employee_code,
+        shift:work_shifts(id, name, start_time, end_time, break_start, break_end, break_minutes)
+      )
+    `).order("check_in", {
         ascending: false
     });
     if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id);
@@ -436,15 +445,25 @@ async function listAttendance(filters) {
 "[project]/lib/actions/shift-actions.ts [app-rsc] (ecmascript)", ((__turbopack_context__) => {
 "use strict";
 
-/* __next_internal_action_entry_do_not_use__ [{"002f9d6345a5a511f01152040fcd0fa52b4139fa39":"listWorkShifts","00cff4a0838b0d5761bdee4b5a75d0a5299141c758":"getMyShift"},"",""] */ __turbopack_context__.s([
+/* __next_internal_action_entry_do_not_use__ [{"002f9d6345a5a511f01152040fcd0fa52b4139fa39":"listWorkShifts","00cff4a0838b0d5761bdee4b5a75d0a5299141c758":"getMyShift","4087a37486892d33a9d94464ac3eea2cae1a6c9704":"createWorkShift","40f0914397b5f127d767a7e9a05d4d194efbe4f8c0":"deleteWorkShift","60bda9c7aba221f5c86fe1b4c9f7767110548a0047":"assignShiftToEmployee","60fdca0f6d3ab43d79126edcb587d20015a30b4bda":"updateWorkShift"},"",""] */ __turbopack_context__.s([
+    "assignShiftToEmployee",
+    ()=>assignShiftToEmployee,
+    "createWorkShift",
+    ()=>createWorkShift,
+    "deleteWorkShift",
+    ()=>deleteWorkShift,
     "getMyShift",
     ()=>getMyShift,
     "listWorkShifts",
-    ()=>listWorkShifts
+    ()=>listWorkShifts,
+    "updateWorkShift",
+    ()=>updateWorkShift
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.0.10_react-dom@19.2.0_react@19.2.0__react@19.2.0/node_modules/next/dist/build/webpack/loaders/next-flight-loader/server-reference.js [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/supabase/server.ts [app-rsc] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.0.10_react-dom@19.2.0_react@19.2.0__react@19.2.0/node_modules/next/cache.js [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$action$2d$validate$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.0.10_react-dom@19.2.0_react@19.2.0__react@19.2.0/node_modules/next/dist/build/webpack/loaders/next-flight-loader/action-validate.js [app-rsc] (ecmascript)");
+;
 ;
 ;
 async function listWorkShifts() {
@@ -465,13 +484,101 @@ async function getMyShift() {
     const { data: shift } = await supabase.from("work_shifts").select("*").eq("id", employee.shift_id).single();
     return shift || null;
 }
+async function createWorkShift(input) {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    const { error } = await supabase.from("work_shifts").insert({
+        name: input.name,
+        start_time: input.start_time,
+        end_time: input.end_time,
+        break_start: input.break_start || null,
+        break_end: input.break_end || null,
+        break_minutes: input.break_minutes || 0
+    });
+    if (error) {
+        console.error("Error creating work shift:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/departments");
+    return {
+        success: true
+    };
+}
+async function updateWorkShift(id, input) {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    const { error } = await supabase.from("work_shifts").update(input).eq("id", id);
+    if (error) {
+        console.error("Error updating work shift:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/departments");
+    return {
+        success: true
+    };
+}
+async function deleteWorkShift(id) {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    // Kiểm tra có nhân viên đang dùng ca này không
+    const { count } = await supabase.from("employees").select("*", {
+        count: "exact",
+        head: true
+    }).eq("shift_id", id);
+    if (count && count > 0) {
+        return {
+            success: false,
+            error: "Không thể xóa ca làm đang có nhân viên sử dụng"
+        };
+    }
+    const { error } = await supabase.from("work_shifts").delete().eq("id", id);
+    if (error) {
+        console.error("Error deleting work shift:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/departments");
+    return {
+        success: true
+    };
+}
+async function assignShiftToEmployee(employeeId, shiftId) {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    const { error } = await supabase.from("employees").update({
+        shift_id: shiftId
+    }).eq("id", employeeId);
+    if (error) {
+        console.error("Error assigning shift:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/employees");
+    return {
+        success: true
+    };
+}
 ;
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$action$2d$validate$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["ensureServerEntryExports"])([
     listWorkShifts,
-    getMyShift
+    getMyShift,
+    createWorkShift,
+    updateWorkShift,
+    deleteWorkShift,
+    assignShiftToEmployee
 ]);
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listWorkShifts, "002f9d6345a5a511f01152040fcd0fa52b4139fa39", null);
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(getMyShift, "00cff4a0838b0d5761bdee4b5a75d0a5299141c758", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(createWorkShift, "4087a37486892d33a9d94464ac3eea2cae1a6c9704", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(updateWorkShift, "60fdca0f6d3ab43d79126edcb587d20015a30b4bda", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(deleteWorkShift, "40f0914397b5f127d767a7e9a05d4d194efbe4f8c0", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(assignShiftToEmployee, "60bda9c7aba221f5c86fe1b4c9f7767110548a0047", null);
 }),
 "[project]/.next-internal/server/app/dashboard/attendance/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/attendance-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE2 => \"[project]/lib/actions/shift-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript) <locals>", ((__turbopack_context__) => {
 "use strict";
@@ -480,6 +587,10 @@ __turbopack_context__.s([]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$attendance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/attendance-actions.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$shift$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/shift-actions.ts [app-rsc] (ecmascript)");
+;
+;
+;
+;
 ;
 ;
 ;
@@ -522,12 +633,20 @@ __turbopack_context__.s([
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createEmployee"],
     "407a7f2085358134fb9b61998dbd9fa880ad52c2cf",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateMyProfile"],
+    "4087a37486892d33a9d94464ac3eea2cae1a6c9704",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$shift$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createWorkShift"],
     "409df3c5b25ea33596f872aab0b186da47271a8e80",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getEmployee"],
+    "40f0914397b5f127d767a7e9a05d4d194efbe4f8c0",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$shift$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["deleteWorkShift"],
     "602bd54b668a505e0fd8670b012befb376511d9937",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$attendance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getMyAttendance"],
+    "60bda9c7aba221f5c86fe1b4c9f7767110548a0047",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$shift$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["assignShiftToEmployee"],
     "60e7529b55507157f11112b5c625757ac226a23a7c",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateEmployee"],
+    "60fdca0f6d3ab43d79126edcb587d20015a30b4bda",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$shift$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateWorkShift"],
     "701419c868154523741dd2880ac65e97064ceb8620",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["changeDepartment"],
     "70daddb01ea9f495d095baa024616ddfa6ee94f8dd",

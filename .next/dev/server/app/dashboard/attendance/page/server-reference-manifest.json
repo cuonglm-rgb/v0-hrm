@@ -224,6 +224,66 @@
       },
       "exportedName": "getMyShift",
       "filename": "lib/actions/shift-actions.ts"
+    },
+    "4087a37486892d33a9d94464ac3eea2cae1a6c9704": {
+      "workers": {
+        "app/dashboard/attendance/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/attendance/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/attendance-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE2 => \"[project]/lib/actions/shift-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createWorkShift",
+          "filename": "lib/actions/shift-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/attendance/page": "rsc"
+      },
+      "exportedName": "createWorkShift",
+      "filename": "lib/actions/shift-actions.ts"
+    },
+    "40f0914397b5f127d767a7e9a05d4d194efbe4f8c0": {
+      "workers": {
+        "app/dashboard/attendance/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/attendance/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/attendance-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE2 => \"[project]/lib/actions/shift-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "deleteWorkShift",
+          "filename": "lib/actions/shift-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/attendance/page": "rsc"
+      },
+      "exportedName": "deleteWorkShift",
+      "filename": "lib/actions/shift-actions.ts"
+    },
+    "60bda9c7aba221f5c86fe1b4c9f7767110548a0047": {
+      "workers": {
+        "app/dashboard/attendance/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/attendance/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/attendance-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE2 => \"[project]/lib/actions/shift-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "assignShiftToEmployee",
+          "filename": "lib/actions/shift-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/attendance/page": "rsc"
+      },
+      "exportedName": "assignShiftToEmployee",
+      "filename": "lib/actions/shift-actions.ts"
+    },
+    "60fdca0f6d3ab43d79126edcb587d20015a30b4bda": {
+      "workers": {
+        "app/dashboard/attendance/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/attendance/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/attendance-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE2 => \"[project]/lib/actions/shift-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateWorkShift",
+          "filename": "lib/actions/shift-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/attendance/page": "rsc"
+      },
+      "exportedName": "updateWorkShift",
+      "filename": "lib/actions/shift-actions.ts"
     }
   },
   "edge": {}

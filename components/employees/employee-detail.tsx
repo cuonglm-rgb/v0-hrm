@@ -13,11 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
-import { Save, ArrowLeft, Shield, Building2, User, Briefcase, History, Wallet } from "lucide-react"
+import { Save, ArrowLeft, Shield, Building2, User, Briefcase, History, Wallet, Clock } from "lucide-react"
 import { updateEmployee } from "@/lib/actions/employee-actions"
 import { assignRole, removeRole } from "@/lib/actions/role-actions"
 import { EmployeeSalaryTab } from "./employee-salary-tab"
-import type { EmployeeWithRelations, Department, Position, Role, RoleCode, EmployeeJobHistoryWithRelations, SalaryStructure } from "@/lib/types/database"
+import type { EmployeeWithRelations, Department, Position, Role, RoleCode, EmployeeJobHistoryWithRelations, SalaryStructure, WorkShift } from "@/lib/types/database"
 import Link from "next/link"
 
 interface EmployeeDetailProps {
@@ -25,6 +25,7 @@ interface EmployeeDetailProps {
   employeeRoles: { role: Role }[]
   departments: Department[]
   positions: Position[]
+  shifts: WorkShift[]
   roles: Role[]
   isHROrAdmin: boolean
   jobHistory?: EmployeeJobHistoryWithRelations[]
@@ -48,6 +49,7 @@ export function EmployeeDetail({
   employeeRoles,
   departments,
   positions,
+  shifts,
   roles,
   isHROrAdmin,
   jobHistory = [],
@@ -61,6 +63,7 @@ export function EmployeeDetail({
     phone: employee.phone || "",
     department_id: employee.department_id || "",
     position_id: employee.position_id || "",
+    shift_id: employee.shift_id || "",
     status: employee.status,
     join_date: employee.join_date || "",
   })
@@ -81,6 +84,7 @@ export function EmployeeDetail({
         ...formData,
         department_id: formData.department_id || null,
         position_id: formData.position_id || null,
+        shift_id: formData.shift_id || null,
         join_date: formData.join_date || null,
       })
 
@@ -270,6 +274,28 @@ export function EmployeeDetail({
                     </Select>
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="shift">
+                      <Clock className="h-4 w-4 inline mr-1" />
+                      Ca làm việc
+                    </Label>
+                    <Select
+                      value={formData.shift_id}
+                      onValueChange={(value) => setFormData({ ...formData, shift_id: value })}
+                      disabled={!isHROrAdmin}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn ca làm" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {shifts.map((shift) => (
+                          <SelectItem key={shift.id} value={shift.id}>
+                            {shift.name} ({shift.start_time?.slice(0, 5)} - {shift.end_time?.slice(0, 5)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="status">Trạng thái</Label>
                     <Select
                       value={formData.status}
@@ -297,6 +323,28 @@ export function EmployeeDetail({
                     />
                   </div>
                 </div>
+
+                {/* Hiển thị thông tin ca làm hiện tại */}
+                {employee.shift && (
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="font-medium text-blue-800 flex items-center gap-2 mb-2">
+                      <Clock className="h-4 w-4" />
+                      Ca làm hiện tại: {employee.shift.name}
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-blue-600">Giờ làm:</span>{" "}
+                        <span className="font-mono">{employee.shift.start_time?.slice(0, 5)} - {employee.shift.end_time?.slice(0, 5)}</span>
+                      </div>
+                      {employee.shift.break_start && employee.shift.break_end && (
+                        <div>
+                          <span className="text-blue-600">Nghỉ trưa:</span>{" "}
+                          <span className="font-mono">{employee.shift.break_start?.slice(0, 5)} - {employee.shift.break_end?.slice(0, 5)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="history" className="mt-0">

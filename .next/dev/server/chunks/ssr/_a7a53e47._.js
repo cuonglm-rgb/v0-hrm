@@ -111,7 +111,8 @@ async function getEmployee(id) {
       *,
       department:departments(*),
       position:positions(*),
-      manager:employees!manager_id(id, full_name, email)
+      manager:employees!manager_id(id, full_name, email),
+      shift:work_shifts(*)
     `).eq("id", id).single();
     if (error) {
         console.error("Error fetching employee:", error);
@@ -408,7 +409,15 @@ async function checkOut() {
 }
 async function listAttendance(filters) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    let query = supabase.from("attendance_logs").select(`*, employee:employees(id, full_name, employee_code)`).order("check_in", {
+    let query = supabase.from("attendance_logs").select(`
+      *,
+      employee:employees(
+        id,
+        full_name,
+        employee_code,
+        shift:work_shifts(id, name, start_time, end_time, break_start, break_end, break_minutes)
+      )
+    `).order("check_in", {
         ascending: false
     });
     if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id);

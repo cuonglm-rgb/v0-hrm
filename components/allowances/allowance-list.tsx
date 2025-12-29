@@ -2,13 +2,14 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Dialog,
@@ -36,76 +37,97 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
+import { Coins, Plus, Pencil, Trash2, AlertTriangle, Wallet, Ban } from "lucide-react"
 import { toast } from "sonner"
-import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
+import {
+  createAdjustmentType,
+  updateAdjustmentType,
+  deleteAdjustmentType,
+} from "@/lib/actions/allowance-actions"
 import { formatCurrency } from "@/lib/utils/format-utils"
-import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
+import type {
+  PayrollAdjustmentType,
+  AdjustmentAutoRules,
+  AdjustmentCategory,
+} from "@/lib/types/database"
 
 interface AllowanceListProps {
-  allowances: AllowanceType[]
+  adjustments: PayrollAdjustmentType[]
   isHROrAdmin: boolean
 }
 
-const defaultDeductionRules: AllowanceDeductionRules = {
+const categoryConfig: Record<
+  AdjustmentCategory,
+  { label: string; icon: React.ReactNode; color: string }
+> = {
+  allowance: { label: "Phụ cấp", icon: <Coins className="h-4 w-4" />, color: "bg-green-100 text-green-700" },
+  deduction: { label: "Khấu trừ", icon: <Wallet className="h-4 w-4" />, color: "bg-blue-100 text-blue-700" },
+  penalty: { label: "Phạt", icon: <Ban className="h-4 w-4" />, color: "bg-red-100 text-red-700" },
+}
+
+const defaultAutoRules: AdjustmentAutoRules = {
+  trigger: "attendance",
   deduct_on_absent: true,
   deduct_on_late: true,
   late_grace_count: 4,
   late_threshold_minutes: 15,
 }
 
-export function AllowanceList({ allowances, isHROrAdmin }: AllowanceListProps) {
+export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<AllowanceType | null>(null)
-  const [deleting, setDeleting] = useState<AllowanceType | null>(null)
+  const [editing, setEditing] = useState<PayrollAdjustmentType | null>(null)
+  const [deleting, setDeleting] = useState<PayrollAdjustmentType | null>(null)
   const [saving, setSaving] = useState(false)
 
   const [formData, setFormData] = useState({
     name: "",
     code: "",
+    category: "allowance" as AdjustmentCategory,
     amount: "",
-    calculation_type: "fixed" as "fixed" | "daily",
-    is_deductible: false,
+    calculation_type: "fixed" as "fixed" | "daily" | "per_occurrence",
+    is_auto_applied: false,
     description: "",
-    deduction_rules: { ...defaultDeductionRules },
+    auto_rules: { ...defaultAutoRules },
   })
 
-  const handleOpenCreate = () => {
+  const allowances = adjustments.filter((a) => a.category === "allowance")
+  const deductions = adjustments.filter((a) => a.category === "deduction")
+  const penalties = adjustments.filter((a) => a.category === "penalty")
+
+  const handleOpenCreate = (category: AdjustmentCategory) => {
     setEditing(null)
     setFormData({
       name: "",
       code: "",
+      category,
       amount: "",
-      calculation_type: "fixed",
-      is_deductible: false,
+      calculation_type: category === "penalty" ? "per_occurrence" : "fixed",
+      is_auto_applied: false,
       description: "",
-      deduction_rules: { ...defaultDeductionRules },
+      auto_rules: { ...defaultAutoRules },
     })
     setOpen(true)
   }
 
-  const handleOpenEdit = (item: AllowanceType) => {
+  const handleOpenEdit = (item: PayrollAdjustmentType) => {
     setEditing(item)
     setFormData({
       name: item.name,
       code: item.code || "",
+      category: item.category,
       amount: item.amount.toString(),
       calculation_type: item.calculation_type,
-      is_deductible: item.is_deductible,
+      is_auto_applied: item.is_auto_applied,
       description: item.description || "",
-      deduction_rules: (item.deduction_rules as AllowanceDeductionRules) || { ...defaultDeductionRules },
+      auto_rules: (item.auto_rules as AdjustmentAutoRules) || { ...defaultAutoRules },
     })
     setOpen(true)
   }
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      toast.error("Tên phụ cấp là bắt buộc")
-      return
-    }
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      toast.error("Số tiền phải lớn hơn 0")
+      toast.error("Tên là bắt buộc")
       return
     }
 
@@ -114,26 +136,27 @@ export function AllowanceList({ allowances, isHROrAdmin }: AllowanceListProps) {
       const data = {
         name: formData.name,
         code: formData.code || undefined,
-        amount: parseFloat(formData.amount.replace(/[^\d]/g, "")),
+        category: formData.category,
+        amount: parseFloat(formData.amount.replace(/[^\d]/g, "")) || 0,
         calculation_type: formData.calculation_type,
-        is_deductible: formData.is_deductible,
+        is_auto_applied: formData.is_auto_applied,
         description: formData.description || undefined,
-        deduction_rules: formData.is_deductible ? formData.deduction_rules : undefined,
+        auto_rules: formData.is_auto_applied ? formData.auto_rules : undefined,
       }
 
       if (editing) {
-        const result = await updateAllowanceType(editing.id, data)
+        const result = await updateAdjustmentType(editing.id, data)
         if (result.success) {
-          toast.success("Đã cập nhật phụ cấp")
+          toast.success("Đã cập nhật")
           setOpen(false)
           router.refresh()
         } else {
           toast.error(result.error)
         }
       } else {
-        const result = await createAllowanceType(data)
+        const result = await createAdjustmentType(data)
         if (result.success) {
-          toast.success("Đã tạo phụ cấp mới")
+          toast.success("Đã tạo mới")
           setOpen(false)
           router.refresh()
         } else {
@@ -147,9 +170,9 @@ export function AllowanceList({ allowances, isHROrAdmin }: AllowanceListProps) {
 
   const handleDelete = async () => {
     if (!deleting) return
-    const result = await deleteAllowanceType(deleting.id)
+    const result = await deleteAdjustmentType(deleting.id)
     if (result.success) {
-      toast.success("Đã xóa phụ cấp")
+      toast.success("Đã xóa")
       router.refresh()
     } else {
       toast.error(result.error)
@@ -163,297 +186,399 @@ export function AllowanceList({ allowances, isHROrAdmin }: AllowanceListProps) {
     return new Intl.NumberFormat("vi-VN").format(parseInt(num))
   }
 
+  const renderTable = (items: PayrollAdjustmentType[], category: AdjustmentCategory) => (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg flex items-center gap-2">
+          {categoryConfig[category].icon}
+          {categoryConfig[category].label} ({items.length})
+        </CardTitle>
+        {isHROrAdmin && (
+          <Button size="sm" onClick={() => handleOpenCreate(category)}>
+            <Plus className="h-4 w-4 mr-1" />
+            Thêm
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tên</TableHead>
+              <TableHead>Mã</TableHead>
+              <TableHead className="text-right">Số tiền</TableHead>
+              <TableHead>Cách tính</TableHead>
+              <TableHead>Tự động</TableHead>
+              <TableHead>Trạng thái</TableHead>
+              {isHROrAdmin && <TableHead className="text-right">Thao tác</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={isHROrAdmin ? 7 : 6} className="text-center py-6 text-muted-foreground">
+                  Chưa có dữ liệu
+                </TableCell>
+              </TableRow>
+            ) : (
+              items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <div>
+                      <span className="font-medium">{item.name}</span>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {item.code ? (
+                      <code className="text-xs bg-muted px-2 py-1 rounded">{item.code}</code>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {item.amount > 0 ? (
+                      <>
+                        {formatCurrency(item.amount)}
+                        {item.calculation_type === "daily" && (
+                          <span className="text-xs text-muted-foreground">/ngày</span>
+                        )}
+                        {item.calculation_type === "per_occurrence" && (
+                          <span className="text-xs text-muted-foreground">/lần</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Theo công thức</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {item.calculation_type === "fixed"
+                        ? "Cố định"
+                        : item.calculation_type === "daily"
+                        ? "Theo ngày"
+                        : "Theo lần"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {item.is_auto_applied ? (
+                      <Badge className="bg-amber-100 text-amber-700 text-xs">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        Tự động
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs">Thủ công</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {item.is_active ? (
+                      <Badge className="bg-green-100 text-green-700 text-xs">Hoạt động</Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs">Tạm dừng</Badge>
+                    )}
+                  </TableCell>
+                  {isHROrAdmin && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(item)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleting(item)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  )
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Quản lý phụ cấp</h1>
-          <p className="text-muted-foreground">Thiết lập các loại phụ cấp và quy tắc trừ phụ cấp</p>
-        </div>
-        {isHROrAdmin && (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={handleOpenCreate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Thêm phụ cấp
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editing ? "Sửa phụ cấp" : "Thêm phụ cấp mới"}</DialogTitle>
-                <DialogDescription>
-                  {editing ? "Cập nhật thông tin phụ cấp" : "Tạo loại phụ cấp mới"}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Tên phụ cấp *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="VD: Phụ cấp ăn trưa"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="code">Mã</Label>
-                    <Input
-                      id="code"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                      placeholder="VD: LUNCH"
-                    />
-                  </div>
-                </div>
+      <div>
+        <h1 className="text-2xl font-bold">Quản lý phụ cấp & khấu trừ</h1>
+        <p className="text-muted-foreground">Thiết lập phụ cấp, quỹ chung, và các khoản phạt</p>
+      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Số tiền (VND) *</Label>
-                    <Input
-                      id="amount"
-                      value={formData.amount}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, amount: formatInputCurrency(e.target.value) })}
-                      placeholder="35,000"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Cách tính</Label>
-                    <Select
-                      value={formData.calculation_type}
-                      onValueChange={(v: "fixed" | "daily") => setFormData({ ...formData, calculation_type: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="fixed">Cố định/tháng</SelectItem>
-                        <SelectItem value="daily">Theo ngày công</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+      <Tabs defaultValue="allowance">
+        <TabsList>
+          <TabsTrigger value="allowance" className="gap-2">
+            <Coins className="h-4 w-4" />
+            Phụ cấp ({allowances.length})
+          </TabsTrigger>
+          <TabsTrigger value="deduction" className="gap-2">
+            <Wallet className="h-4 w-4" />
+            Khấu trừ ({deductions.length})
+          </TabsTrigger>
+          <TabsTrigger value="penalty" className="gap-2">
+            <Ban className="h-4 w-4" />
+            Phạt ({penalties.length})
+          </TabsTrigger>
+        </TabsList>
 
-                <div className="space-y-2">
-                  <Label htmlFor="description">Mô tả</Label>
-                  <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Mô tả chi tiết về phụ cấp..."
-                    rows={2}
-                  />
-                </div>
+        <TabsContent value="allowance" className="mt-4">
+          {renderTable(allowances, "allowance")}
+        </TabsContent>
+        <TabsContent value="deduction" className="mt-4">
+          {renderTable(deductions, "deduction")}
+        </TabsContent>
+        <TabsContent value="penalty" className="mt-4">
+          {renderTable(penalties, "penalty")}
+        </TabsContent>
+      </Tabs>
 
-                <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    <Label htmlFor="is_deductible" className="text-amber-800">
-                      Có thể bị trừ
-                    </Label>
-                  </div>
-                  <Switch
-                    id="is_deductible"
-                    checked={formData.is_deductible}
-                    onCheckedChange={(v: boolean) => setFormData({ ...formData, is_deductible: v })}
-                  />
-                </div>
+      {/* Dialog thêm/sửa */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editing ? "Sửa" : "Thêm"} {categoryConfig[formData.category].label.toLowerCase()}
+            </DialogTitle>
+            <DialogDescription>
+              {editing ? "Cập nhật thông tin" : "Tạo mới"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Tên *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="VD: Phụ cấp ăn trưa"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="code">Mã</Label>
+                <Input
+                  id="code"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  placeholder="VD: LUNCH"
+                />
+              </div>
+            </div>
 
-                {formData.is_deductible && (
-                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
-                    <h4 className="font-medium">Quy tắc trừ phụ cấp</h4>
-                    
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Số tiền (VND)</Label>
+                <Input
+                  id="amount"
+                  value={formData.amount}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormData({ ...formData, amount: formatInputCurrency(e.target.value) })
+                  }
+                  placeholder="35,000"
+                />
+                <p className="text-xs text-muted-foreground">Để trống nếu tính theo công thức</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Cách tính</Label>
+                <Select
+                  value={formData.calculation_type}
+                  onValueChange={(v: "fixed" | "daily" | "per_occurrence") =>
+                    setFormData({ ...formData, calculation_type: v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fixed">Cố định/tháng</SelectItem>
+                    <SelectItem value="daily">Theo ngày công</SelectItem>
+                    <SelectItem value="per_occurrence">Theo lần vi phạm</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Mô tả</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Mô tả chi tiết..."
+                rows={2}
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <Label htmlFor="is_auto" className="text-amber-800">
+                  Tự động áp dụng
+                </Label>
+              </div>
+              <Switch
+                id="is_auto"
+                checked={formData.is_auto_applied}
+                onCheckedChange={(v: boolean) => setFormData({ ...formData, is_auto_applied: v })}
+              />
+            </div>
+
+            {formData.is_auto_applied && (
+              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                <h4 className="font-medium">Quy tắc tự động</h4>
+
+                {formData.category === "allowance" && (
+                  <>
                     <div className="flex items-center justify-between">
                       <Label>Trừ khi nghỉ làm</Label>
                       <Switch
-                        checked={formData.deduction_rules.deduct_on_absent}
+                        checked={formData.auto_rules.deduct_on_absent}
                         onCheckedChange={(v: boolean) =>
                           setFormData({
                             ...formData,
-                            deduction_rules: { ...formData.deduction_rules, deduct_on_absent: v },
+                            auto_rules: { ...formData.auto_rules, deduct_on_absent: v },
                           })
                         }
                       />
                     </div>
-
                     <div className="flex items-center justify-between">
                       <Label>Trừ khi đi muộn</Label>
                       <Switch
-                        checked={formData.deduction_rules.deduct_on_late}
+                        checked={formData.auto_rules.deduct_on_late}
                         onCheckedChange={(v: boolean) =>
                           setFormData({
                             ...formData,
-                            deduction_rules: { ...formData.deduction_rules, deduct_on_late: v },
+                            auto_rules: { ...formData.auto_rules, deduct_on_late: v },
                           })
                         }
                       />
                     </div>
-
-                    {formData.deduction_rules.deduct_on_late && (
-                      <>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Số lần miễn trừ</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={formData.deduction_rules.late_grace_count || 0}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  deduction_rules: {
-                                    ...formData.deduction_rules,
-                                    late_grace_count: parseInt(e.target.value) || 0,
-                                  },
-                                })
-                              }
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Đi muộn trong số lần này không bị trừ
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Muộn từ (phút)</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={formData.deduction_rules.late_threshold_minutes || 15}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  deduction_rules: {
-                                    ...formData.deduction_rules,
-                                    late_threshold_minutes: parseInt(e.target.value) || 15,
-                                  },
-                                })
-                              }
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Muộn từ bao nhiêu phút tính là đi muộn
-                            </p>
-                          </div>
+                    {formData.auto_rules.deduct_on_late && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Số lần miễn trừ</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={formData.auto_rules.late_grace_count || 0}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                auto_rules: {
+                                  ...formData.auto_rules,
+                                  late_grace_count: parseInt(e.target.value) || 0,
+                                },
+                              })
+                            }
+                          />
                         </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>
-                  Hủy
-                </Button>
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? "Đang lưu..." : "Lưu"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
-      </div>
-
-      <Card>
-        <CardContent className="pt-6">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Phụ cấp</TableHead>
-                <TableHead>Mã</TableHead>
-                <TableHead className="text-right">Số tiền</TableHead>
-                <TableHead>Cách tính</TableHead>
-                <TableHead>Trừ phụ cấp</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                {isHROrAdmin && <TableHead className="text-right">Thao tác</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {allowances.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={isHROrAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
-                    Chưa có loại phụ cấp nào
-                  </TableCell>
-                </TableRow>
-              ) : (
-                allowances.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100">
-                          <Coins className="h-4 w-4 text-green-600" />
-                        </div>
-                        <div>
-                          <span className="font-medium">{item.name}</span>
-                          {item.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
-                          )}
+                        <div className="space-y-2">
+                          <Label>Muộn từ (phút)</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={formData.auto_rules.late_threshold_minutes || 15}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                auto_rules: {
+                                  ...formData.auto_rules,
+                                  late_threshold_minutes: parseInt(e.target.value) || 15,
+                                },
+                              })
+                            }
+                          />
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {item.code ? (
-                        <code className="text-sm bg-muted px-2 py-1 rounded">{item.code}</code>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(item.amount)}
-                      {item.calculation_type === "daily" && (
-                        <span className="text-xs text-muted-foreground">/ngày</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {item.calculation_type === "fixed" ? "Cố định" : "Theo ngày"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {item.is_deductible ? (
-                        <Badge className="bg-amber-100 text-amber-700">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Có thể trừ
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">Không trừ</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.is_active ? (
-                        <Badge className="bg-green-100 text-green-700">Hoạt động</Badge>
-                      ) : (
-                        <Badge variant="secondary">Tạm dừng</Badge>
-                      )}
-                    </TableCell>
-                    {isHROrAdmin && (
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(item)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleting(item)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
                     )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  </>
+                )}
 
+                {formData.category === "penalty" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Muộn từ (phút)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={formData.auto_rules.late_threshold_minutes || 30}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            auto_rules: {
+                              ...formData.auto_rules,
+                              late_threshold_minutes: parseInt(e.target.value) || 30,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Loại phạt</Label>
+                      <Select
+                        value={formData.auto_rules.penalty_type || "half_day_salary"}
+                        onValueChange={(v) =>
+                          setFormData({
+                            ...formData,
+                            auto_rules: {
+                              ...formData.auto_rules,
+                              penalty_type: v as "half_day_salary" | "full_day_salary" | "fixed_amount",
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="half_day_salary">Nửa ngày lương</SelectItem>
+                          <SelectItem value="full_day_salary">Một ngày lương</SelectItem>
+                          <SelectItem value="fixed_amount">Số tiền cố định</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label>Miễn nếu có phiếu xin phép</Label>
+                      <Switch
+                        checked={formData.auto_rules.exempt_with_request}
+                        onCheckedChange={(v: boolean) =>
+                          setFormData({
+                            ...formData,
+                            auto_rules: { ...formData.auto_rules, exempt_with_request: v },
+                          })
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Hủy
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Đang lưu..." : "Lưu"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
       <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc muốn xóa phụ cấp "{deleting?.name}"?
+              Bạn có chắc muốn xóa "{deleting?.name}"?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

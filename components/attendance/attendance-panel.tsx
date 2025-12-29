@@ -5,6 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { checkIn, checkOut } from "@/lib/actions/attendance-actions"
 import type { AttendanceLog, WorkShift } from "@/lib/types/database"
 import {
@@ -14,7 +20,83 @@ import {
   getTodayVN,
   formatSourceVN,
 } from "@/lib/utils/date-utils"
-import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer } from "lucide-react"
+import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle } from "lucide-react"
+
+interface AttendanceViolation {
+  type: "late" | "early_leave" | "no_checkin" | "no_checkout"
+  minutes?: number
+  message: string
+}
+
+// Hàm kiểm tra vi phạm chấm công
+function checkViolations(
+  checkInTime: string | null,
+  checkOutTime: string | null,
+  shift: WorkShift | null | undefined
+): AttendanceViolation[] {
+  const violations: AttendanceViolation[] = []
+
+  if (!shift) return violations
+
+  const shiftStart = shift.start_time?.slice(0, 5)
+  const shiftEnd = shift.end_time?.slice(0, 5)
+
+  if (!shiftStart || !shiftEnd) return violations
+
+  // Check late arrival
+  if (checkInTime) {
+    const checkIn = new Date(checkInTime)
+    const checkInHHMM = `${String(checkIn.getHours()).padStart(2, "0")}:${String(checkIn.getMinutes()).padStart(2, "0")}`
+
+    const [shiftH, shiftM] = shiftStart.split(":").map(Number)
+    const [checkH, checkM] = checkInHHMM.split(":").map(Number)
+
+    const shiftMinutes = shiftH * 60 + shiftM
+    const checkMinutes = checkH * 60 + checkM
+    const lateMinutes = checkMinutes - shiftMinutes
+
+    if (lateMinutes > 0) {
+      violations.push({
+        type: "late",
+        minutes: lateMinutes,
+        message: `Đi muộn ${lateMinutes} phút (vào lúc ${checkInHHMM}, ca bắt đầu ${shiftStart})`,
+      })
+    }
+  } else {
+    violations.push({
+      type: "no_checkin",
+      message: "Quên chấm công vào",
+    })
+  }
+
+  // Check early leave
+  if (checkOutTime) {
+    const checkOut = new Date(checkOutTime)
+    const checkOutHHMM = `${String(checkOut.getHours()).padStart(2, "0")}:${String(checkOut.getMinutes()).padStart(2, "0")}`
+
+    const [shiftH, shiftM] = shiftEnd.split(":").map(Number)
+    const [checkH, checkM] = checkOutHHMM.split(":").map(Number)
+
+    const shiftMinutes = shiftH * 60 + shiftM
+    const checkMinutes = checkH * 60 + checkM
+    const earlyMinutes = shiftMinutes - checkMinutes
+
+    if (earlyMinutes > 0) {
+      violations.push({
+        type: "early_leave",
+        minutes: earlyMinutes,
+        message: `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca kết thúc ${shiftEnd})`,
+      })
+    }
+  } else if (checkInTime) {
+    violations.push({
+      type: "no_checkout",
+      message: "Quên chấm công ra",
+    })
+  }
+
+  return violations
+}
 
 interface AttendancePanelProps {
   attendanceLogs: AttendanceLog[]
@@ -168,47 +250,128 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
       <Card>
         <CardHeader>
           <CardTitle>Lịch sử chấm công</CardTitle>
-          <CardDescription>30 ngày gần nhất</CardDescription>
+          <CardDescription>30 ngày gần nhất - Vi phạm được đánh dấu màu đỏ</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ngày</TableHead>
-                <TableHead>Giờ vào</TableHead>
-                <TableHead>Giờ ra</TableHead>
-                <TableHead>Nguồn</TableHead>
-                <TableHead>Trạng thái</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {attendanceLogs.length === 0 ? (
+          <TooltipProvider>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Chưa có dữ liệu chấm công
-                  </TableCell>
+                  <TableHead>Ngày</TableHead>
+                  <TableHead>Giờ vào</TableHead>
+                  <TableHead>Giờ ra</TableHead>
+                  <TableHead>Nguồn</TableHead>
+                  <TableHead>Trạng thái</TableHead>
                 </TableRow>
-              ) : (
-                attendanceLogs.slice(0, 30).map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>{formatDateVN(log.check_in)}</TableCell>
-                    <TableCell>{formatTimeVN(log.check_in)}</TableCell>
-                    <TableCell>{formatTimeVN(log.check_out)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{formatSourceVN(log.source)}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {log.check_out ? (
-                        <Badge className="bg-green-100 text-green-800">Hoàn thành</Badge>
-                      ) : (
-                        <Badge variant="secondary">Chưa ra</Badge>
-                      )}
+              </TableHeader>
+              <TableBody>
+                {attendanceLogs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      Chưa có dữ liệu chấm công
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  attendanceLogs.slice(0, 30).map((log) => {
+                    const violations = checkViolations(log.check_in, log.check_out, shift)
+                    const hasViolation = violations.length > 0
+                    const isLate = violations.some((v) => v.type === "late")
+                    const isEarlyLeave = violations.some((v) => v.type === "early_leave")
+                    const noCheckIn = violations.some((v) => v.type === "no_checkin")
+                    const noCheckOut = violations.some((v) => v.type === "no_checkout")
+
+                    return (
+                      <TableRow key={log.id} className={hasViolation ? "bg-red-50" : ""}>
+                        <TableCell>{formatDateVN(log.check_in)}</TableCell>
+                        <TableCell>
+                          {noCheckIn ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge variant="destructive" className="gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Thiếu
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>Quên chấm công vào</TooltipContent>
+                            </Tooltip>
+                          ) : isLate ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <span className="text-red-600 font-medium">
+                                  {formatTimeVN(log.check_in)}
+                                  <AlertTriangle className="h-3 w-3 inline ml-1" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {violations.find((v) => v.type === "late")?.message}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="text-green-600">{formatTimeVN(log.check_in)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {noCheckOut ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge variant="destructive" className="gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Thiếu
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>Quên chấm công ra</TooltipContent>
+                            </Tooltip>
+                          ) : isEarlyLeave ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <span className="text-red-600 font-medium">
+                                  {formatTimeVN(log.check_out)}
+                                  <AlertTriangle className="h-3 w-3 inline ml-1" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {violations.find((v) => v.type === "early_leave")?.message}
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : log.check_out ? (
+                            <span className="text-green-600">{formatTimeVN(log.check_out)}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{formatSourceVN(log.source)}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {hasViolation ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge variant="destructive" className="gap-1">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Vi phạm
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <ul className="text-xs">
+                                  {violations.map((v, i) => (
+                                    <li key={i}>• {v.message}</li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : log.check_out ? (
+                            <Badge className="bg-green-100 text-green-800">Hoàn thành</Badge>
+                          ) : (
+                            <Badge variant="secondary">Chưa ra</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </TooltipProvider>
         </CardContent>
       </Card>
     </div>

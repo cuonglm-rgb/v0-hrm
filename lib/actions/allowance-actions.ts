@@ -3,29 +3,40 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type {
-  AllowanceType,
-  AllowanceDeductionRules,
-  EmployeeAllowanceWithType,
+  PayrollAdjustmentType,
+  AdjustmentAutoRules,
+  AdjustmentCategory,
+  EmployeeAdjustmentWithType,
 } from "@/lib/types/database"
 
 // =============================================
-// ALLOWANCE TYPE ACTIONS
+// ADJUSTMENT TYPE ACTIONS
 // =============================================
 
-export async function listAllowanceTypes(): Promise<AllowanceType[]> {
+export async function listAdjustmentTypes(
+  category?: AdjustmentCategory
+): Promise<PayrollAdjustmentType[]> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from("allowance_types")
+  let query = supabase
+    .from("payroll_adjustment_types")
     .select("*")
+    .order("category")
     .order("name")
 
+  if (category) {
+    query = query.eq("category", category)
+  }
+
+  const { data, error } = await query
+
   if (error) {
-    // Bảng chưa tồn tại - cần chạy script 016-allowance-types.sql
     if (error.code === "42P01" || error.message?.includes("does not exist")) {
-      console.warn("Bảng allowance_types chưa tồn tại. Vui lòng chạy script 016-allowance-types.sql")
+      console.warn(
+        "Bảng payroll_adjustment_types chưa tồn tại. Vui lòng chạy script 016-allowance-types.sql"
+      )
     } else {
-      console.error("Error listing allowance types:", error.message || error)
+      console.error("Error listing adjustment types:", error.message || error)
     }
     return []
   }
@@ -33,30 +44,32 @@ export async function listAllowanceTypes(): Promise<AllowanceType[]> {
   return data || []
 }
 
-export async function createAllowanceType(input: {
+export async function createAdjustmentType(input: {
   name: string
   code?: string
+  category: AdjustmentCategory
   amount: number
-  calculation_type: "fixed" | "daily"
-  is_deductible: boolean
-  deduction_rules?: AllowanceDeductionRules
+  calculation_type: "fixed" | "daily" | "per_occurrence"
+  is_auto_applied: boolean
+  auto_rules?: AdjustmentAutoRules
   description?: string
 }) {
   const supabase = await createClient()
 
-  const { error } = await supabase.from("allowance_types").insert({
+  const { error } = await supabase.from("payroll_adjustment_types").insert({
     name: input.name,
     code: input.code || null,
+    category: input.category,
     amount: input.amount,
     calculation_type: input.calculation_type,
-    is_deductible: input.is_deductible,
-    deduction_rules: input.deduction_rules || null,
+    is_auto_applied: input.is_auto_applied,
+    auto_rules: input.auto_rules || null,
     description: input.description || null,
     is_active: true,
   })
 
   if (error) {
-    console.error("Error creating allowance type:", error)
+    console.error("Error creating adjustment type:", error)
     return { success: false, error: error.message }
   }
 
@@ -64,15 +77,16 @@ export async function createAllowanceType(input: {
   return { success: true }
 }
 
-export async function updateAllowanceType(
+export async function updateAdjustmentType(
   id: string,
   input: {
     name?: string
     code?: string
+    category?: AdjustmentCategory
     amount?: number
-    calculation_type?: "fixed" | "daily"
-    is_deductible?: boolean
-    deduction_rules?: AllowanceDeductionRules | null
+    calculation_type?: "fixed" | "daily" | "per_occurrence"
+    is_auto_applied?: boolean
+    auto_rules?: AdjustmentAutoRules | null
     description?: string
     is_active?: boolean
   }
@@ -80,12 +94,12 @@ export async function updateAllowanceType(
   const supabase = await createClient()
 
   const { error } = await supabase
-    .from("allowance_types")
+    .from("payroll_adjustment_types")
     .update(input)
     .eq("id", id)
 
   if (error) {
-    console.error("Error updating allowance type:", error)
+    console.error("Error updating adjustment type:", error)
     return { success: false, error: error.message }
   }
 
@@ -93,23 +107,23 @@ export async function updateAllowanceType(
   return { success: true }
 }
 
-export async function deleteAllowanceType(id: string) {
+export async function deleteAdjustmentType(id: string) {
   const supabase = await createClient()
 
   // Kiểm tra có nhân viên đang dùng không
   const { count } = await supabase
-    .from("employee_allowances")
+    .from("employee_adjustments")
     .select("*", { count: "exact", head: true })
-    .eq("allowance_type_id", id)
+    .eq("adjustment_type_id", id)
 
   if (count && count > 0) {
-    return { success: false, error: "Không thể xóa phụ cấp đang được gán cho nhân viên" }
+    return { success: false, error: "Không thể xóa loại điều chỉnh đang được gán cho nhân viên" }
   }
 
-  const { error } = await supabase.from("allowance_types").delete().eq("id", id)
+  const { error } = await supabase.from("payroll_adjustment_types").delete().eq("id", id)
 
   if (error) {
-    console.error("Error deleting allowance type:", error)
+    console.error("Error deleting adjustment type:", error)
     return { success: false, error: error.message }
   }
 
@@ -118,34 +132,36 @@ export async function deleteAllowanceType(id: string) {
 }
 
 // =============================================
-// EMPLOYEE ALLOWANCE ACTIONS
+// EMPLOYEE ADJUSTMENT ACTIONS
 // =============================================
 
-export async function listEmployeeAllowances(
+export async function listEmployeeAdjustments(
   employee_id: string
-): Promise<EmployeeAllowanceWithType[]> {
+): Promise<EmployeeAdjustmentWithType[]> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from("employee_allowances")
-    .select(`
+    .from("employee_adjustments")
+    .select(
+      `
       *,
-      allowance_type:allowance_types(*)
-    `)
+      adjustment_type:payroll_adjustment_types(*)
+    `
+    )
     .eq("employee_id", employee_id)
     .order("effective_date", { ascending: false })
 
   if (error) {
-    console.error("Error listing employee allowances:", error)
+    console.error("Error listing employee adjustments:", error)
     return []
   }
 
-  return (data || []) as EmployeeAllowanceWithType[]
+  return (data || []) as EmployeeAdjustmentWithType[]
 }
 
-export async function assignAllowanceToEmployee(input: {
+export async function assignAdjustmentToEmployee(input: {
   employee_id: string
-  allowance_type_id: string
+  adjustment_type_id: string
   custom_amount?: number
   effective_date: string
   end_date?: string
@@ -153,9 +169,9 @@ export async function assignAllowanceToEmployee(input: {
 }) {
   const supabase = await createClient()
 
-  const { error } = await supabase.from("employee_allowances").insert({
+  const { error } = await supabase.from("employee_adjustments").insert({
     employee_id: input.employee_id,
-    allowance_type_id: input.allowance_type_id,
+    adjustment_type_id: input.adjustment_type_id,
     custom_amount: input.custom_amount || null,
     effective_date: input.effective_date,
     end_date: input.end_date || null,
@@ -163,7 +179,7 @@ export async function assignAllowanceToEmployee(input: {
   })
 
   if (error) {
-    console.error("Error assigning allowance:", error)
+    console.error("Error assigning adjustment:", error)
     return { success: false, error: error.message }
   }
 
@@ -171,163 +187,141 @@ export async function assignAllowanceToEmployee(input: {
   return { success: true }
 }
 
-export async function updateEmployeeAllowance(
-  id: string,
-  input: {
-    custom_amount?: number | null
-    end_date?: string | null
-    note?: string
-  }
-) {
+export async function removeEmployeeAdjustment(id: string) {
   const supabase = await createClient()
 
+  const { error } = await supabase.from("employee_adjustments").delete().eq("id", id)
+
+  if (error) {
+    console.error("Error removing employee adjustment:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/employees")
+  return { success: true }
+}
+
+// =============================================
+// TIME ADJUSTMENT REQUEST ACTIONS
+// =============================================
+
+export async function createTimeRequest(input: {
+  request_type: "late_arrival" | "early_leave"
+  request_date: string
+  reason?: string
+}) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Chưa đăng nhập" }
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .single()
+
+  if (!employee) return { success: false, error: "Không tìm thấy nhân viên" }
+
+  const { error } = await supabase.from("time_adjustment_requests").insert({
+    employee_id: employee.id,
+    request_type: input.request_type,
+    request_date: input.request_date,
+    reason: input.reason || null,
+    status: "pending",
+  })
+
+  if (error) {
+    console.error("Error creating time request:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/attendance")
+  return { success: true }
+}
+
+export async function approveTimeRequest(id: string, status: "approved" | "rejected") {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Chưa đăng nhập" }
+
+  const { data: approver } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .single()
+
   const { error } = await supabase
-    .from("employee_allowances")
-    .update(input)
+    .from("time_adjustment_requests")
+    .update({
+      status,
+      approver_id: approver?.id,
+      approved_at: new Date().toISOString(),
+    })
     .eq("id", id)
 
   if (error) {
-    console.error("Error updating employee allowance:", error)
+    console.error("Error approving time request:", error)
     return { success: false, error: error.message }
   }
 
-  revalidatePath("/dashboard/employees")
+  revalidatePath("/dashboard/leave-approval")
   return { success: true }
 }
 
-export async function removeEmployeeAllowance(id: string) {
+export async function listMyTimeRequests() {
   const supabase = await createClient()
 
-  const { error } = await supabase.from("employee_allowances").delete().eq("id", id)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .single()
+
+  if (!employee) return []
+
+  const { data, error } = await supabase
+    .from("time_adjustment_requests")
+    .select("*")
+    .eq("employee_id", employee.id)
+    .order("created_at", { ascending: false })
 
   if (error) {
-    console.error("Error removing employee allowance:", error)
-    return { success: false, error: error.message }
+    console.error("Error listing time requests:", error)
+    return []
   }
 
-  revalidatePath("/dashboard/employees")
-  return { success: true }
+  return data || []
 }
 
-// =============================================
-// HELPER: Tính phụ cấp cho payroll
-// =============================================
-
-export async function calculateEmployeeAllowances(
-  employee_id: string,
-  month: number,
-  year: number,
-  workingDays: number,
-  lateCount: number,
-  absentDays: number
-) {
+export async function listPendingTimeRequests() {
   const supabase = await createClient()
 
-  const endDate = new Date(year, month, 0).toISOString().split("T")[0]
-  const startDate = `${year}-${String(month).padStart(2, "0")}-01`
-
-  // Lấy các phụ cấp đang hiệu lực của nhân viên
-  const { data: employeeAllowances } = await supabase
-    .from("employee_allowances")
-    .select(`
+  const { data, error } = await supabase
+    .from("time_adjustment_requests")
+    .select(
+      `
       *,
-      allowance_type:allowance_types(*)
-    `)
-    .eq("employee_id", employee_id)
-    .lte("effective_date", endDate)
-    .or(`end_date.is.null,end_date.gte.${startDate}`)
+      employee:employees(id, full_name, employee_code, department:departments(name))
+    `
+    )
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
 
-  if (!employeeAllowances || employeeAllowances.length === 0) {
-    return { totalAllowance: 0, details: [] }
+  if (error) {
+    console.error("Error listing pending time requests:", error)
+    return []
   }
 
-  const details: {
-    allowance_type_id: string
-    base_amount: number
-    deducted_amount: number
-    final_amount: number
-    deduction_reason: string | null
-    late_count: number
-    absent_days: number
-  }[] = []
-
-  let totalAllowance = 0
-
-  for (const ea of employeeAllowances) {
-    const allowanceType = ea.allowance_type as AllowanceType
-    if (!allowanceType || !allowanceType.is_active) continue
-
-    const amount = ea.custom_amount || allowanceType.amount
-    let baseAmount = amount
-    let deductedAmount = 0
-    let deductionReason: string | null = null
-
-    // Tính base amount theo loại
-    if (allowanceType.calculation_type === "daily") {
-      baseAmount = amount * workingDays
-    }
-
-    // Áp dụng quy tắc trừ phụ cấp
-    if (allowanceType.is_deductible && allowanceType.deduction_rules) {
-      const rules = allowanceType.deduction_rules as AllowanceDeductionRules
-      const reasons: string[] = []
-
-      // Trừ khi nghỉ làm
-      if (rules.deduct_on_absent && absentDays > 0) {
-        if (allowanceType.calculation_type === "daily") {
-          // Đã tính theo ngày công rồi, không cần trừ thêm
-        } else {
-          // Fixed: trừ theo tỷ lệ
-          const deductPerDay = amount / 26 // 26 ngày công chuẩn
-          deductedAmount += deductPerDay * absentDays
-          reasons.push(`Nghỉ ${absentDays} ngày`)
-        }
-      }
-
-      // Trừ khi đi muộn
-      if (rules.deduct_on_late && lateCount > 0) {
-        const graceCount = rules.late_grace_count || 0
-        const excessLate = Math.max(0, lateCount - graceCount)
-
-        if (excessLate > 0) {
-          // Kiểm tra full_deduct_threshold
-          if (rules.full_deduct_threshold && lateCount >= rules.full_deduct_threshold) {
-            deductedAmount = baseAmount // Mất toàn bộ
-            reasons.push(`Đi muộn ${lateCount} lần (mất toàn bộ)`)
-          } else if (allowanceType.calculation_type === "daily") {
-            // Trừ theo số ngày đi muộn vượt quá
-            deductedAmount += amount * excessLate
-            reasons.push(`Đi muộn ${excessLate} lần (vượt ${graceCount} lần miễn)`)
-          } else {
-            // Fixed: trừ theo tỷ lệ
-            const deductPerLate = amount / 26
-            deductedAmount += deductPerLate * excessLate
-            reasons.push(`Đi muộn ${excessLate} lần`)
-          }
-        }
-      }
-
-      if (reasons.length > 0) {
-        deductionReason = reasons.join(", ")
-      }
-    }
-
-    // Đảm bảo không trừ quá base
-    deductedAmount = Math.min(deductedAmount, baseAmount)
-    const finalAmount = baseAmount - deductedAmount
-
-    details.push({
-      allowance_type_id: allowanceType.id,
-      base_amount: baseAmount,
-      deducted_amount: deductedAmount,
-      final_amount: finalAmount,
-      deduction_reason: deductionReason,
-      late_count: lateCount,
-      absent_days: absentDays,
-    })
-
-    totalAllowance += finalAmount
-  }
-
-  return { totalAllowance, details }
+  return data || []
 }

@@ -1,20 +1,14 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
   "/dashboard/allowances/page": "app/dashboard/allowances/page.js",
   "/dashboard/attendance-management/page": "app/dashboard/attendance-management/page.js",
   "/dashboard/attendance/page": "app/dashboard/attendance/page.js",
   "/dashboard/departments/page": "app/dashboard/departments/page.js",
   "/dashboard/employees/[id]/page": "app/dashboard/employees/[id]/page.js",
-  "/dashboard/employees/new/page": "app/dashboard/employees/new/page.js",
   "/dashboard/employees/page": "app/dashboard/employees/page.js",
   "/dashboard/leave-approval/page": "app/dashboard/leave-approval/page.js",
-  "/dashboard/leave/page": "app/dashboard/leave/page.js",
   "/dashboard/page": "app/dashboard/page.js",
   "/dashboard/payroll/[id]/page": "app/dashboard/payroll/[id]/page.js",
   "/dashboard/payroll/page": "app/dashboard/payroll/page.js",
   "/dashboard/payslip/page": "app/dashboard/payslip/page.js",
-  "/dashboard/profile/page": "app/dashboard/profile/page.js",
-  "/dashboard/salary/page": "app/dashboard/salary/page.js",
-  "/dashboard/settings/page": "app/dashboard/settings/page.js",
   "/page": "app/page.js"
 }

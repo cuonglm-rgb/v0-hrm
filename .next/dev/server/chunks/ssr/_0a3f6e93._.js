@@ -111,7 +111,8 @@ async function getEmployee(id) {
       *,
       department:departments(*),
       position:positions(*),
-      manager:employees!manager_id(id, full_name, email)
+      manager:employees!manager_id(id, full_name, email),
+      shift:work_shifts(*)
     `).eq("id", id).single();
     if (error) {
         console.error("Error fetching employee:", error);
@@ -290,25 +291,29 @@ async function changePosition(employeeId, newPositionId, salary) {
 "[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)", ((__turbopack_context__) => {
 "use strict";
 
-/* __next_internal_action_entry_do_not_use__ [{"00e07ac3c20a776facdd854cf9091bd2b969eadba5":"listAllowanceTypes","4046aaa30e394173b6bdd851189594604df72dadfd":"deleteAllowanceType","4063f89fdf119fef6c15ef5f8cfceecf1f2879e287":"listEmployeeAllowances","406b7022e253978d9328109c1b16a7e953a8f7610f":"assignAllowanceToEmployee","40dc7a1d74196365975750875be59a833b89c2c703":"removeEmployeeAllowance","40e3b60da12a8aa54c6e928db8e2afc9094a442b0b":"createAllowanceType","601e21d88517fe7e03338021d716ae56821d0930b7":"updateEmployeeAllowance","609a52031a6106b0e8b0ba9417d2fa8f73cedd6993":"updateAllowanceType","7ee195ab1271622b7a211c8ccdb2dc773381e167a2":"calculateEmployeeAllowances"},"",""] */ __turbopack_context__.s([
-    "assignAllowanceToEmployee",
-    ()=>assignAllowanceToEmployee,
-    "calculateEmployeeAllowances",
-    ()=>calculateEmployeeAllowances,
-    "createAllowanceType",
-    ()=>createAllowanceType,
-    "deleteAllowanceType",
-    ()=>deleteAllowanceType,
-    "listAllowanceTypes",
-    ()=>listAllowanceTypes,
-    "listEmployeeAllowances",
-    ()=>listEmployeeAllowances,
-    "removeEmployeeAllowance",
-    ()=>removeEmployeeAllowance,
-    "updateAllowanceType",
-    ()=>updateAllowanceType,
-    "updateEmployeeAllowance",
-    ()=>updateEmployeeAllowance
+/* __next_internal_action_entry_do_not_use__ [{"001da4ff3ab9060c5c5a4f54f47d1b7465c98e9b6a":"listMyTimeRequests","00ca4772e9dfd784dc10257c6422ded9ec85a8ac15":"listPendingTimeRequests","40026f5dcd571f9345e3beb1b8ed785960d3c8e37e":"createAdjustmentType","401c6b975e05df6efb7fd9c6ba1a8737f066f024b7":"listAdjustmentTypes","406b8435b970c02b6dabbc896bf4edefed7f73e26d":"deleteAdjustmentType","40aa85210cb3a78eb40dec4ff594c64933c0f34e9f":"removeEmployeeAdjustment","40aad902d6872d425323cec13eecdc4a144f694a94":"listEmployeeAdjustments","40d25dc24fe3a6b800bb2cd42510c52243942f572c":"createTimeRequest","40e68c341d28de4e27246f892d73094585cd299103":"assignAdjustmentToEmployee","60456f5eb7df605ec22c12adbae3ddd7557b03cd23":"approveTimeRequest","608e72bf0d3e94e2a83591d70f1a9ab2925449acab":"updateAdjustmentType"},"",""] */ __turbopack_context__.s([
+    "approveTimeRequest",
+    ()=>approveTimeRequest,
+    "assignAdjustmentToEmployee",
+    ()=>assignAdjustmentToEmployee,
+    "createAdjustmentType",
+    ()=>createAdjustmentType,
+    "createTimeRequest",
+    ()=>createTimeRequest,
+    "deleteAdjustmentType",
+    ()=>deleteAdjustmentType,
+    "listAdjustmentTypes",
+    ()=>listAdjustmentTypes,
+    "listEmployeeAdjustments",
+    ()=>listEmployeeAdjustments,
+    "listMyTimeRequests",
+    ()=>listMyTimeRequests,
+    "listPendingTimeRequests",
+    ()=>listPendingTimeRequests,
+    "removeEmployeeAdjustment",
+    ()=>removeEmployeeAdjustment,
+    "updateAdjustmentType",
+    ()=>updateAdjustmentType
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/.pnpm/next@16.0.10_react-dom@19.2.0_react@19.2.0__react@19.2.0/node_modules/next/dist/build/webpack/loaders/next-flight-loader/server-reference.js [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/supabase/server.ts [app-rsc] (ecmascript)");
@@ -317,34 +322,38 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$ne
 ;
 ;
 ;
-async function listAllowanceTypes() {
+async function listAdjustmentTypes(category) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    const { data, error } = await supabase.from("allowance_types").select("*").order("name");
+    let query = supabase.from("payroll_adjustment_types").select("*").order("category").order("name");
+    if (category) {
+        query = query.eq("category", category);
+    }
+    const { data, error } = await query;
     if (error) {
-        // Bảng chưa tồn tại - cần chạy script 016-allowance-types.sql
         if (error.code === "42P01" || error.message?.includes("does not exist")) {
-            console.warn("Bảng allowance_types chưa tồn tại. Vui lòng chạy script 016-allowance-types.sql");
+            console.warn("Bảng payroll_adjustment_types chưa tồn tại. Vui lòng chạy script 016-allowance-types.sql");
         } else {
-            console.error("Error listing allowance types:", error.message || error);
+            console.error("Error listing adjustment types:", error.message || error);
         }
         return [];
     }
     return data || [];
 }
-async function createAllowanceType(input) {
+async function createAdjustmentType(input) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    const { error } = await supabase.from("allowance_types").insert({
+    const { error } = await supabase.from("payroll_adjustment_types").insert({
         name: input.name,
         code: input.code || null,
+        category: input.category,
         amount: input.amount,
         calculation_type: input.calculation_type,
-        is_deductible: input.is_deductible,
-        deduction_rules: input.deduction_rules || null,
+        is_auto_applied: input.is_auto_applied,
+        auto_rules: input.auto_rules || null,
         description: input.description || null,
         is_active: true
     });
     if (error) {
-        console.error("Error creating allowance type:", error);
+        console.error("Error creating adjustment type:", error);
         return {
             success: false,
             error: error.message
@@ -355,11 +364,11 @@ async function createAllowanceType(input) {
         success: true
     };
 }
-async function updateAllowanceType(id, input) {
+async function updateAdjustmentType(id, input) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    const { error } = await supabase.from("allowance_types").update(input).eq("id", id);
+    const { error } = await supabase.from("payroll_adjustment_types").update(input).eq("id", id);
     if (error) {
-        console.error("Error updating allowance type:", error);
+        console.error("Error updating adjustment type:", error);
         return {
             success: false,
             error: error.message
@@ -370,22 +379,22 @@ async function updateAllowanceType(id, input) {
         success: true
     };
 }
-async function deleteAllowanceType(id) {
+async function deleteAdjustmentType(id) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
     // Kiểm tra có nhân viên đang dùng không
-    const { count } = await supabase.from("employee_allowances").select("*", {
+    const { count } = await supabase.from("employee_adjustments").select("*", {
         count: "exact",
         head: true
-    }).eq("allowance_type_id", id);
+    }).eq("adjustment_type_id", id);
     if (count && count > 0) {
         return {
             success: false,
-            error: "Không thể xóa phụ cấp đang được gán cho nhân viên"
+            error: "Không thể xóa loại điều chỉnh đang được gán cho nhân viên"
         };
     }
-    const { error } = await supabase.from("allowance_types").delete().eq("id", id);
+    const { error } = await supabase.from("payroll_adjustment_types").delete().eq("id", id);
     if (error) {
-        console.error("Error deleting allowance type:", error);
+        console.error("Error deleting adjustment type:", error);
         return {
             success: false,
             error: error.message
@@ -396,32 +405,32 @@ async function deleteAllowanceType(id) {
         success: true
     };
 }
-async function listEmployeeAllowances(employee_id) {
+async function listEmployeeAdjustments(employee_id) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    const { data, error } = await supabase.from("employee_allowances").select(`
+    const { data, error } = await supabase.from("employee_adjustments").select(`
       *,
-      allowance_type:allowance_types(*)
+      adjustment_type:payroll_adjustment_types(*)
     `).eq("employee_id", employee_id).order("effective_date", {
         ascending: false
     });
     if (error) {
-        console.error("Error listing employee allowances:", error);
+        console.error("Error listing employee adjustments:", error);
         return [];
     }
     return data || [];
 }
-async function assignAllowanceToEmployee(input) {
+async function assignAdjustmentToEmployee(input) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    const { error } = await supabase.from("employee_allowances").insert({
+    const { error } = await supabase.from("employee_adjustments").insert({
         employee_id: input.employee_id,
-        allowance_type_id: input.allowance_type_id,
+        adjustment_type_id: input.adjustment_type_id,
         custom_amount: input.custom_amount || null,
         effective_date: input.effective_date,
         end_date: input.end_date || null,
         note: input.note || null
     });
     if (error) {
-        console.error("Error assigning allowance:", error);
+        console.error("Error assigning adjustment:", error);
         return {
             success: false,
             error: error.message
@@ -432,11 +441,11 @@ async function assignAllowanceToEmployee(input) {
         success: true
     };
 }
-async function updateEmployeeAllowance(id, input) {
+async function removeEmployeeAdjustment(id) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    const { error } = await supabase.from("employee_allowances").update(input).eq("id", id);
+    const { error } = await supabase.from("employee_adjustments").delete().eq("id", id);
     if (error) {
-        console.error("Error updating employee allowance:", error);
+        console.error("Error removing employee adjustment:", error);
         return {
             success: false,
             error: error.message
@@ -447,130 +456,116 @@ async function updateEmployeeAllowance(id, input) {
         success: true
     };
 }
-async function removeEmployeeAllowance(id) {
+async function createTimeRequest(input) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    const { error } = await supabase.from("employee_allowances").delete().eq("id", id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return {
+        success: false,
+        error: "Chưa đăng nhập"
+    };
+    const { data: employee } = await supabase.from("employees").select("id").eq("user_id", user.id).single();
+    if (!employee) return {
+        success: false,
+        error: "Không tìm thấy nhân viên"
+    };
+    const { error } = await supabase.from("time_adjustment_requests").insert({
+        employee_id: employee.id,
+        request_type: input.request_type,
+        request_date: input.request_date,
+        reason: input.reason || null,
+        status: "pending"
+    });
     if (error) {
-        console.error("Error removing employee allowance:", error);
+        console.error("Error creating time request:", error);
         return {
             success: false,
             error: error.message
         };
     }
-    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/employees");
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/attendance");
     return {
         success: true
     };
 }
-async function calculateEmployeeAllowances(employee_id, month, year, workingDays, lateCount, absentDays) {
+async function approveTimeRequest(id, status) {
     const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
-    const endDate = new Date(year, month, 0).toISOString().split("T")[0];
-    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
-    // Lấy các phụ cấp đang hiệu lực của nhân viên
-    const { data: employeeAllowances } = await supabase.from("employee_allowances").select(`
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return {
+        success: false,
+        error: "Chưa đăng nhập"
+    };
+    const { data: approver } = await supabase.from("employees").select("id").eq("user_id", user.id).single();
+    const { error } = await supabase.from("time_adjustment_requests").update({
+        status,
+        approver_id: approver?.id,
+        approved_at: new Date().toISOString()
+    }).eq("id", id);
+    if (error) {
+        console.error("Error approving time request:", error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$cache$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["revalidatePath"])("/dashboard/leave-approval");
+    return {
+        success: true
+    };
+}
+async function listMyTimeRequests() {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    const { data: employee } = await supabase.from("employees").select("id").eq("user_id", user.id).single();
+    if (!employee) return [];
+    const { data, error } = await supabase.from("time_adjustment_requests").select("*").eq("employee_id", employee.id).order("created_at", {
+        ascending: false
+    });
+    if (error) {
+        console.error("Error listing time requests:", error);
+        return [];
+    }
+    return data || [];
+}
+async function listPendingTimeRequests() {
+    const supabase = await (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$supabase$2f$server$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createClient"])();
+    const { data, error } = await supabase.from("time_adjustment_requests").select(`
       *,
-      allowance_type:allowance_types(*)
-    `).eq("employee_id", employee_id).lte("effective_date", endDate).or(`end_date.is.null,end_date.gte.${startDate}`);
-    if (!employeeAllowances || employeeAllowances.length === 0) {
-        return {
-            totalAllowance: 0,
-            details: []
-        };
+      employee:employees(id, full_name, employee_code, department:departments(name))
+    `).eq("status", "pending").order("created_at", {
+        ascending: false
+    });
+    if (error) {
+        console.error("Error listing pending time requests:", error);
+        return [];
     }
-    const details = [];
-    let totalAllowance = 0;
-    for (const ea of employeeAllowances){
-        const allowanceType = ea.allowance_type;
-        if (!allowanceType || !allowanceType.is_active) continue;
-        const amount = ea.custom_amount || allowanceType.amount;
-        let baseAmount = amount;
-        let deductedAmount = 0;
-        let deductionReason = null;
-        // Tính base amount theo loại
-        if (allowanceType.calculation_type === "daily") {
-            baseAmount = amount * workingDays;
-        }
-        // Áp dụng quy tắc trừ phụ cấp
-        if (allowanceType.is_deductible && allowanceType.deduction_rules) {
-            const rules = allowanceType.deduction_rules;
-            const reasons = [];
-            // Trừ khi nghỉ làm
-            if (rules.deduct_on_absent && absentDays > 0) {
-                if (allowanceType.calculation_type === "daily") {
-                // Đã tính theo ngày công rồi, không cần trừ thêm
-                } else {
-                    // Fixed: trừ theo tỷ lệ
-                    const deductPerDay = amount / 26 // 26 ngày công chuẩn
-                    ;
-                    deductedAmount += deductPerDay * absentDays;
-                    reasons.push(`Nghỉ ${absentDays} ngày`);
-                }
-            }
-            // Trừ khi đi muộn
-            if (rules.deduct_on_late && lateCount > 0) {
-                const graceCount = rules.late_grace_count || 0;
-                const excessLate = Math.max(0, lateCount - graceCount);
-                if (excessLate > 0) {
-                    // Kiểm tra full_deduct_threshold
-                    if (rules.full_deduct_threshold && lateCount >= rules.full_deduct_threshold) {
-                        deductedAmount = baseAmount; // Mất toàn bộ
-                        reasons.push(`Đi muộn ${lateCount} lần (mất toàn bộ)`);
-                    } else if (allowanceType.calculation_type === "daily") {
-                        // Trừ theo số ngày đi muộn vượt quá
-                        deductedAmount += amount * excessLate;
-                        reasons.push(`Đi muộn ${excessLate} lần (vượt ${graceCount} lần miễn)`);
-                    } else {
-                        // Fixed: trừ theo tỷ lệ
-                        const deductPerLate = amount / 26;
-                        deductedAmount += deductPerLate * excessLate;
-                        reasons.push(`Đi muộn ${excessLate} lần`);
-                    }
-                }
-            }
-            if (reasons.length > 0) {
-                deductionReason = reasons.join(", ");
-            }
-        }
-        // Đảm bảo không trừ quá base
-        deductedAmount = Math.min(deductedAmount, baseAmount);
-        const finalAmount = baseAmount - deductedAmount;
-        details.push({
-            allowance_type_id: allowanceType.id,
-            base_amount: baseAmount,
-            deducted_amount: deductedAmount,
-            final_amount: finalAmount,
-            deduction_reason: deductionReason,
-            late_count: lateCount,
-            absent_days: absentDays
-        });
-        totalAllowance += finalAmount;
-    }
-    return {
-        totalAllowance,
-        details
-    };
+    return data || [];
 }
 ;
 (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$action$2d$validate$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["ensureServerEntryExports"])([
-    listAllowanceTypes,
-    createAllowanceType,
-    updateAllowanceType,
-    deleteAllowanceType,
-    listEmployeeAllowances,
-    assignAllowanceToEmployee,
-    updateEmployeeAllowance,
-    removeEmployeeAllowance,
-    calculateEmployeeAllowances
+    listAdjustmentTypes,
+    createAdjustmentType,
+    updateAdjustmentType,
+    deleteAdjustmentType,
+    listEmployeeAdjustments,
+    assignAdjustmentToEmployee,
+    removeEmployeeAdjustment,
+    createTimeRequest,
+    approveTimeRequest,
+    listMyTimeRequests,
+    listPendingTimeRequests
 ]);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listAllowanceTypes, "00e07ac3c20a776facdd854cf9091bd2b969eadba5", null);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(createAllowanceType, "40e3b60da12a8aa54c6e928db8e2afc9094a442b0b", null);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(updateAllowanceType, "609a52031a6106b0e8b0ba9417d2fa8f73cedd6993", null);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(deleteAllowanceType, "4046aaa30e394173b6bdd851189594604df72dadfd", null);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listEmployeeAllowances, "4063f89fdf119fef6c15ef5f8cfceecf1f2879e287", null);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(assignAllowanceToEmployee, "406b7022e253978d9328109c1b16a7e953a8f7610f", null);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(updateEmployeeAllowance, "601e21d88517fe7e03338021d716ae56821d0930b7", null);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(removeEmployeeAllowance, "40dc7a1d74196365975750875be59a833b89c2c703", null);
-(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(calculateEmployeeAllowances, "7ee195ab1271622b7a211c8ccdb2dc773381e167a2", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listAdjustmentTypes, "401c6b975e05df6efb7fd9c6ba1a8737f066f024b7", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(createAdjustmentType, "40026f5dcd571f9345e3beb1b8ed785960d3c8e37e", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(updateAdjustmentType, "608e72bf0d3e94e2a83591d70f1a9ab2925449acab", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(deleteAdjustmentType, "406b8435b970c02b6dabbc896bf4edefed7f73e26d", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listEmployeeAdjustments, "40aad902d6872d425323cec13eecdc4a144f694a94", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(assignAdjustmentToEmployee, "40e68c341d28de4e27246f892d73094585cd299103", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(removeEmployeeAdjustment, "40aa85210cb3a78eb40dec4ff594c64933c0f34e9f", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(createTimeRequest, "40d25dc24fe3a6b800bb2cd42510c52243942f572c", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(approveTimeRequest, "60456f5eb7df605ec22c12adbae3ddd7557b03cd23", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listMyTimeRequests, "001da4ff3ab9060c5c5a4f54f47d1b7465c98e9b6a", null);
+(0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$build$2f$webpack$2f$loaders$2f$next$2d$flight$2d$loader$2f$server$2d$reference$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["registerServerReference"])(listPendingTimeRequests, "00ca4772e9dfd784dc10257c6422ded9ec85a8ac15", null);
 }),
 "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript) <locals>", ((__turbopack_context__) => {
 "use strict";
@@ -599,47 +594,53 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$
 ;
 ;
 ;
+;
+;
 }),
 "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)", ((__turbopack_context__) => {
 "use strict";
 
 __turbopack_context__.s([
+    "001da4ff3ab9060c5c5a4f54f47d1b7465c98e9b6a",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listMyTimeRequests"],
     "005e20e2e268d812762b030e4aac3b7693066871b6",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getMyRoles"],
     "00636a7c2e61bd285b975ea815e7fbbefdffae959f",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getMyEmployee"],
     "00b0c7f0352396833a3aa70b738bb3a8c2a485efae",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listEmployees"],
-    "00e07ac3c20a776facdd854cf9091bd2b969eadba5",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listAllowanceTypes"],
-    "4046aaa30e394173b6bdd851189594604df72dadfd",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["deleteAllowanceType"],
-    "4063f89fdf119fef6c15ef5f8cfceecf1f2879e287",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listEmployeeAllowances"],
-    "406b7022e253978d9328109c1b16a7e953a8f7610f",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["assignAllowanceToEmployee"],
+    "00ca4772e9dfd784dc10257c6422ded9ec85a8ac15",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listPendingTimeRequests"],
+    "40026f5dcd571f9345e3beb1b8ed785960d3c8e37e",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createAdjustmentType"],
+    "401c6b975e05df6efb7fd9c6ba1a8737f066f024b7",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listAdjustmentTypes"],
+    "406b8435b970c02b6dabbc896bf4edefed7f73e26d",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["deleteAdjustmentType"],
     "4072cdebcca1df607d08f62096843ddf91d2cf29f6",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createEmployee"],
     "407a7f2085358134fb9b61998dbd9fa880ad52c2cf",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateMyProfile"],
     "409df3c5b25ea33596f872aab0b186da47271a8e80",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getEmployee"],
-    "40dc7a1d74196365975750875be59a833b89c2c703",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["removeEmployeeAllowance"],
-    "40e3b60da12a8aa54c6e928db8e2afc9094a442b0b",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createAllowanceType"],
-    "601e21d88517fe7e03338021d716ae56821d0930b7",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateEmployeeAllowance"],
-    "609a52031a6106b0e8b0ba9417d2fa8f73cedd6993",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateAllowanceType"],
+    "40aa85210cb3a78eb40dec4ff594c64933c0f34e9f",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["removeEmployeeAdjustment"],
+    "40aad902d6872d425323cec13eecdc4a144f694a94",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listEmployeeAdjustments"],
+    "40d25dc24fe3a6b800bb2cd42510c52243942f572c",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["createTimeRequest"],
+    "40e68c341d28de4e27246f892d73094585cd299103",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["assignAdjustmentToEmployee"],
+    "60456f5eb7df605ec22c12adbae3ddd7557b03cd23",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["approveTimeRequest"],
+    "608e72bf0d3e94e2a83591d70f1a9ab2925449acab",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateAdjustmentType"],
     "60e7529b55507157f11112b5c625757ac226a23a7c",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["updateEmployee"],
     "701419c868154523741dd2880ac65e97064ceb8620",
     ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["changeDepartment"],
     "70daddb01ea9f495d095baa024616ddfa6ee94f8dd",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["changePosition"],
-    "7ee195ab1271622b7a211c8ccdb2dc773381e167a2",
-    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["calculateEmployeeAllowances"]
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["changePosition"]
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f2e$next$2d$internal$2f$server$2f$app$2f$dashboard$2f$allowances$2f$page$2f$actions$2e$js__$7b$__ACTIONS_MODULE0__$3d3e$__$225b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29222c$__ACTIONS_MODULE1__$3d3e$__$225b$project$5d2f$lib$2f$actions$2f$allowance$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$2922$__$7d$__$5b$app$2d$rsc$5d$__$28$server__actions__loader$2c$__ecmascript$29$__$3c$locals$3e$__ = __turbopack_context__.i('[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => "[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)", ACTIONS_MODULE1 => "[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)" } [app-rsc] (server actions loader, ecmascript) <locals>');
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)");

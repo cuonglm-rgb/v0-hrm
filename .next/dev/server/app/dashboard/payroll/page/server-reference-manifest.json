@@ -255,6 +255,21 @@
       "exportedName": "createSalaryStructure",
       "filename": "lib/actions/payroll-actions.ts"
     },
+    "40760250a0f0276425dcf05a519fbffe7aee716735": {
+      "workers": {
+        "app/dashboard/payroll/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/payroll/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/payroll-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "getPayrollAdjustmentDetails",
+          "filename": "lib/actions/payroll-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/payroll/page": "rsc"
+      },
+      "exportedName": "getPayrollAdjustmentDetails",
+      "filename": "lib/actions/payroll-actions.ts"
+    },
     "40ede0ab5a9b6f1a8f1980612375ce413cfe2ce638": {
       "workers": {
         "app/dashboard/payroll/page": {

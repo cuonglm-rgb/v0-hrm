@@ -136,7 +136,15 @@ export async function listAttendance(filters?: {
 
   let query = supabase
     .from("attendance_logs")
-    .select(`*, employee:employees(id, full_name, employee_code)`)
+    .select(`
+      *,
+      employee:employees(
+        id,
+        full_name,
+        employee_code,
+        shift:work_shifts(id, name, start_time, end_time, break_start, break_end, break_minutes)
+      )
+    `)
     .order("check_in", { ascending: false })
 
   if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id)

@@ -135,139 +135,169 @@
       "exportedName": "changePosition",
       "filename": "lib/actions/employee-actions.ts"
     },
-    "00e07ac3c20a776facdd854cf9091bd2b969eadba5": {
+    "001da4ff3ab9060c5c5a4f54f47d1b7465c98e9b6a": {
       "workers": {
         "app/dashboard/allowances/page": {
           "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
           "async": false,
-          "exportedName": "listAllowanceTypes",
+          "exportedName": "listMyTimeRequests",
           "filename": "lib/actions/allowance-actions.ts"
         }
       },
       "layer": {
         "app/dashboard/allowances/page": "rsc"
       },
-      "exportedName": "listAllowanceTypes",
+      "exportedName": "listMyTimeRequests",
       "filename": "lib/actions/allowance-actions.ts"
     },
-    "4046aaa30e394173b6bdd851189594604df72dadfd": {
+    "00ca4772e9dfd784dc10257c6422ded9ec85a8ac15": {
       "workers": {
         "app/dashboard/allowances/page": {
           "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
           "async": false,
-          "exportedName": "deleteAllowanceType",
+          "exportedName": "listPendingTimeRequests",
+          "filename": "lib/actions/allowance-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/allowances/page": "rsc"
+      },
+      "exportedName": "listPendingTimeRequests",
+      "filename": "lib/actions/allowance-actions.ts"
+    },
+    "40026f5dcd571f9345e3beb1b8ed785960d3c8e37e": {
+      "workers": {
+        "app/dashboard/allowances/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createAdjustmentType",
           "filename": "lib/actions/allowance-actions.ts"
         }
       },
       "layer": {
         "app/dashboard/allowances/page": "action-browser"
       },
-      "exportedName": "deleteAllowanceType",
+      "exportedName": "createAdjustmentType",
       "filename": "lib/actions/allowance-actions.ts"
     },
-    "4063f89fdf119fef6c15ef5f8cfceecf1f2879e287": {
+    "401c6b975e05df6efb7fd9c6ba1a8737f066f024b7": {
       "workers": {
         "app/dashboard/allowances/page": {
           "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
           "async": false,
-          "exportedName": "listEmployeeAllowances",
+          "exportedName": "listAdjustmentTypes",
           "filename": "lib/actions/allowance-actions.ts"
         }
       },
       "layer": {
         "app/dashboard/allowances/page": "rsc"
       },
-      "exportedName": "listEmployeeAllowances",
+      "exportedName": "listAdjustmentTypes",
       "filename": "lib/actions/allowance-actions.ts"
     },
-    "406b7022e253978d9328109c1b16a7e953a8f7610f": {
+    "406b8435b970c02b6dabbc896bf4edefed7f73e26d": {
       "workers": {
         "app/dashboard/allowances/page": {
           "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
           "async": false,
-          "exportedName": "assignAllowanceToEmployee",
-          "filename": "lib/actions/allowance-actions.ts"
-        }
-      },
-      "layer": {
-        "app/dashboard/allowances/page": "rsc"
-      },
-      "exportedName": "assignAllowanceToEmployee",
-      "filename": "lib/actions/allowance-actions.ts"
-    },
-    "40dc7a1d74196365975750875be59a833b89c2c703": {
-      "workers": {
-        "app/dashboard/allowances/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "removeEmployeeAllowance",
-          "filename": "lib/actions/allowance-actions.ts"
-        }
-      },
-      "layer": {
-        "app/dashboard/allowances/page": "rsc"
-      },
-      "exportedName": "removeEmployeeAllowance",
-      "filename": "lib/actions/allowance-actions.ts"
-    },
-    "40e3b60da12a8aa54c6e928db8e2afc9094a442b0b": {
-      "workers": {
-        "app/dashboard/allowances/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "createAllowanceType",
+          "exportedName": "deleteAdjustmentType",
           "filename": "lib/actions/allowance-actions.ts"
         }
       },
       "layer": {
         "app/dashboard/allowances/page": "action-browser"
       },
-      "exportedName": "createAllowanceType",
+      "exportedName": "deleteAdjustmentType",
       "filename": "lib/actions/allowance-actions.ts"
     },
-    "601e21d88517fe7e03338021d716ae56821d0930b7": {
+    "40aa85210cb3a78eb40dec4ff594c64933c0f34e9f": {
       "workers": {
         "app/dashboard/allowances/page": {
           "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
           "async": false,
-          "exportedName": "updateEmployeeAllowance",
+          "exportedName": "removeEmployeeAdjustment",
           "filename": "lib/actions/allowance-actions.ts"
         }
       },
       "layer": {
         "app/dashboard/allowances/page": "rsc"
       },
-      "exportedName": "updateEmployeeAllowance",
+      "exportedName": "removeEmployeeAdjustment",
       "filename": "lib/actions/allowance-actions.ts"
     },
-    "609a52031a6106b0e8b0ba9417d2fa8f73cedd6993": {
+    "40aad902d6872d425323cec13eecdc4a144f694a94": {
       "workers": {
         "app/dashboard/allowances/page": {
           "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
           "async": false,
-          "exportedName": "updateAllowanceType",
+          "exportedName": "listEmployeeAdjustments",
+          "filename": "lib/actions/allowance-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/allowances/page": "rsc"
+      },
+      "exportedName": "listEmployeeAdjustments",
+      "filename": "lib/actions/allowance-actions.ts"
+    },
+    "40d25dc24fe3a6b800bb2cd42510c52243942f572c": {
+      "workers": {
+        "app/dashboard/allowances/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "createTimeRequest",
+          "filename": "lib/actions/allowance-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/allowances/page": "rsc"
+      },
+      "exportedName": "createTimeRequest",
+      "filename": "lib/actions/allowance-actions.ts"
+    },
+    "40e68c341d28de4e27246f892d73094585cd299103": {
+      "workers": {
+        "app/dashboard/allowances/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "assignAdjustmentToEmployee",
+          "filename": "lib/actions/allowance-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/allowances/page": "rsc"
+      },
+      "exportedName": "assignAdjustmentToEmployee",
+      "filename": "lib/actions/allowance-actions.ts"
+    },
+    "60456f5eb7df605ec22c12adbae3ddd7557b03cd23": {
+      "workers": {
+        "app/dashboard/allowances/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "approveTimeRequest",
+          "filename": "lib/actions/allowance-actions.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/allowances/page": "rsc"
+      },
+      "exportedName": "approveTimeRequest",
+      "filename": "lib/actions/allowance-actions.ts"
+    },
+    "608e72bf0d3e94e2a83591d70f1a9ab2925449acab": {
+      "workers": {
+        "app/dashboard/allowances/page": {
+          "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "updateAdjustmentType",
           "filename": "lib/actions/allowance-actions.ts"
         }
       },
       "layer": {
         "app/dashboard/allowances/page": "action-browser"
       },
-      "exportedName": "updateAllowanceType",
-      "filename": "lib/actions/allowance-actions.ts"
-    },
-    "7ee195ab1271622b7a211c8ccdb2dc773381e167a2": {
-      "workers": {
-        "app/dashboard/allowances/page": {
-          "moduleId": "[project]/.next-internal/server/app/dashboard/allowances/page/actions.js { ACTIONS_MODULE0 => \"[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)\", ACTIONS_MODULE1 => \"[project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
-          "async": false,
-          "exportedName": "calculateEmployeeAllowances",
-          "filename": "lib/actions/allowance-actions.ts"
-        }
-      },
-      "layer": {
-        "app/dashboard/allowances/page": "rsc"
-      },
-      "exportedName": "calculateEmployeeAllowances",
+      "exportedName": "updateAdjustmentType",
       "filename": "lib/actions/allowance-actions.ts"
     }
   },

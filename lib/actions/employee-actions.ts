@@ -84,7 +84,8 @@ export async function getEmployee(id: string): Promise<EmployeeWithRelations | n
       *,
       department:departments(*),
       position:positions(*),
-      manager:employees!manager_id(id, full_name, email)
+      manager:employees!manager_id(id, full_name, email),
+      shift:work_shifts(*)
     `)
     .eq("id", id)
     .single()
@@ -99,7 +100,7 @@ export async function getEmployee(id: string): Promise<EmployeeWithRelations | n
 
 export async function updateEmployee(
   id: string,
-  data: Partial<Pick<Employee, "full_name" | "phone" | "department_id" | "position_id" | "status" | "join_date">>,
+  data: Partial<Pick<Employee, "full_name" | "phone" | "department_id" | "position_id" | "shift_id" | "status" | "join_date">>,
 ) {
   const supabase = await createClient()
 

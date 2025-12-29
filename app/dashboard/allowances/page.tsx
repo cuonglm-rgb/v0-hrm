@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { listAllowanceTypes } from "@/lib/actions/allowance-actions"
+import { listAdjustmentTypes } from "@/lib/actions/allowance-actions"
 import { AllowanceList } from "@/components/allowances/allowance-list"
 
 export default async function AllowancesPage() {
@@ -16,18 +16,18 @@ export default async function AllowancesPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, allowances] = await Promise.all([
+  const [employee, userRoles, adjustments] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
-    listAllowanceTypes(),
+    listAdjustmentTypes(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const isHROrAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Phụ cấp" }]}>
-      <AllowanceList allowances={allowances} isHROrAdmin={isHROrAdmin} />
+    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Phụ cấp & Khấu trừ" }]}>
+      <AllowanceList adjustments={adjustments} isHROrAdmin={isHROrAdmin} />
     </DashboardLayout>
   )
 }

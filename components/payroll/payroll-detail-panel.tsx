@@ -140,12 +140,13 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
                 <TableHead className="text-right">Thu nhập</TableHead>
                 <TableHead className="text-right">Khấu trừ</TableHead>
                 <TableHead className="text-right">Thực lĩnh</TableHead>
+                <TableHead>Ghi chú</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {payrollItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center text-muted-foreground">
                     Chưa có dữ liệu
                   </TableCell>
                 </TableRow>
@@ -173,6 +174,11 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
                     </TableCell>
                     <TableCell className="text-right font-bold text-green-600">
                       {formatCurrency(item.net_salary)}
+                    </TableCell>
+                    <TableCell>
+                      {item.note && (
+                        <span className="text-xs text-muted-foreground">{item.note}</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

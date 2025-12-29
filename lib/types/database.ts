@@ -77,6 +77,8 @@ export interface WorkShift {
   name: string
   start_time: string
   end_time: string
+  break_start: string | null
+  break_end: string | null
   break_minutes: number
   created_at: string
 }
@@ -174,36 +176,44 @@ export interface PayrollItemWithRelations extends PayrollItem {
 
 
 // =============================================
-// ALLOWANCE TYPES
+// PAYROLL ADJUSTMENT TYPES
 // =============================================
 
-export type AllowanceCalculationType = "fixed" | "daily"
+export type AdjustmentCategory = "allowance" | "deduction" | "penalty"
+export type AdjustmentCalculationType = "fixed" | "daily" | "per_occurrence"
 
-export interface AllowanceDeductionRules {
-  deduct_on_absent?: boolean      // Trừ khi nghỉ làm
-  deduct_on_late?: boolean        // Trừ khi đi muộn
-  late_grace_count?: number       // Số lần đi muộn được miễn
-  late_threshold_minutes?: number // Muộn bao nhiêu phút tính là đi muộn
-  full_deduct_threshold?: number  // Số lần vi phạm để mất toàn bộ
+export interface AdjustmentAutoRules {
+  trigger?: "attendance" | "late" | "absent"
+  deduct_on_absent?: boolean
+  deduct_on_late?: boolean
+  late_grace_count?: number
+  late_threshold_minutes?: number
+  full_deduct_threshold?: number
+  penalty_type?: "half_day_salary" | "full_day_salary" | "fixed_amount"
+  exempt_with_request?: boolean
+  multiplier?: number
+  calculate_from?: "base_salary"
+  percentage?: number
 }
 
-export interface AllowanceType {
+export interface PayrollAdjustmentType {
   id: string
   name: string
   code: string | null
+  category: AdjustmentCategory
   amount: number
-  calculation_type: AllowanceCalculationType
-  is_deductible: boolean
-  deduction_rules: AllowanceDeductionRules | null
+  calculation_type: AdjustmentCalculationType
+  is_auto_applied: boolean
+  auto_rules: AdjustmentAutoRules | null
   description: string | null
   is_active: boolean
   created_at: string
 }
 
-export interface EmployeeAllowance {
+export interface EmployeeAdjustment {
   id: string
   employee_id: string
-  allowance_type_id: string
+  adjustment_type_id: string
   custom_amount: number | null
   effective_date: string
   end_date: string | null
@@ -211,23 +221,43 @@ export interface EmployeeAllowance {
   created_at: string
 }
 
-export interface EmployeeAllowanceWithType extends EmployeeAllowance {
-  allowance_type?: AllowanceType | null
+export interface EmployeeAdjustmentWithType extends EmployeeAdjustment {
+  adjustment_type?: PayrollAdjustmentType | null
 }
 
-export interface PayrollAllowanceDetail {
+export interface PayrollAdjustmentDetail {
   id: string
   payroll_item_id: string
-  allowance_type_id: string
+  adjustment_type_id: string
+  category: AdjustmentCategory
   base_amount: number
-  deducted_amount: number
+  adjusted_amount: number
   final_amount: number
-  deduction_reason: string | null
-  late_count: number
-  absent_days: number
+  reason: string | null
+  occurrence_count: number
   created_at: string
 }
 
-export interface PayrollAllowanceDetailWithType extends PayrollAllowanceDetail {
-  allowance_type?: AllowanceType | null
+export interface PayrollAdjustmentDetailWithType extends PayrollAdjustmentDetail {
+  adjustment_type?: PayrollAdjustmentType | null
+}
+
+export type TimeRequestType = "late_arrival" | "early_leave"
+export type TimeRequestStatus = "pending" | "approved" | "rejected"
+
+export interface TimeAdjustmentRequest {
+  id: string
+  employee_id: string
+  request_type: TimeRequestType
+  request_date: string
+  reason: string | null
+  status: TimeRequestStatus
+  approver_id: string | null
+  approved_at: string | null
+  created_at: string
+}
+
+export interface TimeAdjustmentRequestWithRelations extends TimeAdjustmentRequest {
+  employee?: Employee | null
+  approver?: Employee | null
 }

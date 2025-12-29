@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { listDepartments, listPositions } from "@/lib/actions/department-actions"
+import { listWorkShifts } from "@/lib/actions/shift-actions"
 import { OrganizationPanel } from "@/components/departments/organization-panel"
 
 export default async function DepartmentsPage() {
@@ -16,11 +17,12 @@ export default async function DepartmentsPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, departments, positions] = await Promise.all([
+  const [employee, userRoles, departments, positions, shifts] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listDepartments(),
     listPositions(),
+    listWorkShifts(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
@@ -31,6 +33,7 @@ export default async function DepartmentsPage() {
       <OrganizationPanel
         departments={departments}
         positions={positions}
+        shifts={shifts}
         isHROrAdmin={isHROrAdmin}
       />
     </DashboardLayout>
