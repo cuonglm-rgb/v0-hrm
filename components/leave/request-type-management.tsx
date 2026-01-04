@@ -10,15 +10,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createRequestType, updateRequestType, deleteRequestType } from "@/lib/actions/request-type-actions"
-import type { RequestType } from "@/lib/types/database"
-import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip } from "lucide-react"
+import type { RequestType, Position } from "@/lib/types/database"
+import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip, Users } from "lucide-react"
 
 interface RequestTypeManagementProps {
   requestTypes: RequestType[]
+  positions?: Position[]
 }
 
-export function RequestTypeManagement({ requestTypes }: RequestTypeManagementProps) {
+export function RequestTypeManagement({ requestTypes, positions = [] }: RequestTypeManagementProps) {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingType, setEditingType] = useState<RequestType | null>(null)
   const [loading, setLoading] = useState(false)
@@ -30,11 +32,15 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
     requires_date_range: true,
     requires_single_date: false,
     requires_time: false,
+    requires_time_range: false,
     requires_reason: true,
     requires_attachment: false,
     affects_attendance: false,
     affects_payroll: false,
     deduct_leave_balance: false,
+    approval_mode: "any" as "any" | "all",
+    min_approver_level: null as number | null,
+    max_approver_level: null as number | null,
   })
 
   const resetForm = () => {
@@ -45,11 +51,15 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
       requires_date_range: true,
       requires_single_date: false,
       requires_time: false,
+      requires_time_range: false,
       requires_reason: true,
       requires_attachment: false,
       affects_attendance: false,
       affects_payroll: false,
       deduct_leave_balance: false,
+      approval_mode: "any",
+      min_approver_level: null,
+      max_approver_level: null,
     })
   }
 
@@ -75,11 +85,15 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
       requires_date_range: type.requires_date_range,
       requires_single_date: type.requires_single_date,
       requires_time: type.requires_time,
+      requires_time_range: type.requires_time_range,
       requires_reason: type.requires_reason,
       requires_attachment: type.requires_attachment,
       affects_attendance: type.affects_attendance,
       affects_payroll: type.affects_payroll,
       deduct_leave_balance: type.deduct_leave_balance,
+      approval_mode: type.approval_mode || "any",
+      min_approver_level: type.min_approver_level,
+      max_approver_level: type.max_approver_level,
     })
   }
 
@@ -109,15 +123,26 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
     await updateRequestType(type.id, { is_active: !type.is_active })
   }
 
-  const FormFields = () => (
-    <div className="grid gap-4 py-4">
+  // Nhóm positions theo level và lấy tên các chức vụ
+  const levelPositions = positions.reduce((acc, p) => {
+    if (!acc[p.level]) {
+      acc[p.level] = []
+    }
+    acc[p.level].push(p.name)
+    return acc
+  }, {} as Record<number, string[]>)
+  
+  const positionLevels = Object.keys(levelPositions).map(Number).sort((a, b) => a - b)
+
+  const formFieldsContent = (
+    <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="name">Tên loại phiếu *</Label>
           <Input
             id="name"
             value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
             placeholder="VD: Nghỉ phép năm"
           />
         </div>
@@ -126,7 +151,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
           <Input
             id="code"
             value={formData.code}
-            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+            onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
             placeholder="VD: annual_leave"
             disabled={!!editingType}
           />
@@ -138,7 +163,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
         <Textarea
           id="description"
           value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
           placeholder="Mô tả chi tiết về loại phiếu..."
         />
       </div>
@@ -151,7 +176,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
             <Switch
               id="requires_date_range"
               checked={formData.requires_date_range}
-              onCheckedChange={(checked) => setFormData({ ...formData, requires_date_range: checked })}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, requires_date_range: checked }))}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -159,7 +184,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
             <Switch
               id="requires_single_date"
               checked={formData.requires_single_date}
-              onCheckedChange={(checked) => setFormData({ ...formData, requires_single_date: checked })}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, requires_single_date: checked }))}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -167,7 +192,15 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
             <Switch
               id="requires_time"
               checked={formData.requires_time}
-              onCheckedChange={(checked) => setFormData({ ...formData, requires_time: checked })}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, requires_time: checked }))}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="requires_time_range">Cần từ giờ - đến giờ</Label>
+            <Switch
+              id="requires_time_range"
+              checked={formData.requires_time_range}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, requires_time_range: checked }))}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -175,7 +208,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
             <Switch
               id="requires_reason"
               checked={formData.requires_reason}
-              onCheckedChange={(checked) => setFormData({ ...formData, requires_reason: checked })}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, requires_reason: checked }))}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -183,7 +216,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
             <Switch
               id="requires_attachment"
               checked={formData.requires_attachment}
-              onCheckedChange={(checked) => setFormData({ ...formData, requires_attachment: checked })}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, requires_attachment: checked }))}
             />
           </div>
         </div>
@@ -197,7 +230,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
             <Switch
               id="affects_attendance"
               checked={formData.affects_attendance}
-              onCheckedChange={(checked) => setFormData({ ...formData, affects_attendance: checked })}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, affects_attendance: checked }))}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -205,7 +238,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
             <Switch
               id="affects_payroll"
               checked={formData.affects_payroll}
-              onCheckedChange={(checked) => setFormData({ ...formData, affects_payroll: checked })}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, affects_payroll: checked }))}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -213,13 +246,92 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
             <Switch
               id="deduct_leave_balance"
               checked={formData.deduct_leave_balance}
-              onCheckedChange={(checked) => setFormData({ ...formData, deduct_leave_balance: checked })}
+              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, deduct_leave_balance: checked }))}
             />
           </div>
         </div>
       </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-medium flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Cấu hình người duyệt
+        </h4>
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label>Chế độ duyệt</Label>
+            <Select
+              value={formData.approval_mode}
+              onValueChange={(value: "any" | "all") => setFormData((prev) => ({ ...prev, approval_mode: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Chỉ cần 1 người duyệt</SelectItem>
+                <SelectItem value="all">Cần tất cả người duyệt đồng ý</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Level chức vụ tối thiểu</Label>
+              <Select
+                value={formData.min_approver_level?.toString() || "none"}
+                onValueChange={(value) => setFormData((prev) => ({ 
+                  ...prev, 
+                  min_approver_level: value === "none" ? null : parseInt(value) 
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Không giới hạn" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Không giới hạn</SelectItem>
+                  {positionLevels.map((level) => (
+                    <SelectItem key={level} value={level.toString()}>
+                      Level {level} - {levelPositions[level].join(", ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Level chức vụ tối đa</Label>
+              <Select
+                value={formData.max_approver_level?.toString() || "none"}
+                onValueChange={(value) => setFormData((prev) => ({ 
+                  ...prev, 
+                  max_approver_level: value === "none" ? null : parseInt(value) 
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Không giới hạn" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Không giới hạn</SelectItem>
+                  {positionLevels.map((level) => (
+                    <SelectItem key={level} value={level.toString()}>
+                      Level {level} - {levelPositions[level].join(", ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {formData.approval_mode === "any" 
+              ? "Phiếu sẽ được duyệt khi có ít nhất 1 người trong danh sách đồng ý"
+              : "Phiếu chỉ được duyệt khi tất cả người trong danh sách đều đồng ý"}
+          </p>
+        </div>
+      </div>
     </div>
   )
+
+  const getApprovalModeLabel = (mode: string) => {
+    return mode === "all" ? "Tất cả duyệt" : "1 người duyệt"
+  }
 
   return (
     <Card>
@@ -240,7 +352,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
               <DialogTitle>Tạo loại phiếu mới</DialogTitle>
               <DialogDescription>Định nghĩa template cho loại phiếu mới</DialogDescription>
             </DialogHeader>
-            <FormFields />
+            {formFieldsContent}
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Hủy</Button>
               <Button onClick={handleCreate} disabled={loading || !formData.name || !formData.code}>
@@ -257,7 +369,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
               <TableHead>Tên loại phiếu</TableHead>
               <TableHead>Mã</TableHead>
               <TableHead>Cấu hình</TableHead>
-              <TableHead>Ảnh hưởng</TableHead>
+              <TableHead>Người duyệt</TableHead>
               <TableHead>Trạng thái</TableHead>
               <TableHead>Thao tác</TableHead>
             </TableRow>
@@ -305,6 +417,12 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
                           Giờ
                         </Badge>
                       )}
+                      {type.requires_time_range && (
+                        <Badge variant="outline" className="gap-1">
+                          <Clock className="h-3 w-3" />
+                          Từ-đến giờ
+                        </Badge>
+                      )}
                       {type.requires_reason && (
                         <Badge variant="outline" className="gap-1">
                           <FileText className="h-3 w-3" />
@@ -320,15 +438,14 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-1 flex-wrap">
-                      {type.affects_attendance && (
-                        <Badge className="bg-blue-100 text-blue-800">Chấm công</Badge>
-                      )}
-                      {type.affects_payroll && (
-                        <Badge className="bg-green-100 text-green-800">Lương</Badge>
-                      )}
-                      {type.deduct_leave_balance && (
-                        <Badge className="bg-orange-100 text-orange-800">Trừ phép</Badge>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant="secondary" className="w-fit">
+                        {getApprovalModeLabel(type.approval_mode)}
+                      </Badge>
+                      {(type.min_approver_level || type.max_approver_level) && (
+                        <span className="text-xs text-muted-foreground">
+                          Level: {type.min_approver_level || "?"} - {type.max_approver_level || "?"}
+                        </span>
                       )}
                     </div>
                   </TableCell>
@@ -366,7 +483,7 @@ export function RequestTypeManagement({ requestTypes }: RequestTypeManagementPro
               <DialogTitle>Sửa loại phiếu</DialogTitle>
               <DialogDescription>Cập nhật thông tin loại phiếu</DialogDescription>
             </DialogHeader>
-            <FormFields />
+            {formFieldsContent}
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingType(null)}>Hủy</Button>
               <Button onClick={handleUpdate} disabled={loading || !formData.name}>

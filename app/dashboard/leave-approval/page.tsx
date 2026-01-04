@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { listLeaveRequests } from "@/lib/actions/leave-actions"
 import { listRequestTypes, listEmployeeRequests } from "@/lib/actions/request-type-actions"
+import { listPositions } from "@/lib/actions/department-actions"
 import { LeaveApprovalPanel } from "@/components/leave/leave-approval-panel"
 import { RequestTypeManagement } from "@/components/leave/request-type-management"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -16,17 +17,23 @@ export default async function LeaveApprovalPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, leaveRequests, requestTypes, employeeRequests] = await Promise.all([
+  // Lấy tất cả phiếu (không chỉ pending) để có thể xem lịch sử
+  const [employee, userRoles, leaveRequests, requestTypes, employeeRequests, positions] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
-    listLeaveRequests({ status: "pending" }),
+    listLeaveRequests({}), // Lấy tất cả
     listRequestTypes(false),
-    listEmployeeRequests({ status: "pending" }),
+    listEmployeeRequests({}), // Lấy tất cả
+    listPositions(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const canApprove = roleCodes.includes("hr") || roleCodes.includes("admin") || roleCodes.includes("manager")
   const isAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
+
+  // Đếm số phiếu pending
+  const pendingCount = leaveRequests.filter(r => r.status === "pending").length + 
+                       employeeRequests.filter(r => r.status === "pending").length
 
   if (!canApprove) {
     redirect("/dashboard")
@@ -43,7 +50,7 @@ export default async function LeaveApprovalPage() {
         <Tabs defaultValue="approval">
           <TabsList>
             <TabsTrigger value="approval">
-              Duyệt phiếu ({leaveRequests.length + employeeRequests.length})
+              Duyệt phiếu {pendingCount > 0 && `(${pendingCount} chờ duyệt)`}
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="types">Quản lý loại phiếu</TabsTrigger>
@@ -59,7 +66,7 @@ export default async function LeaveApprovalPage() {
 
           {isAdmin && (
             <TabsContent value="types" className="mt-4">
-              <RequestTypeManagement requestTypes={requestTypes} />
+              <RequestTypeManagement requestTypes={requestTypes} positions={positions} />
             </TabsContent>
           )}
         </Tabs>

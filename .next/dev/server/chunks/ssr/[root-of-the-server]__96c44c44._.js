@@ -791,9 +791,11 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$components$2f$layout$2f$dash
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/employee-actions.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$leave$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/leave-actions.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$request$2d$type$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/request-type-actions.ts [app-rsc] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/lib/actions/department-actions.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$components$2f$leave$2f$leave$2d$approval$2d$panel$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/components/leave/leave-approval-panel.tsx [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$components$2f$leave$2f$request$2d$type$2d$management$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/components/leave/request-type-management.tsx [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$tabs$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/components/ui/tabs.tsx [app-rsc] (ecmascript)");
+;
 ;
 ;
 ;
@@ -810,20 +812,20 @@ async function LeaveApprovalPage() {
     if (error || !user) {
         (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$client$2f$components$2f$navigation$2e$react$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["redirect"])("/login");
     }
-    const [employee, userRoles, leaveRequests, requestTypes, employeeRequests] = await Promise.all([
+    // Lấy tất cả phiếu (không chỉ pending) để có thể xem lịch sử
+    const [employee, userRoles, leaveRequests, requestTypes, employeeRequests, positions] = await Promise.all([
         (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getMyEmployee"])(),
         (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$employee$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["getMyRoles"])(),
-        (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$leave$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listLeaveRequests"])({
-            status: "pending"
-        }),
+        (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$leave$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listLeaveRequests"])({}),
         (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$request$2d$type$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listRequestTypes"])(false),
-        (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$request$2d$type$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listEmployeeRequests"])({
-            status: "pending"
-        })
+        (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$request$2d$type$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listEmployeeRequests"])({}),
+        (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$actions$2f$department$2d$actions$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["listPositions"])()
     ]);
     const roleCodes = userRoles.map((ur)=>ur.role.code);
     const canApprove = roleCodes.includes("hr") || roleCodes.includes("admin") || roleCodes.includes("manager");
     const isAdmin = roleCodes.includes("hr") || roleCodes.includes("admin");
+    // Đếm số phiếu pending
+    const pendingCount = leaveRequests.filter((r)=>r.status === "pending").length + employeeRequests.filter((r)=>r.status === "pending").length;
     if (!canApprove) {
         (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$client$2f$components$2f$navigation$2e$react$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["redirect"])("/dashboard");
     }
@@ -840,7 +842,7 @@ async function LeaveApprovalPage() {
                             children: "Duyệt phiếu phép"
                         }, void 0, false, {
                             fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                            lineNumber: 39,
+                            lineNumber: 46,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -848,13 +850,13 @@ async function LeaveApprovalPage() {
                             children: "Xem xét và duyệt các loại phiếu từ nhân viên"
                         }, void 0, false, {
                             fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                            lineNumber: 40,
+                            lineNumber: 47,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                    lineNumber: 38,
+                    lineNumber: 45,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$tabs$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["Tabs"], {
@@ -865,13 +867,12 @@ async function LeaveApprovalPage() {
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$tabs$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["TabsTrigger"], {
                                     value: "approval",
                                     children: [
-                                        "Duyệt phiếu (",
-                                        leaveRequests.length + employeeRequests.length,
-                                        ")"
+                                        "Duyệt phiếu ",
+                                        pendingCount > 0 && `(${pendingCount} chờ duyệt)`
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                                    lineNumber: 45,
+                                    lineNumber: 52,
                                     columnNumber: 13
                                 }, this),
                                 isAdmin && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$tabs$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["TabsTrigger"], {
@@ -879,13 +880,13 @@ async function LeaveApprovalPage() {
                                     children: "Quản lý loại phiếu"
                                 }, void 0, false, {
                                     fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                                    lineNumber: 49,
+                                    lineNumber: 56,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                            lineNumber: 44,
+                            lineNumber: 51,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$tabs$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["TabsContent"], {
@@ -896,44 +897,45 @@ async function LeaveApprovalPage() {
                                 employeeRequests: employeeRequests
                             }, void 0, false, {
                                 fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                                lineNumber: 54,
+                                lineNumber: 61,
                                 columnNumber: 13
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                            lineNumber: 53,
+                            lineNumber: 60,
                             columnNumber: 11
                         }, this),
                         isAdmin && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$tabs$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["TabsContent"], {
                             value: "types",
                             className: "mt-4",
                             children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f2e$pnpm$2f$next$40$16$2e$0$2e$10_react$2d$dom$40$19$2e$2$2e$0_react$40$19$2e$2$2e$0_$5f$react$40$19$2e$2$2e$0$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$leave$2f$request$2d$type$2d$management$2e$tsx__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["RequestTypeManagement"], {
-                                requestTypes: requestTypes
+                                requestTypes: requestTypes,
+                                positions: positions
                             }, void 0, false, {
                                 fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                                lineNumber: 62,
+                                lineNumber: 69,
                                 columnNumber: 15
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                            lineNumber: 61,
+                            lineNumber: 68,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-                    lineNumber: 43,
+                    lineNumber: 50,
                     columnNumber: 9
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-            lineNumber: 37,
+            lineNumber: 44,
             columnNumber: 7
         }, this)
     }, void 0, false, {
         fileName: "[project]/app/dashboard/leave-approval/page.tsx",
-        lineNumber: 36,
+        lineNumber: 43,
         columnNumber: 5
     }, this);
 }

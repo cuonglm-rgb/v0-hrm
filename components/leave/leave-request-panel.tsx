@@ -1,14 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -20,9 +20,10 @@ import {
 } from "@/components/ui/dialog"
 import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
 import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
-import { Plus, X, Calendar, Clock, FileText } from "lucide-react"
+import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search } from "lucide-react"
 
 interface LeaveRequestPanelProps {
   leaveRequests: LeaveRequest[]
@@ -30,11 +31,163 @@ interface LeaveRequestPanelProps {
   employeeRequests: EmployeeRequestWithRelations[]
 }
 
+// Unified request type for combined list
+interface UnifiedRequest {
+  id: string
+  type: "leave" | "other"
+  typeName: string
+  typeCode: string
+  fromDate: string | null
+  toDate: string | null
+  time: string | null
+  reason: string | null
+  status: string
+  attachmentUrl: string | null
+  createdAt: string
+  originalData: LeaveRequest | EmployeeRequestWithRelations
+}
+
 export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequests }: LeaveRequestPanelProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<RequestType | null>(null)
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null)
+  const [attachmentName, setAttachmentName] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Filter states
+  const [filterType, setFilterType] = useState<string>("all")
+  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [filterFromDate, setFilterFromDate] = useState<string>("")
+  const [filterToDate, setFilterToDate] = useState<string>("")
+  const [searchText, setSearchText] = useState<string>("")
+
+  const getLeaveTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      annual: "Nghỉ phép năm",
+      sick: "Nghỉ ốm",
+      unpaid: "Nghỉ không lương",
+      maternity: "Nghỉ thai sản",
+      other: "Khác",
+    }
+    return labels[type] || type
+  }
+
+  // Combine and normalize all requests
+  const allRequests = useMemo<UnifiedRequest[]>(() => {
+    const leaveItems: UnifiedRequest[] = leaveRequests.map((r) => ({
+      id: r.id,
+      type: "leave" as const,
+      typeName: getLeaveTypeLabel(r.leave_type),
+      typeCode: r.leave_type,
+      fromDate: r.from_date,
+      toDate: r.to_date,
+      time: null,
+      reason: r.reason,
+      status: r.status,
+      attachmentUrl: null,
+      createdAt: r.created_at,
+      originalData: r,
+    }))
+
+    const otherItems: UnifiedRequest[] = employeeRequests.map((r) => ({
+      id: r.id,
+      type: "other" as const,
+      typeName: r.request_type?.name || "N/A",
+      typeCode: r.request_type?.code || "",
+      fromDate: r.from_date || r.request_date,
+      toDate: r.to_date,
+      time: r.request_time || (r.from_time && r.to_time ? `${r.from_time} - ${r.to_time}` : null),
+      reason: r.reason,
+      status: r.status,
+      attachmentUrl: r.attachment_url,
+      createdAt: r.created_at,
+      originalData: r,
+    }))
+
+    return [...leaveItems, ...otherItems].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+  }, [leaveRequests, employeeRequests])
+
+  // Get unique type options for filter
+  const typeOptions = useMemo(() => {
+    const types = new Map<string, string>()
+    allRequests.forEach((r) => {
+      if (!types.has(r.typeCode)) {
+        types.set(r.typeCode, r.typeName)
+      }
+    })
+    return Array.from(types.entries())
+  }, [allRequests])
+
+  // Apply filters
+  const filteredRequests = useMemo(() => {
+    return allRequests.filter((r) => {
+      // Filter by type
+      if (filterType !== "all" && r.typeCode !== filterType) return false
+
+      // Filter by status
+      if (filterStatus !== "all" && r.status !== filterStatus) return false
+
+      // Filter by date range
+      if (filterFromDate && r.fromDate && r.fromDate < filterFromDate) return false
+      if (filterToDate && r.fromDate && r.fromDate > filterToDate) return false
+
+      // Search by reason
+      if (searchText && r.reason && !r.reason.toLowerCase().includes(searchText.toLowerCase())) {
+        if (!r.typeName.toLowerCase().includes(searchText.toLowerCase())) {
+          return false
+        }
+      }
+
+      return true
+    })
+  }, [allRequests, filterType, filterStatus, filterFromDate, filterToDate, searchText])
+
+  // Stats
+  const stats = useMemo(() => ({
+    total: allRequests.length,
+    pending: allRequests.filter((r) => r.status === "pending").length,
+    approved: allRequests.filter((r) => r.status === "approved").length,
+    rejected: allRequests.filter((r) => r.status === "rejected").length,
+  }), [allRequests])
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File không được vượt quá 5MB")
+      return
+    }
+
+    setUploading(true)
+    setError(null)
+
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const result = await uploadRequestAttachment(formData)
+
+    if (result.success && result.url) {
+      setAttachmentUrl(result.url)
+      setAttachmentName(file.name)
+    } else {
+      setError(result.error || "Không thể upload file")
+    }
+    setUploading(false)
+  }
+
+  const handleRemoveAttachment = () => {
+    setAttachmentUrl(null)
+    setAttachmentName(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
 
   const handleSubmitRequest = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -51,7 +204,10 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
       to_date: selectedType.requires_date_range ? formData.get("to_date") as string : undefined,
       request_date: selectedType.requires_single_date ? formData.get("request_date") as string : undefined,
       request_time: selectedType.requires_time ? formData.get("request_time") as string : undefined,
+      from_time: selectedType.requires_time_range ? formData.get("from_time") as string : undefined,
+      to_time: selectedType.requires_time_range ? formData.get("to_time") as string : undefined,
       reason: formData.get("reason") as string,
+      attachment_url: attachmentUrl || undefined,
     })
 
     if (!result.success) {
@@ -59,18 +215,19 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
     } else {
       setOpen(false)
       setSelectedType(null)
+      setAttachmentUrl(null)
+      setAttachmentName(null)
     }
     setLoading(false)
   }
 
-  const handleCancelLeave = async (id: string) => {
-    if (!confirm("Bạn có chắc muốn hủy đơn này?")) return
-    await cancelLeaveRequest(id)
-  }
-
-  const handleCancelRequest = async (id: string) => {
+  const handleCancel = async (request: UnifiedRequest) => {
     if (!confirm("Bạn có chắc muốn hủy phiếu này?")) return
-    await cancelEmployeeRequest(id)
+    if (request.type === "leave") {
+      await cancelLeaveRequest(request.id)
+    } else {
+      await cancelEmployeeRequest(request.id)
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -84,22 +241,15 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
     }
   }
 
-  const getLeaveTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      annual: "Nghỉ phép năm",
-      sick: "Nghỉ ốm",
-      unpaid: "Nghỉ không lương",
-      maternity: "Nghỉ thai sản",
-      other: "Khác",
-    }
-    return labels[type] || type
+  const clearFilters = () => {
+    setFilterType("all")
+    setFilterStatus("all")
+    setFilterFromDate("")
+    setFilterToDate("")
+    setSearchText("")
   }
 
-  // Thống kê
-  const pendingLeave = leaveRequests.filter((r) => r.status === "pending").length
-  const pendingRequest = employeeRequests.filter((r) => r.status === "pending").length
-  const approvedLeave = leaveRequests.filter((r) => r.status === "approved").length
-  const approvedRequest = employeeRequests.filter((r) => r.status === "approved").length
+  const hasActiveFilters = filterType !== "all" || filterStatus !== "all" || filterFromDate || filterToDate || searchText
 
   return (
     <div className="space-y-6">
@@ -108,19 +258,10 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Đơn nghỉ phép</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{leaveRequests.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Phiếu khác</span>
+              <span className="text-sm text-muted-foreground">Tổng phiếu</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{employeeRequests.length}</p>
+            <p className="text-2xl font-bold mt-1">{stats.total}</p>
           </CardContent>
         </Card>
         <Card>
@@ -129,7 +270,7 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
               <div className="h-3 w-3 rounded-full bg-yellow-400" />
               <span className="text-sm text-muted-foreground">Chờ duyệt</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{pendingLeave + pendingRequest}</p>
+            <p className="text-2xl font-bold mt-1">{stats.pending}</p>
           </CardContent>
         </Card>
         <Card>
@@ -138,13 +279,22 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
               <div className="h-3 w-3 rounded-full bg-green-400" />
               <span className="text-sm text-muted-foreground">Đã duyệt</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{approvedLeave + approvedRequest}</p>
+            <p className="text-2xl font-bold mt-1">{stats.approved}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-red-400" />
+              <span className="text-sm text-muted-foreground">Từ chối</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">{stats.rejected}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Nút tạo phiếu */}
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null) } }}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null) } }}>
         <DialogTrigger asChild>
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
@@ -213,6 +363,18 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
                     <Input type="time" name="request_time" required />
                   </div>
                 )}
+                {selectedType.requires_time_range && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label>Từ giờ *</Label>
+                      <Input type="time" name="from_time" required />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Đến giờ *</Label>
+                      <Input type="time" name="to_time" required />
+                    </div>
+                  </div>
+                )}
                 <div className="grid gap-2">
                   <Label>Lý do {selectedType.requires_reason && "*"}</Label>
                   <Textarea 
@@ -222,143 +384,209 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
                     rows={3}
                   />
                 </div>
+                {selectedType.requires_attachment && (
+                  <div className="grid gap-2">
+                    <Label>File đính kèm *</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        onChange={handleFileUpload}
+                      />
+                      {!attachmentUrl ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full gap-2"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                        >
+                          {uploading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Đang upload...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4" />
+                              Chọn file (PDF, DOC, JPG, PNG - tối đa 5MB)
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-2 w-full p-2 border rounded-md bg-muted/50">
+                          <Paperclip className="h-4 w-4 text-muted-foreground" />
+                          <span className="flex-1 truncate text-sm">{attachmentName}</span>
+                          <Button type="button" variant="ghost" size="sm" onClick={handleRemoveAttachment}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setSelectedType(null)}>Quay lại</Button>
-                <Button type="submit" disabled={loading}>{loading ? "Đang gửi..." : "Gửi phiếu"}</Button>
+                <Button type="submit" disabled={loading || (selectedType.requires_attachment && !attachmentUrl)}>
+                  {loading ? "Đang gửi..." : "Gửi phiếu"}
+                </Button>
               </DialogFooter>
             </form>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Tabs danh sách */}
-      <Tabs defaultValue="leave">
-        <TabsList>
-          <TabsTrigger value="leave">Đơn nghỉ phép ({leaveRequests.length})</TabsTrigger>
-          <TabsTrigger value="other">Phiếu khác ({employeeRequests.length})</TabsTrigger>
-        </TabsList>
+      {/* Bộ lọc */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Bộ lọc
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-5 gap-4">
+            <div className="space-y-2">
+              <Label className="text-xs">Tìm kiếm</Label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Tìm theo lý do..."
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Loại phiếu</Label>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tất cả" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  {typeOptions.map(([code, name]) => (
+                    <SelectItem key={code} value={code}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Trạng thái</Label>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tất cả" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  <SelectItem value="pending">Chờ duyệt</SelectItem>
+                  <SelectItem value="approved">Đã duyệt</SelectItem>
+                  <SelectItem value="rejected">Từ chối</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Từ ngày</Label>
+              <Input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Đến ngày</Label>
+              <div className="flex gap-2">
+                <Input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} />
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="icon" onClick={clearFilters} title="Xóa bộ lọc">
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="leave" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Danh sách đơn nghỉ phép
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Loại</TableHead>
-                    <TableHead>Từ ngày</TableHead>
-                    <TableHead>Đến ngày</TableHead>
-                    <TableHead>Số ngày</TableHead>
-                    <TableHead>Lý do</TableHead>
-                    <TableHead>Trạng thái</TableHead>
-                    <TableHead></TableHead>
+      {/* Bảng danh sách */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Danh sách phiếu ({filteredRequests.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Loại phiếu</TableHead>
+                <TableHead>Ngày</TableHead>
+                <TableHead>Giờ</TableHead>
+                <TableHead>Lý do</TableHead>
+                <TableHead>File</TableHead>
+                <TableHead>Trạng thái</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredRequests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    {hasActiveFilters ? "Không tìm thấy phiếu phù hợp" : "Chưa có phiếu nào"}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredRequests.map((request) => (
+                  <TableRow key={`${request.type}-${request.id}`}>
+                    <TableCell>
+                      <Badge variant={request.type === "leave" ? "default" : "secondary"}>
+                        {request.typeName}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {request.fromDate && request.toDate && request.fromDate !== request.toDate ? (
+                        <span>{formatDateVN(request.fromDate)} - {formatDateVN(request.toDate)}</span>
+                      ) : request.fromDate ? (
+                        formatDateVN(request.fromDate)
+                      ) : "-"}
+                      {request.type === "leave" && request.fromDate && request.toDate && (
+                        <div className="text-xs text-muted-foreground">
+                          {calculateDays(request.fromDate, request.toDate)} ngày
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>{request.time || "-"}</TableCell>
+                    <TableCell className="max-w-[200px] truncate">{request.reason || "-"}</TableCell>
+                    <TableCell>
+                      {request.attachmentUrl ? (
+                        <a 
+                          href={request.attachmentUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          Xem
+                        </a>
+                      ) : "-"}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(request.status)}</TableCell>
+                    <TableCell>
+                      {request.status === "pending" && (
+                        <Button variant="ghost" size="sm" onClick={() => handleCancel(request)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leaveRequests.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        Chưa có đơn nghỉ phép nào
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    leaveRequests.map((request) => (
-                      <TableRow key={request.id}>
-                        <TableCell>
-                          <Badge variant="secondary">{getLeaveTypeLabel(request.leave_type)}</Badge>
-                        </TableCell>
-                        <TableCell>{formatDateVN(request.from_date)}</TableCell>
-                        <TableCell>{formatDateVN(request.to_date)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {calculateDays(request.from_date, request.to_date)} ngày
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate">{request.reason || "-"}</TableCell>
-                        <TableCell>{getStatusBadge(request.status)}</TableCell>
-                        <TableCell>
-                          {request.status === "pending" && (
-                            <Button variant="ghost" size="sm" onClick={() => handleCancelLeave(request.id)}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="other" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Danh sách phiếu khác
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Loại phiếu</TableHead>
-                    <TableHead>Ngày</TableHead>
-                    <TableHead>Giờ</TableHead>
-                    <TableHead>Lý do</TableHead>
-                    <TableHead>Trạng thái</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {employeeRequests.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
-                        Chưa có phiếu nào
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    employeeRequests.map((request) => (
-                      <TableRow key={request.id}>
-                        <TableCell>
-                          <Badge variant="secondary">{request.request_type?.name || "N/A"}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {request.from_date && request.to_date ? (
-                            <span>{formatDateVN(request.from_date)} - {formatDateVN(request.to_date)}</span>
-                          ) : request.request_date ? (
-                            formatDateVN(request.request_date)
-                          ) : "-"}
-                        </TableCell>
-                        <TableCell>{request.request_time || "-"}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{request.reason || "-"}</TableCell>
-                        <TableCell>{getStatusBadge(request.status)}</TableCell>
-                        <TableCell>
-                          {request.status === "pending" && (
-                            <Button variant="ghost" size="sm" onClick={() => handleCancelRequest(request.id)}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }

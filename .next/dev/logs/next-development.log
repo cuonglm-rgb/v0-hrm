@@ -1,487 +1,2135 @@
-[00:00:01.691] Server  WARN     ⚠ Minimum recommended TypeScript version is v5.1.0, older versions can potentially be incompatible with Next.js. Detected: 5.0.2
-[00:00:01.925] Server  LOG      ✓ Ready in 1426ms
-[00:05:01.162] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:05:01.396] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[00:05:01.396] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
-[00:05:01.396] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766976530679}
-[00:05:09.308] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766976538573}
-[00:09:22.405] Server  LOG      ✓ Compiled in 173ms
-[00:09:22.786] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export createAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+[00:00:01.678] Server  WARN     ⚠ Minimum recommended TypeScript version is v5.1.0, older versions can potentially be incompatible with Next.js. Detected: 5.0.2
+[00:00:01.904] Server  LOG      ✓ Ready in 1431ms
+[00:06:31.984] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:06:32.218] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:06:32.218] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:06:32.218] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010426244}
+[00:06:47.381] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010441395}
+[00:06:55.143] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010449174}
+[00:07:02.032] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:07:02.209] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:07:02.209] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/payroll","route":"/dashboard/payroll"}
+[00:07:02.209] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010456248}
+[00:07:18.858] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/fa2bec91-45aa-4b1e-a892-1dca5ded5cb8 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/fa2bec91-45aa-4b1e-a892-1dca5ded5cb8","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010472888}
+[00:10:05.916] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010639949}
+[00:10:50.547] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010684584}
+[00:13:07.544] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010821578}
+[00:13:52.119] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010866144}
+[00:13:56.000] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010870013}
+[00:14:03.311] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010877348}
+[00:14:13.931] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payslip color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payslip","o":"http://localhost:3000/dashboard/payslip","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010887966}
+[00:14:25.535] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010899567}
+[00:14:30.278] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/fa2bec91-45aa-4b1e-a892-1dca5ded5cb8 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/fa2bec91-45aa-4b1e-a892-1dca5ded5cb8","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010904314}
+[00:15:06.849] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010940868}
+[00:15:19.083] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767010953119}
+[00:17:09.248] Server  LOG      ✓ Compiled in 154ms
+[00:17:11.128] Server  LOG      ✓ Compiled in 107ms
+[00:17:17.172] Server  LOG      ✓ Compiled in 116ms
+[00:17:26.510] Server  LOG      ✓ Compiled in 90ms
+[00:17:28.768] Server  LOG      ✓ Compiled in 86ms
+[00:17:31.361] Server  LOG      ✓ Compiled in 78ms
+[00:17:33.269] Server  LOG      ✓ Compiled in 109ms
+[00:17:42.943] Server  LOG      ✓ Compiled in 80ms
+[00:17:45.789] Server  LOG      ✓ Compiled in 79ms
+[00:17:47.033] Server  LOG      ✓ Compiled in 82ms
+[00:17:52.547] Server  LOG      ✓ Compiled in 85ms
+[00:18:36.308] Server  ERROR   Error updating request type: {}
+[00:19:50.576] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:19:50.793] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:19:50.793] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave-approval","route":"/dashboard/leave-approval"}
+[00:19:50.793] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767011224824}
+[00:22:20.113] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767011374135}
+[00:22:47.066] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/departments color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/departments","o":"http://localhost:3000/dashboard/departments","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767011401099}
+[00:30:20.911] Server  LOG      ✓ Compiled in 107ms
+[00:30:22.797] Server  LOG      ✓ Compiled in 128ms
+[00:30:49.647] Server  LOG      ✓ Compiled in 136ms
+[00:31:50.281] Server  LOG      ✓ Compiled in 115ms
+[00:32:09.441] Server  LOG      ✓ Compiled in 106ms
+[00:32:48.738] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:32:48.990] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:32:48.990] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/departments","route":"/dashboard/departments"}
+[00:32:48.990] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/departments color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/departments","o":"http://localhost:3000/dashboard/departments","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012003019}
+[00:32:58.796] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012012814}
+[00:34:56.449] Server  LOG      ✓ Compiled in 100ms
+[00:35:08.786] Server  LOG      ✓ Compiled in 104ms
+[00:37:06.468] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012260492}
+[00:37:11.928] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012265961}
+[00:37:24.539] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payslip color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payslip","o":"http://localhost:3000/dashboard/payslip","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012278571}
+[00:37:42.969] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012297004}
+[00:39:32.078] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012406115}
+[00:39:48.675] Server  LOG      ✓ Compiled in 106ms
+[00:39:50.745] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:39:51.058] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:39:51.058] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave-approval","route":"/dashboard/leave-approval"}
+[00:39:51.058] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012425055}
+[00:39:58.147] Server  LOG      ✓ Compiled in 118ms
+[00:40:03.540] Server  LOG      ✓ Compiled in 82ms
+[00:40:35.352] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:40:35.563] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:40:35.563] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave","route":"/dashboard/leave"}
+[00:40:35.563] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012469602}
+[00:40:49.931] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:40:50.105] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:40:50.105] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave","route":"/dashboard/leave"}
+[00:40:50.105] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012484137}
+[00:41:45.797] Server  LOG      ✓ Compiled in 88ms
+[00:41:54.920] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
 
-The export createAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-client] (ecmascript).
-Did you mean to import createAdjustmentType?
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:54.928] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:54.935] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:54.939] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:54.955] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:54.965] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:54.976] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:54.982] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:54.994] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:55.001] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:55.006] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:55.010] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:41:55.014] Server  LOG      ✓ Compiled in 110ms
+[00:41:56.061] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:41:56.061] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:04.149] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.153] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.156] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.161] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.166] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.169] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.173] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.176] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.182] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.188] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.191] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.195] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:04.199] Server  LOG      ✓ Compiled in 95ms
+[00:42:05.068] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:05.068] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:05.068] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:05.068] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:09.951] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:09.961] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:09.972] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:09.979] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:09.988] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:09.995] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:10.003] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:10.008] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:10.013] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:10.015] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:10.018] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:10.021] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:10.024] Server  LOG      ✓ Compiled in 95ms
+[00:42:11.061] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:11.061] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:11.061] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:11.061] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:22.683] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.689] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.700] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.705] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.711] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.717] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.723] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.728] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.731] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.736] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.741] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.744] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:22.750] Server  LOG      ✓ Compiled in 91ms
+[00:42:23.065] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:23.065] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:23.066] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:23.066] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:28.949] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.957] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.962] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.966] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.972] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.976] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.980] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.984] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.989] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.994] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:28.997] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:29.001] Server  ERROR    ⨯ ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[00:42:29.005] Server  LOG      ✓ Compiled in 85ms
+[00:42:30.060] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:30.060] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:30.060] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:30.060] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Module not found: Can't resolve '@/lib/actions/upload-actions'
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+Import map: aliased to relative './lib/actions/upload-actions' inside of [project]/
+
+Import trace:
+  Server Component:
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+[00:42:33.962] Server  LOG      ✓ Compiled in 89ms
+[00:42:34.069] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Export uploadRequestAttachment doesn't exist in target module
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
+
+The export uploadRequestAttachment was not found in module [project]/lib/actions/upload-actions.ts [app-client] (ecmascript).
+The module has no exports at all.
 All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
 
 Import trace:
   Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:22.786] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export createAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+[00:42:34.069] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Export uploadRequestAttachment doesn't exist in target module
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
 
-The export createAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-ssr] (ecmascript).
-Did you mean to import createAdjustmentType?
+The export uploadRequestAttachment was not found in module [project]/lib/actions/upload-actions.ts [app-ssr] (ecmascript).
+The module has no exports at all.
 All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
 
 Import trace:
   Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:22.786] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export deleteAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+[00:42:34.069] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Export uploadRequestAttachment doesn't exist in target module
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
 
-The export deleteAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-client] (ecmascript).
-Did you mean to import deleteAdjustmentType?
+The export uploadRequestAttachment was not found in module [project]/lib/actions/upload-actions.ts [app-client] (ecmascript).
+The module has no exports at all.
 All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
 
 Import trace:
   Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:22.786] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export deleteAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+[00:42:34.069] Browser ERROR   ./components/leave/leave-request-panel.tsx:23:1
+Export uploadRequestAttachment doesn't exist in target module
+  21 | import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+  22 | import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
+> 23 | import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  24 | import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+  25 | import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+  26 | import { Plus, X, Calendar, Clock, FileText, Paperclip, Upload, Loader2 } from "lucide-react"
 
-The export deleteAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-ssr] (ecmascript).
-Did you mean to import deleteAdjustmentType?
+The export uploadRequestAttachment was not found in module [project]/lib/actions/upload-actions.ts [app-ssr] (ecmascript).
+The module has no exports at all.
 All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
 
 Import trace:
   Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:22.786] Browser ERROR   ./app/dashboard/allowances/page.tsx:5:1
-Export listAllowanceTypes doesn't exist in target module
-  3 | import { DashboardLayout } from "@/components/layout/dashboard-layout"
-  4 | import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-> 5 | import { listAllowanceTypes } from "@/lib/actions/allowance-actions"
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  6 | import { AllowanceList } from "@/components/allowances/allowance-list"
-  7 |
-  8 | export default async function AllowancesPage() {
+    ./components/leave/leave-request-panel.tsx
+    ./app/dashboard/leave/page.tsx
+[00:42:39.575] Server  LOG      ✓ Compiled in 151ms
+[00:43:07.237] Server  ERROR   E:\Pamo\v0-hrm\.next\dev\server\chunks\ssr\node_modules__pnpm_dbe3df1b._.js: Invalid source map. Only conformant source maps can be used to find the original code. Cause: Error: sourceMapURL could not be parsed
+[00:43:07.242] Server  ERROR   Upload error: StorageApiError: Bucket not found
+[00:43:33.220] Server  LOG      ✓ Compiled in 87ms
+[00:43:48.467] Server  LOG      ✓ Compiled in 91ms
+[00:45:28.631] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:45:28.874] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:45:28.874] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave","route":"/dashboard/leave"}
+[00:45:28.874] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012762914}
+[00:45:29.087] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:45:30.061] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
 
-The export listAllowanceTypes was not found in module [project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript).
-Did you mean to import listAdjustmentTypes?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
-[00:09:22.786] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export updateAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
 
-The export updateAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-client] (ecmascript).
-Did you mean to import updateAdjustmentType?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
 
-Import trace:
-  Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:22.786] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export updateAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+%s%s https://react.dev/link/hydration-mismatch 
 
-The export updateAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-ssr] (ecmascript).
-Did you mean to import updateAdjustmentType?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+  ...
+    <div data-slot="sidebar-wr..." style={{...}} className="group/side...">
+      <AppSidebar>
+      <SidebarInset>
+        <main data-slot="sidebar-inset" className="bg-backgro...">
+          <header>
+          <main className="flex-1 ove...">
+            <div className="space-y-6">
+              <div>
+              <Tabs defaultValue="approval">
+                <Tabs data-slot="tabs" className="flex flex-..." defaultValue="approval">
+                  <TabsProvider scope={undefined} baseId="radix-_R_1..." value="approval" ...>
+                    <Primitive.div dir="ltr" data-orientation="horizontal" data-slot="tabs" className="flex flex-..." ...>
+                      <div dir="ltr" data-orientation="horizontal" data-slot="tabs" className="flex flex-..." ref={null}>
+                        ...
+                          <div role="tablist" aria-orientation="horizontal" data-slot="tabs-list" ...>
+                            ...
+                              <Slot tabIndex={-1} data-orientation="horizontal" onMouseDown={function handleEvent} ...>
+                                <SlotClone tabIndex={-1} data-orientation="horizontal" onMouseDown={function handleEvent} ...>
+                                  <Primitive.button type="button" role="tab" aria-selected={true} ...>
+                                    <button
+                                      type="button"
+                                      role="tab"
+                                      aria-selected={true}
++                                     aria-controls="radix-_R_1aatpesndlb_-content-approval"
+-                                     aria-controls="radix-_R_5aatpesndlb_-content-approval"
+                                      data-state="active"
+                                      data-disabled={undefined}
+                                      disabled={false}
++                                     id="radix-_R_1aatpesndlb_-trigger-approval"
+-                                     id="radix-_R_5aatpesndlb_-trigger-approval"
+                                      data-slot="tabs-trigger"
+                                      className={"data-[state=active]:bg-background dark:data-[state=active]:text-for..."}
+                                      onMouseDown={function}
+                                      onKeyDown={function}
+                                      onFocus={function}
+                                      tabIndex={-1}
+                                      data-orientation="horizontal"
+                                      data-radix-collection-item=""
+                                      ref={function}
+                                    >
+                            ...
+                              <Slot tabIndex={-1} data-orientation="horizontal" onMouseDown={function handleEvent} ...>
+                                <SlotClone tabIndex={-1} data-orientation="horizontal" onMouseDown={function handleEvent} ...>
+                                  <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                    <button
+                                      type="button"
+                                      role="tab"
+                                      aria-selected={false}
++                                     aria-controls="radix-_R_1aatpesndlb_-content-types"
+-                                     aria-controls="radix-_R_5aatpesndlb_-content-types"
+                                      data-state="inactive"
+                                      data-disabled={undefined}
+                                      disabled={false}
++                                     id="radix-_R_1aatpesndlb_-trigger-types"
+-                                     id="radix-_R_5aatpesndlb_-trigger-types"
+                                      data-slot="tabs-trigger"
+                                      className={"data-[state=active]:bg-background dark:data-[state=active]:text-for..."}
+                                      onMouseDown={function}
+                                      onKeyDown={function}
+                                      onFocus={function}
+                                      tabIndex={-1}
+                                      data-orientation="horizontal"
+                                      data-radix-collection-item=""
+                                      ref={function}
+                                    >
++                                     Quản lý loại phiếu
+                        <TabsContent value="approval" className="mt-4">
+                          <TabsContent data-slot="tabs-content" className="flex-1 out..." value="approval">
+                            <Presence present={true}>
+                              <Primitive.div data-state="active" data-orientation="horizontal" role="tabpanel" ...>
+                                <div
+                                  data-state="active"
+                                  data-orientation="horizontal"
+                                  role="tabpanel"
++                                 aria-labelledby="radix-_R_1aatpesndlb_-trigger-approval"
+-                                 aria-labelledby="radix-_R_5aatpesndlb_-trigger-approval"
+                                  hidden={false}
++                                 id="radix-_R_1aatpesndlb_-content-approval"
+-                                 id="radix-_R_5aatpesndlb_-content-approval"
+                                  tabIndex={0}
+                                  data-slot="tabs-content"
+                                  className="flex-1 outline-none mt-4"
+                                  style={{animationDuration:"0s"}}
+                                  ref={function}
+                                >
+                                  ...
+                                    <div dir="ltr" data-orientation="horizontal" data-slot="tabs" ...>
+                                      ...
+                                        <div role="tablist" aria-orientation="horizontal" data-slot="tabs-list" ...>
+                                          ...
+                                            <Slot tabIndex={-1} data-orientation="horizontal" ...>
+                                              <SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                                <Primitive.button type="button" role="tab" aria-selected={true} ...>
+                                                  <button
+                                                    type="button"
+                                                    role="tab"
+                                                    aria-selected={true}
++                                                   aria-controls="radix-_R_1baatpesndlb_-content-leave"
+-                                                   aria-controls="radix-_R_5daatpesndlb_-content-leave"
+                                                    data-state="active"
+                                                    data-disabled={undefined}
+                                                    disabled={false}
++                                                   id="radix-_R_1baatpesndlb_-trigger-leave"
+-                                                   id="radix-_R_5daatpesndlb_-trigger-leave"
+                                                    data-slot="tabs-trigger"
+                                                    className={"data-[state=active]:bg-background dark:data-[state=ac..."}
+                                                    onMouseDown={function}
+                                                    onKeyDown={function}
+                                                    onFocus={function}
+                                                    tabIndex={-1}
+                                                    data-orientation="horizontal"
+                                                    data-radix-collection-item=""
+                                                    ref={function}
+                                                  >
+                                          ...
+                                            <Slot tabIndex={-1} data-orientation="horizontal" ...>
+                                              <SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                                  <button
+                                                    type="button"
+                                                    role="tab"
+                                                    aria-selected={false}
++                                                   aria-controls="radix-_R_1baatpesndlb_-content-other"
+-                                                   aria-controls="radix-_R_5daatpesndlb_-content-other"
+                                                    data-state="inactive"
+                                                    data-disabled={undefined}
+                                                    disabled={false}
++                                                   id="radix-_R_1baatpesndlb_-trigger-other"
+-                                                   id="radix-_R_5daatpesndlb_-trigger-other"
+                                                    data-slot="tabs-trigger"
+                                                    className={"data-[state=active]:bg-background dark:data-[state=ac..."}
+                                                    onMouseDown={function}
+                                                    onKeyDown={function}
+                                                    onFocus={function}
+                                                    tabIndex={-1}
+                                                    data-orientation="horizontal"
+                                                    data-radix-collection-item=""
+                                                    ref={function}
+                                                  >
+                                      <TabsContent value="leave" className="mt-4">
+                                        <TabsContent data-slot="tabs-content" className="flex-1 out..." value="leave">
+                                          <Presence present={true}>
+                                            <Primitive.div data-state="active" data-orientation="horizontal" ...>
+                                              <div
+                                                data-state="active"
+                                                data-orientation="horizontal"
+                                                role="tabpanel"
++                                               aria-labelledby="radix-_R_1baatpesndlb_-trigger-leave"
+-                                               aria-labelledby="radix-_R_5daatpesndlb_-trigger-leave"
+                                                hidden={false}
++                                               id="radix-_R_1baatpesndlb_-content-leave"
+-                                               id="radix-_R_5daatpesndlb_-content-leave"
+                                                tabIndex={0}
+                                                data-slot="tabs-content"
+                                                className="flex-1 outline-none mt-4"
+                                                style={{animationDuration:"0s"}}
+                                                ref={function}
+                                              >
+                                      <TabsContent value="other" className="mt-4">
+                                        <TabsContent data-slot="tabs-content" className="flex-1 out..." value="other">
+                                          <Presence present={false}>
+                                            <Primitive.div data-state="inactive" data-orientation="horizontal" ...>
+                                              <div
+                                                data-state="inactive"
+                                                data-orientation="horizontal"
+                                                role="tabpanel"
++                                               aria-labelledby="radix-_R_1baatpesndlb_-trigger-other"
+-                                               aria-labelledby="radix-_R_5daatpesndlb_-trigger-other"
+                                                hidden={true}
++                                               id="radix-_R_1baatpesndlb_-content-other"
+-                                               id="radix-_R_5daatpesndlb_-content-other"
+                                                tabIndex={0}
+                                                data-slot="tabs-content"
+                                                className="flex-1 outline-none mt-4"
+                                                style={{animationDuration:undefined}}
+                                                ref={function}
+                                              >
+                        <TabsContent value="types" className="mt-4">
+                          <TabsContent data-slot="tabs-content" className="flex-1 out..." value="types">
+                            <Presence present={false}>
+                              <Primitive.div data-state="inactive" data-orientation="horizontal" role="tabpanel" ...>
+                                <div
+                                  data-state="inactive"
+                                  data-orientation="horizontal"
+                                  role="tabpanel"
++                                 aria-labelledby="radix-_R_1aatpesndlb_-trigger-types"
+-                                 aria-labelledby="radix-_R_5aatpesndlb_-trigger-types"
+                                  hidden={true}
++                                 id="radix-_R_1aatpesndlb_-content-types"
+-                                 id="radix-_R_5aatpesndlb_-content-types"
+                                  tabIndex={0}
+                                  data-slot="tabs-content"
+                                  className="flex-1 outline-none mt-4"
+                                  style={{animationDuration:undefined}}
+                                  ref={function}
+                                >
 
-Import trace:
-  Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:41.782] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export createAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+[00:45:30.061] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:45:30.061] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave-approval","route":"/dashboard/leave-approval"}
+[00:45:30.061] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012763408}
+[00:46:01.599] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:46:01.775] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:46:01.775] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave","route":"/dashboard/leave"}
+[00:46:01.775] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012795805}
+[00:47:31.563] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012885578}
+[00:47:39.774] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012893811}
+[00:48:41.758] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:48:42.724] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:48:42.724] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/login","route":"/login"}
+[00:48:42.724] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012956763}
+[00:49:21.884] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:49:22.108] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:49:22.108] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/auth/error","route":"/auth/error"}
+[00:49:22.108] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user color: rgb(120, 120, 120) color: inherit {"dp":"/auth/error","o":"http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user","r":"https://accounts.google.com/","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012996140}
+[00:49:24.818] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767012998847}
+[00:49:30.882] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:49:31.158] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:49:31.158] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/auth/error","route":"/auth/error"}
+[00:49:31.158] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user color: rgb(120, 120, 120) color: inherit {"dp":"/auth/error","o":"http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user","r":"https://accounts.google.com/","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013005189}
+[00:49:31.192] Server  LOG      ✓ Compiled in 203ms
+[00:49:45.923] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:49:46.140] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:49:46.140] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/login","route":"/login"}
+[00:49:46.140] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013020178}
+[00:49:53.155] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:49:53.369] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:49:53.369] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/auth/error","route":"/auth/error"}
+[00:49:53.369] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user color: rgb(120, 120, 120) color: inherit {"dp":"/auth/error","o":"http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user","r":"https://accounts.google.com/","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013027404}
+[00:49:54.293] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013028327}
+[00:50:04.652] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:50:04.786] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
 
-The export createAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-client] (ecmascript).
-Did you mean to import createAdjustmentType?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
 
-Import trace:
-  Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:41.782] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export createAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
 
-The export createAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-ssr] (ecmascript).
-Did you mean to import createAdjustmentType?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+%s%s https://react.dev/link/hydration-mismatch 
 
-Import trace:
-  Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:41.782] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export deleteAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/login" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <body
+                            className="font-sans antialiased"
+-                           __processed_e04835de-fba4-439a-aafa-67baa4450bc2__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+                          >
+                  ...
 
-The export deleteAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-client] (ecmascript).
-Did you mean to import deleteAdjustmentType?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+[00:50:05.240] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:50:05.240] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/login","route":"/login"}
+[00:50:05.240] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013039279}
+[00:50:13.205] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:50:13.376] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
 
-Import trace:
-  Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:41.782] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export deleteAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
 
-The export deleteAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-ssr] (ecmascript).
-Did you mean to import deleteAdjustmentType?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
 
-Import trace:
-  Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:41.782] Browser ERROR   ./app/dashboard/allowances/page.tsx:5:1
-Export listAllowanceTypes doesn't exist in target module
-  3 | import { DashboardLayout } from "@/components/layout/dashboard-layout"
-  4 | import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-> 5 | import { listAllowanceTypes } from "@/lib/actions/allowance-actions"
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  6 | import { AllowanceList } from "@/components/allowances/allowance-list"
-  7 |
-  8 | export default async function AllowancesPage() {
+%s%s https://react.dev/link/hydration-mismatch 
 
-The export listAllowanceTypes was not found in module [project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript).
-Did you mean to import listAdjustmentTypes?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
-[00:09:41.782] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export updateAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/auth/error" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <body
+                            className="font-sans antialiased"
+-                           __processed_b6635caf-a325-4a40-ab9d-d5b3682b2473__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+                          >
+                  ...
 
-The export updateAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-client] (ecmascript).
-Did you mean to import updateAdjustmentType?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+[00:50:13.376] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:50:13.376] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/auth/error","route":"/auth/error"}
+[00:50:13.376] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user color: rgb(120, 120, 120) color: inherit {"dp":"/auth/error","o":"http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user","r":"https://accounts.google.com/","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013047411}
+[00:51:19.311] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013113339}
+[00:53:09.264] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013223300}
+[00:53:12.329] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:53:12.490] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
 
-Import trace:
-  Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:09:41.782] Browser ERROR   ./components/allowances/allowance-list.tsx:41:1
-Export updateAllowanceType doesn't exist in target module
-  39 | import { Coins, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react"
-  40 | import { toast } from "sonner"
-> 41 | import { createAllowanceType, updateAllowanceType, deleteAllowanceType } from "@/lib/actions/allowance-actions"
-     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  42 | import { formatCurrency } from "@/lib/utils/format-utils"
-  43 | import type { AllowanceType, AllowanceDeductionRules } from "@/lib/types/database"
-  44 |
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
 
-The export updateAllowanceType was not found in module [project]/lib/actions/allowance-actions.ts [app-ssr] (ecmascript).
-Did you mean to import updateAdjustmentType?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
 
-Import trace:
-  Server Component:
-    ./components/allowances/allowance-list.tsx
-    ./app/dashboard/allowances/page.tsx
-[00:10:41.668] Server  LOG      ✓ Compiled in 203ms
-[00:10:41.790] Browser ERROR   ./app/dashboard/allowances/page.tsx:5:1
-Export listAllowanceTypes doesn't exist in target module
-  3 | import { DashboardLayout } from "@/components/layout/dashboard-layout"
-  4 | import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-> 5 | import { listAllowanceTypes } from "@/lib/actions/allowance-actions"
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  6 | import { AllowanceList } from "@/components/allowances/allowance-list"
-  7 |
-  8 | export default async function AllowancesPage() {
+%s%s https://react.dev/link/hydration-mismatch 
 
-The export listAllowanceTypes was not found in module [project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript).
-Did you mean to import listAdjustmentTypes?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
-[00:10:55.602] Server  LOG      ✓ Compiled in 115ms
-[00:10:55.789] Browser ERROR   ./app/dashboard/allowances/page.tsx:5:1
-Export listAllowanceTypes doesn't exist in target module
-  3 | import { DashboardLayout } from "@/components/layout/dashboard-layout"
-  4 | import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-> 5 | import { listAllowanceTypes } from "@/lib/actions/allowance-actions"
-    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  6 | import { AllowanceList } from "@/components/allowances/allowance-list"
-  7 |
-  8 | export default async function AllowancesPage() {
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/auth/error" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="en">
+                          <body
+                            className="font-sans antialiased"
+-                           __processed_b015c7b3-7628-45aa-b193-5ac688063f85__="true"
+-                           bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWll..."
+                          >
+                  ...
 
-The export listAllowanceTypes was not found in module [project]/lib/actions/allowance-actions.ts [app-rsc] (ecmascript).
-Did you mean to import listAdjustmentTypes?
-All exports of the module are statically known (It doesn't have dynamic exports). So it's known statically that the requested export doesn't exist.
-[00:10:55.789] Browser ERROR   uncaughtError: TypeError: Cannot read properties of undefined (reading 'filter')
-[00:10:57.766] Server  ERROR   Error listing adjustment types: "Could not find the table 'public.payroll_adjustment_types' in the schema cache"
-[00:12:50.057] Server  ERROR   Error listing adjustment types: "Could not find the table 'public.payroll_adjustment_types' in the schema cache"
-[00:12:51.629] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:12:51.882] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[00:12:51.882] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/allowances","route":"/dashboard/allowances"}
-[00:12:51.882] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977001168}
-[00:12:59.436] Server  ERROR   Error listing adjustment types: "Could not find the table 'public.payroll_adjustment_types' in the schema cache"
-[00:14:35.336] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:14:35.787] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[00:14:35.787] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/allowances","route":"/dashboard/allowances"}
-[00:14:35.787] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977104903}
-[00:16:01.775] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:16:02.008] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[00:16:02.008] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/allowances","route":"/dashboard/allowances"}
-[00:16:02.008] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977191291}
-[00:16:24.957] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977214225}
-[00:16:48.786] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payslip color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payslip","o":"http://localhost:3000/dashboard/payslip","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977238068}
-[00:16:55.411] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977244696}
-[00:16:59.578] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977248860}
-[00:17:02.266] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees","o":"http://localhost:3000/dashboard/employees","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977251506}
-[00:17:11.889] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees/[id]","o":"http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977261171}
-[00:17:24.666] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees","o":"http://localhost:3000/dashboard/employees","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977273918}
-[00:17:38.723] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees/[id]","o":"http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977287992}
-[00:20:12.760] Server  LOG      ✓ Compiled in 97ms
-[00:22:11.732] Server  LOG      ✓ Compiled in 95ms
-[00:22:24.224] Server  LOG      ✓ Compiled in 87ms
-[00:22:32.995] Server  LOG      ✓ Compiled in 104ms
-[00:22:57.404] Server  LOG      ✓ Compiled in 163ms
-[00:22:57.786] Browser ERROR   uncaughtError: TypeError: Cannot read properties of undefined (reading 'map')
-[00:23:20.922] Server  LOG      ✓ Compiled in 88ms
-[00:23:24.387] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:23:24.789] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[00:23:24.789] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319","route":"/dashboard/employees/[id]"}
-[00:23:24.789] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees/[id]","o":"http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977633978}
-[00:24:10.701] Server  LOG      ✓ Compiled in 131ms
-[00:24:45.482] Server  LOG      ✓ Compiled in 113ms
-[00:25:41.456] Server  LOG      ✓ Compiled in 116ms
-[00:26:03.182] Server  LOG      ✓ Compiled in 121ms
-[00:28:34.461] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees","o":"http://localhost:3000/dashboard/employees","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977943700}
-[00:28:41.444] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/departments color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/departments","o":"http://localhost:3000/dashboard/departments","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766977950724}
-[00:29:49.601] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees","o":"http://localhost:3000/dashboard/employees","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978018859}
-[00:29:53.901] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees/[id]","o":"http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978023184}
-[00:30:06.678] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978035955}
-[00:30:11.240] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978040519}
-[00:30:20.824] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978050093}
-[00:41:25.130] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978714403}
-[00:41:31.663] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978720933}
-[00:41:51.913] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978741179}
-[00:42:03.787] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978753059}
-[00:42:15.643] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978764918}
-[00:42:26.182] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978775467}
-[00:42:45.795] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978795068}
-[00:43:17.678] Server  LOG      ✓ Compiled in 102ms
-[00:43:38.563] Server  LOG      ✓ Compiled in 121ms
-[00:44:05.902] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978875174}
-[00:44:20.002] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978889282}
-[00:44:31.862] Server  LOG     Found 1 employees (active/onboarding)
-[00:44:32.382] Server  LOG     Processing Cuong Le Manh: base=10000000, allowance=850000
-[00:44:33.903] Server  LOG     Processed 1/1 employees
-[00:44:39.819] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/dd3274e8-b2a0-4cde-bee4-1c2c21884828 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/dd3274e8-b2a0-4cde-bee4-1c2c21884828","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978909100}
-[00:45:05.547] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978934829}
-[00:45:11.761] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766978941034}
-[00:47:10.622] Server  LOG      ✓ Compiled in 130ms
-[00:47:24.737] Server  LOG      ✓ Compiled in 183ms
-[00:47:53.353] Server  LOG      ✓ Compiled in 102ms
-[00:49:25.299] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:49:25.542] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[00:49:25.542] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/payroll","route":"/dashboard/payroll"}
-[00:49:25.542] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979194829}
-[00:49:51.580] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/edb339c9-8c1b-44c0-b79b-506dd4691e17 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/edb339c9-8c1b-44c0-b79b-506dd4691e17","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979220862}
-[00:52:29.798] Server  LOG      ✓ Compiled in 166ms
-[00:52:41.154] Server  LOG      ✓ Compiled in 139ms
-[00:53:02.674] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payslip color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payslip","o":"http://localhost:3000/dashboard/payslip","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979411952}
-[00:53:07.404] Server  LOG      ✓ Compiled in 113ms
-[00:53:24.616] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979433876}
-[00:53:28.398] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979437668}
-[00:55:48.439] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979577723}
-[00:56:08.563] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/468990e4-5ec6-4d9d-ada7-e8f416942834 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/468990e4-5ec6-4d9d-ada7-e8f416942834","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979597846}
-[00:56:47.229] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979636496}
-[00:57:14.544] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979663823}
-[00:57:15.592] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979664877}
-[00:57:17.976] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/468990e4-5ec6-4d9d-ada7-e8f416942834 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/468990e4-5ec6-4d9d-ada7-e8f416942834","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979667247}
-[00:57:40.155] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979689365}
-[00:57:45.103] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:57:45.678] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[00:57:45.678] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/attendance","route":"/dashboard/attendance"}
-[00:57:45.678] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979694962}
-[00:57:53.359] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:57:53.839] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[00:57:53.839] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/attendance","route":"/dashboard/attendance"}
-[00:57:53.839] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979703125}
-[00:58:05.473] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979714726}
-[01:00:46.615] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979875895}
-[01:00:49.985] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/468990e4-5ec6-4d9d-ada7-e8f416942834 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/468990e4-5ec6-4d9d-ada7-e8f416942834","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979879266}
-[01:01:11.867] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979901147}
-[01:02:12.679] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees","o":"http://localhost:3000/dashboard/employees","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979961933}
-[01:02:19.163] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/employees/[id]","o":"http://localhost:3000/dashboard/employees/1864cabc-e585-4391-adb9-a78851b16319","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766979968437}
-[01:03:01.703] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980010983}
-[01:03:05.184] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980014469}
-[01:03:29.292] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/36e2324b-933e-4404-b82c-2854ec836d96 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/36e2324b-933e-4404-b82c-2854ec836d96","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980038577}
-[01:03:47.459] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance-management color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance-management","o":"http://localhost:3000/dashboard/attendance-management","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980056719}
-[01:03:54.696] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payslip color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payslip","o":"http://localhost:3000/dashboard/payslip","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980063979}
-[01:03:58.600] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[01:03:59.182] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[01:03:59.182] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/payslip","route":"/dashboard/payslip"}
-[01:03:59.182] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payslip color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payslip","o":"http://localhost:3000/dashboard/payslip","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980068157}
-[01:04:04.278] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980073559}
-[01:04:12.924] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/departments color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/departments","o":"http://localhost:3000/dashboard/departments","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980082201}
-[01:04:13.994] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980083269}
-[01:04:26.716] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980095994}
-[01:04:47.318] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980116598}
-[01:05:05.325] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/d670a246-7a12-4993-8462-2df3871f9b5a color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/d670a246-7a12-4993-8462-2df3871f9b5a","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980134610}
-[01:05:53.643] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980182919}
-[01:08:03.796] Browser ERROR   ./lib/actions/payroll-actions.ts:472:26
-Parsing ecmascript source code failed
-  470 |     }
-  471 |               category: "penalty",
-> 472 |               base_amount: penaltyAmount,
-      |                          ^
-  473 |               adjusted_amount: 0,
-  474 |               final_amount: penaltyAmount,
-  475 |               reason: `Đi muộn ${v.lateMinutes} phút ngày ${v.date}`,
-
-Expected ';', '}' or <eof>
-
-Import trace:
-  Server Component:
-    ./lib/actions/payroll-actions.ts
-    ./app/dashboard/payslip/page.tsx
-[01:08:37.498] Server  LOG      ✓ Compiled in 125ms
-[01:09:48.477] Server  LOG      ✓ Compiled in 128ms
-[01:09:55.617] Server  LOG      ✓ Compiled in 161ms
-[01:10:09.832] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980439115}
-[01:10:15.781] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[01:10:16.026] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[01:10:16.026] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/payroll","route":"/dashboard/payroll"}
-[01:10:16.026] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980445307}
-[01:10:35.338] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980464617}
-[01:10:52.249] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payslip color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payslip","o":"http://localhost:3000/dashboard/payslip","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980481533}
-[01:11:12.499] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980501770}
-[01:11:15.900] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980505180}
-[01:11:18.782] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766980508061}
-[01:13:48.862] Server  LOG      ✓ Compiled in 148ms
-[01:14:00.075] Server  LOG      ✓ Compiled in 95ms
-[01:14:20.038] Server  LOG      ✓ Compiled in 116ms
-[01:20:58.083] Server  ERROR   Error: aborted
-[01:20:58.084] Server  ERROR    ⨯ "uncaughtException:" Error: aborted
-[01:20:58.085] Server  ERROR    ⨯ "uncaughtException: " Error: aborted
-[01:20:58.264] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[01:20:58.482] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[01:20:58.482] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0","route":"/dashboard/payroll/[id]"}
-[01:20:58.482] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766981087757}
-[01:22:03.422] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766981152686}
-[01:32:13.313] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll","o":"http://localhost:3000/dashboard/payroll","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766981762584}
-[01:32:27.420] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0 color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payroll/[id]","o":"http://localhost:3000/dashboard/payroll/e5cb5d6b-f201-47d1-b2e7-709726bf00d0","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766981776705}
-[01:34:45.196] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/allowances color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/allowances","o":"http://localhost:3000/dashboard/allowances","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766981914467}
-[01:36:48.988] Server  LOG      ✓ Compiled in 113ms
-[01:37:21.927] Server  LOG      ✓ Compiled in 128ms
-[01:37:48.322] Server  LOG      ✓ Compiled in 127ms
-[01:38:08.119] Server  LOG      ✓ Compiled in 128ms
-[01:38:28.108] Server  LOG      ✓ Compiled in 148ms
-[01:39:52.931] Server  LOG      ✓ Compiled in 142ms
-[01:40:37.632] Server  LOG      ✓ Compiled in 216ms
-[01:40:58.931] Server  LOG      ✓ Compiled in 125ms
-[01:41:06.905] Server  LOG      ✓ Compiled in 190ms
-[01:41:25.922] Server  LOG      ✓ Compiled in 149ms
-[01:42:01.673] Server  LOG      ✓ Compiled in 87ms
-[01:42:30.094] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766982379367}
-[01:42:37.413] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766982386692}
-[01:42:58.894] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[01:42:59.125] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[01:42:59.126] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave","route":"/dashboard/leave"}
-[01:42:59.126] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766982408406}
-[01:44:51.577] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766982520862}
-[01:47:20.881] Server  LOG      ✓ Compiled in 96ms
-[01:49:31.001] Server  LOG      ✓ Compiled in 207ms
-[01:49:32.708] Server  ERROR   Error listing request types: {}
-[01:49:32.772] Server  ERROR   Error listing employee requests: {}
-[01:50:07.218] Server  ERROR   Error listing employee requests: {}
-[01:50:07.236] Server  ERROR   Error listing request types: {}
-[01:50:22.598] Server  LOG      ✓ Compiled in 137ms
-[01:50:23.867] Server  ERROR   Error listing employee requests: {}
-[01:50:23.986] Server  ERROR   Error listing request types: {}
-[01:51:31.767] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[01:51:32.003] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[01:51:32.003] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave-approval","route":"/dashboard/leave-approval"}
-[01:51:32.003] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766982921288}
-[01:52:52.798] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/attendance color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/attendance","o":"http://localhost:3000/dashboard/attendance","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766983002062}
-[01:53:15.754] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766983025023}
-[01:53:24.306] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[01:53:24.521] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[01:53:24.521] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave-approval","route":"/dashboard/leave-approval"}
-[01:53:24.521] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766983033796}
-[01:53:32.874] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766983042149}
-[01:53:45.759] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766983055040}
-[01:56:02.825] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766983192106}
-[01:57:32.723] Server  LOG      ✓ Compiled in 92ms
-[01:58:23.885] Server  LOG      ✓ Compiled in 170ms
-[01:59:05.402] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[01:59:05.642] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[01:59:05.642] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave","route":"/dashboard/leave"}
-[01:59:05.642] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766983374926}
-[02:00:50.750] Server  LOG      ✓ Compiled in 111ms
-[02:01:30.531] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[02:01:30.729] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
-[02:01:30.729] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave","route":"/dashboard/leave"}
-[02:01:30.729] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1766983520016}
-[02:01:35.917] Server  LOG      ✓ Compiled in 248ms
+[00:53:12.490] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:53:12.490] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/auth/error","route":"/auth/error"}
+[00:53:12.490] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user color: rgb(120, 120, 120) color: inherit {"dp":"/auth/error","o":"http://localhost:3000/auth/error#error=server_error&error_code=unexpected_failure&error_description=Database+error+saving+new+user","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013226524}
+[00:53:12.597] Server  LOG      ✓ Compiled in 130ms
+[00:54:54.890] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013328907}
+[00:55:19.174] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013353205}
+[00:55:38.383] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013372396}
+[00:55:49.658] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013383688}
+[00:56:02.437] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013396447}
+[00:56:20.367] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013414396}
+[00:56:40.853] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/payslip color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/payslip","o":"http://localhost:3000/dashboard/payslip","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013434884}
+[00:56:47.831] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013441851}
+[00:57:57.304] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013511322}
+[00:58:03.119] Server  LOG      ✓ Compiled in 88ms
+[00:58:56.504] Server  LOG      ✓ Compiled in 144ms
+[01:01:01.428] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[01:01:01.694] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[01:01:01.694] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave-approval","route":"/dashboard/leave-approval"}
+[01:01:01.694] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013695727}
+[01:02:48.823] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[01:02:49.022] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[01:02:49.022] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard/leave-approval","route":"/dashboard/leave-approval"}
+[01:02:49.022] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave-approval color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave-approval","o":"http://localhost:3000/dashboard/leave-approval","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013803058}
+[01:05:32.153] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard/leave color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard/leave","o":"http://localhost:3000/dashboard/leave","sdkn":"@vercel/analytics/next","sdkv":"1.3.1","sv":"0.1.3","ts":1767013966161}

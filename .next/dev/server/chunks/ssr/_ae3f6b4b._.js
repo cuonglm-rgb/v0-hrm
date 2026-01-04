@@ -380,16 +380,31 @@ async function getPayrollItems(payroll_run_id) {
     }
     return data || [];
 }
-async function getEmployeeViolations(supabase, employeeId, startDate, endDate, shiftStartTime) {
+async function getEmployeeViolations(supabase, employeeId, startDate, endDate, shift) {
     const violations = [];
     // Lấy attendance logs
     const { data: logs } = await supabase.from("attendance_logs").select("check_in, check_out").eq("employee_id", employeeId).gte("check_in", startDate).lte("check_in", endDate + "T23:59:59");
-    // Lấy time adjustment requests đã approved
-    const { data: approvedRequests } = await supabase.from("time_adjustment_requests").select("request_date").eq("employee_id", employeeId).eq("status", "approved").gte("request_date", startDate).lte("request_date", endDate);
-    const approvedDates = new Set((approvedRequests || []).map((r)=>r.request_date));
+    // Lấy time adjustment requests đã approved (với loại phiếu)
+    const { data: approvedRequests } = await supabase.from("time_adjustment_requests").select("request_date, request_type").eq("employee_id", employeeId).eq("status", "approved").gte("request_date", startDate).lte("request_date", endDate);
+    // Group by date với các loại phiếu
+    const approvedByDate = new Map();
+    for (const req of approvedRequests || []){
+        const types = approvedByDate.get(req.request_date) || [];
+        types.push(req.request_type);
+        approvedByDate.set(req.request_date, types);
+    }
     if (logs) {
-        const [shiftH, shiftM] = shiftStartTime.split(":").map(Number);
-        const shiftMinutes = shiftH * 60 + shiftM;
+        const [shiftH, shiftM] = shift.startTime.split(":").map(Number);
+        const shiftStartMinutes = shiftH * 60 + shiftM;
+        // Parse break times
+        let breakStartMinutes = 0;
+        let breakEndMinutes = 0;
+        if (shift.breakStart && shift.breakEnd) {
+            const [bsH, bsM] = shift.breakStart.split(":").map(Number);
+            const [beH, beM] = shift.breakEnd.split(":").map(Number);
+            breakStartMinutes = bsH * 60 + bsM;
+            breakEndMinutes = beH * 60 + beM;
+        }
         for (const log of logs){
             if (!log.check_in) continue;
             const checkInDate = new Date(log.check_in);
@@ -397,12 +412,40 @@ async function getEmployeeViolations(supabase, employeeId, startDate, endDate, s
             const checkInHour = checkInDate.getHours();
             const checkInMin = checkInDate.getMinutes();
             const checkInMinutes = checkInHour * 60 + checkInMin;
-            const lateMinutes = Math.max(0, checkInMinutes - shiftMinutes);
+            const approvedRequestTypes = approvedByDate.get(dateStr) || [];
+            const hasApprovedRequest = approvedRequestTypes.length > 0;
+            // Kiểm tra nếu check in trong giờ nghỉ trưa hoặc sau giờ nghỉ trưa
+            // => Nghỉ ca sáng, đi làm ca chiều (tính nửa ngày)
+            let isHalfDay = false;
+            let lateMinutes = 0;
+            if (breakStartMinutes > 0 && breakEndMinutes > 0) {
+                // Check in trong khoảng nghỉ trưa hoặc đầu ca chiều
+                if (checkInMinutes >= breakStartMinutes && checkInMinutes <= breakEndMinutes + 15) {
+                    // Check in từ 12:00 đến 13:45 => nghỉ ca sáng, đi ca chiều
+                    isHalfDay = true;
+                    lateMinutes = 0; // Không tính là đi muộn
+                } else if (checkInMinutes > breakEndMinutes + 15) {
+                    // Check in sau 13:45 => đi muộn ca chiều
+                    lateMinutes = checkInMinutes - breakEndMinutes;
+                    isHalfDay = true;
+                } else {
+                    // Check in trước giờ nghỉ trưa => tính đi muộn bình thường
+                    lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes);
+                }
+            } else {
+                // Không có giờ nghỉ trưa => tính đi muộn bình thường
+                lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes);
+            }
+            // Đi muộn >60 phút và không có phép => không tính công (isAbsent)
+            const isAbsent = lateMinutes > 60 && !hasApprovedRequest;
             violations.push({
                 date: dateStr,
                 lateMinutes,
                 earlyMinutes: 0,
-                hasApprovedRequest: approvedDates.has(dateStr)
+                isHalfDay,
+                isAbsent,
+                hasApprovedRequest,
+                approvedRequestTypes
             });
         }
     }
@@ -494,13 +537,22 @@ async function generatePayroll(month, year) {
                 }
             }
         }
-        const workingDays = workingDaysCount || 0;
         // Lấy shift của nhân viên
-        const shift = emp.shift_id ? shiftMap.get(emp.shift_id) : null;
-        const shiftStartTime = shift?.start_time?.slice(0, 5) || "08:00";
+        const shiftData = emp.shift_id ? shiftMap.get(emp.shift_id) : null;
+        const shiftInfo = {
+            startTime: shiftData?.start_time?.slice(0, 5) || "08:00",
+            endTime: shiftData?.end_time?.slice(0, 5) || "17:00",
+            breakStart: shiftData?.break_start?.slice(0, 5) || null,
+            breakEnd: shiftData?.break_end?.slice(0, 5) || null
+        };
         // Lấy vi phạm chấm công
-        const violations = await getEmployeeViolations(supabase, emp.id, startDate, endDate, shiftStartTime);
-        const lateCount = violations.filter((v)=>v.lateMinutes > 0).length;
+        const violations = await getEmployeeViolations(supabase, emp.id, startDate, endDate, shiftInfo);
+        // Tính ngày công thực tế (trừ ngày không tính công và nửa ngày)
+        const absentDays = violations.filter((v)=>v.isAbsent).length;
+        const halfDays = violations.filter((v)=>v.isHalfDay && !v.isAbsent).length;
+        const fullWorkDays = violations.filter((v)=>!v.isHalfDay && !v.isAbsent).length;
+        const actualWorkingDays = fullWorkDays + halfDays * 0.5;
+        const lateCount = violations.filter((v)=>v.lateMinutes > 0 && !v.isHalfDay).length;
         // Lấy các điều chỉnh được gán cho nhân viên
         const { data: empAdjustments } = await supabase.from("employee_adjustments").select("*, adjustment_type:payroll_adjustment_types(*)").eq("employee_id", emp.id).lte("effective_date", endDate).or(`end_date.is.null,end_date.gte.${startDate}`);
         // =============================================
@@ -537,9 +589,10 @@ async function generatePayroll(month, year) {
                 }
                 // ========== PHỤ CẤP TỰ ĐỘNG ==========
                 if (adjType.category === "allowance") {
-                    // Phụ cấp theo ngày công (ăn trưa)
+                    // Phụ cấp theo ngày công (ăn trưa) - chỉ tính ngày đi làm đủ, không tính nửa ngày
                     if (adjType.calculation_type === "daily") {
-                        let eligibleDays = workingDays;
+                        let eligibleDays = fullWorkDays // Chỉ tính ngày đi làm đủ
+                        ;
                         if (rules) {
                             // Trừ ngày nghỉ
                             if (rules.deduct_on_absent) {
@@ -558,8 +611,8 @@ async function generatePayroll(month, year) {
                             adjustmentDetails.push({
                                 adjustment_type_id: adjType.id,
                                 category: "allowance",
-                                base_amount: workingDays * adjType.amount,
-                                adjusted_amount: (workingDays - eligibleDays) * adjType.amount,
+                                base_amount: fullWorkDays * adjType.amount,
+                                adjusted_amount: (fullWorkDays - eligibleDays) * adjType.amount,
                                 final_amount: amount,
                                 reason: `${eligibleDays} ngày x ${adjType.amount.toLocaleString()}đ`,
                                 occurrence_count: eligibleDays
@@ -569,8 +622,8 @@ async function generatePayroll(month, year) {
                     // Phụ cấp cố định (chuyên cần)
                     if (adjType.calculation_type === "fixed") {
                         if (rules?.full_deduct_threshold !== undefined) {
-                            // Có điều kiện - mất toàn bộ nếu vi phạm
-                            const shouldDeduct = lateCount > rules.full_deduct_threshold || unpaidLeaveDays > 0;
+                            // Có điều kiện - mất toàn bộ nếu vi phạm (đi muộn hoặc nghỉ không phép hoặc không tính công)
+                            const shouldDeduct = lateCount > rules.full_deduct_threshold || unpaidLeaveDays > 0 || absentDays > 0;
                             if (!shouldDeduct) {
                                 totalAllowances += adjType.amount;
                                 adjustmentDetails.push({
@@ -613,9 +666,18 @@ async function generatePayroll(month, year) {
                 if (adjType.category === "penalty" && rules?.trigger === "late") {
                     const thresholdMinutes = rules.late_threshold_minutes || 30;
                     const exemptWithRequest = rules.exempt_with_request !== false;
+                    const exemptRequestTypes = rules.exempt_request_types || [
+                        "late_arrival",
+                        "early_leave"
+                    ];
                     const penaltyDays = violations.filter((v)=>{
                         if (v.lateMinutes <= thresholdMinutes) return false;
-                        if (exemptWithRequest && v.hasApprovedRequest) return false;
+                        // Kiểm tra miễn phạt nếu có phiếu phù hợp
+                        if (exemptWithRequest && v.hasApprovedRequest) {
+                            // Kiểm tra xem có loại phiếu nào được miễn không
+                            const hasExemptRequest = v.approvedRequestTypes.some((type)=>exemptRequestTypes.includes(type));
+                            if (hasExemptRequest) return false;
+                        }
                         return true;
                     });
                     for (const v of penaltyDays){
@@ -673,22 +735,30 @@ async function generatePayroll(month, year) {
         // =============================================
         // TÍNH LƯƠNG CUỐI CÙNG
         // =============================================
-        const grossSalary = dailySalary * workingDays + dailySalary * leaveDays + totalAllowances;
+        // actualWorkingDays đã tính: ngày đủ + 0.5 * nửa ngày, trừ ngày không tính công
+        const grossSalary = dailySalary * actualWorkingDays + dailySalary * leaveDays + totalAllowances;
         const totalDeduction = dailySalary * unpaidLeaveDays + totalDeductions + totalPenalties;
         const netSalary = grossSalary - totalDeduction;
+        // Tạo ghi chú chi tiết
+        let noteItems = [];
+        if (lateCount > 0) noteItems.push(`Đi muộn: ${lateCount} lần`);
+        if (halfDays > 0) noteItems.push(`Nửa ngày: ${halfDays}`);
+        if (absentDays > 0) noteItems.push(`Không tính công: ${absentDays}`);
+        const penaltyCount = adjustmentDetails.filter((d)=>d.category === 'penalty').length;
+        if (penaltyCount > 0) noteItems.push(`Phạt: ${penaltyCount} lần`);
         // Insert payroll item
         const { data: payrollItem, error: insertError } = await supabase.from("payroll_items").insert({
             payroll_run_id: run.id,
             employee_id: emp.id,
-            working_days: workingDays,
+            working_days: actualWorkingDays,
             leave_days: leaveDays,
-            unpaid_leave_days: unpaidLeaveDays,
+            unpaid_leave_days: unpaidLeaveDays + absentDays,
             base_salary: baseSalary,
             allowances: totalAllowances,
             total_income: grossSalary,
             total_deduction: totalDeduction,
             net_salary: netSalary,
-            note: totalPenalties > 0 ? `Đi muộn: ${lateCount} lần, Phạt: ${adjustmentDetails.filter((d)=>d.category === 'penalty').length} lần` : `Đi muộn: ${lateCount} lần`
+            note: noteItems.join(", ") || null
         }).select().single();
         if (insertError) {
             console.error(`Error inserting payroll item for ${emp.full_name}:`, insertError);

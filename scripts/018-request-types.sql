@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS request_types (
   -- Cấu hình phiếu
   requires_date_range BOOLEAN DEFAULT true,      -- Cần chọn từ ngày - đến ngày
   requires_single_date BOOLEAN DEFAULT false,    -- Chỉ cần 1 ngày
-  requires_time BOOLEAN DEFAULT false,           -- Cần chọn giờ
+  requires_time BOOLEAN DEFAULT false,           -- Cần chọn giờ (1 giờ)
+  requires_time_range BOOLEAN DEFAULT false,     -- Cần chọn từ giờ - đến giờ
   requires_reason BOOLEAN DEFAULT true,          -- Bắt buộc nhập lý do
   requires_attachment BOOLEAN DEFAULT false,     -- Cần đính kèm file
   -- Ảnh hưởng đến chấm công/lương
@@ -35,7 +36,9 @@ CREATE TABLE IF NOT EXISTS employee_requests (
   from_date DATE,
   to_date DATE,
   request_date DATE,                             -- Cho phiếu chỉ cần 1 ngày
-  request_time TIME,                             -- Cho phiếu cần giờ
+  request_time TIME,                             -- Cho phiếu cần 1 giờ
+  from_time TIME,                                -- Cho phiếu cần từ giờ
+  to_time TIME,                                  -- Cho phiếu cần đến giờ
   reason TEXT,
   attachment_url TEXT,
   -- Trạng thái duyệt
@@ -56,18 +59,18 @@ CREATE INDEX IF NOT EXISTS idx_request_types_code ON request_types(code);
 CREATE INDEX IF NOT EXISTS idx_request_types_active ON request_types(is_active);
 
 -- Seed các loại phiếu mặc định
-INSERT INTO request_types (name, code, description, requires_date_range, requires_single_date, requires_time, requires_reason, affects_attendance, affects_payroll, deduct_leave_balance, display_order)
+INSERT INTO request_types (name, code, description, requires_date_range, requires_single_date, requires_time, requires_time_range, requires_reason, affects_attendance, affects_payroll, deduct_leave_balance, display_order)
 VALUES 
-  ('Nghỉ phép năm', 'annual_leave', 'Đơn xin nghỉ phép năm theo quy định', true, false, false, true, true, true, true, 1),
-  ('Nghỉ ốm', 'sick_leave', 'Đơn xin nghỉ ốm (cần giấy khám bệnh)', true, false, false, true, true, true, false, 2),
-  ('Nghỉ không lương', 'unpaid_leave', 'Đơn xin nghỉ không hưởng lương', true, false, false, true, true, true, false, 3),
-  ('Nghỉ thai sản', 'maternity_leave', 'Đơn xin nghỉ thai sản theo luật', true, false, false, true, true, true, false, 4),
-  ('Quên chấm công', 'forgot_checkin', 'Phiếu giải trình quên chấm công', false, true, true, true, true, false, false, 5),
-  ('Đi muộn', 'late_arrival', 'Phiếu giải trình đi muộn', false, true, true, true, true, false, false, 6),
-  ('Về sớm', 'early_leave', 'Phiếu xin về sớm', false, true, true, true, true, false, false, 7),
-  ('Làm việc từ xa', 'work_from_home', 'Đơn xin làm việc từ xa', true, false, false, true, true, false, false, 8),
-  ('Công tác', 'business_trip', 'Đơn xin đi công tác', true, false, false, true, true, false, false, 9),
-  ('Tăng ca', 'overtime', 'Đơn xin làm thêm giờ', false, true, true, true, true, true, false, 10)
+  ('Nghỉ phép năm', 'annual_leave', 'Đơn xin nghỉ phép năm theo quy định', true, false, false, false, true, true, true, true, 1),
+  ('Nghỉ ốm', 'sick_leave', 'Đơn xin nghỉ ốm (cần giấy khám bệnh)', true, false, false, false, true, true, true, false, 2),
+  ('Nghỉ không lương', 'unpaid_leave', 'Đơn xin nghỉ không hưởng lương', true, false, false, false, true, true, true, false, 3),
+  ('Nghỉ thai sản', 'maternity_leave', 'Đơn xin nghỉ thai sản theo luật', true, false, false, false, true, true, true, false, 4),
+  ('Quên chấm công', 'forgot_checkin', 'Phiếu giải trình quên chấm công', false, true, true, false, true, true, false, false, 5),
+  ('Đi muộn', 'late_arrival', 'Phiếu giải trình đi muộn', false, true, true, false, true, true, false, false, 6),
+  ('Về sớm', 'early_leave', 'Phiếu xin về sớm', false, true, true, false, true, true, false, false, 7),
+  ('Làm việc từ xa', 'work_from_home', 'Đơn xin làm việc từ xa', true, false, false, false, true, true, false, false, 8),
+  ('Công tác', 'business_trip', 'Đơn xin đi công tác', true, false, false, false, true, true, false, false, 9),
+  ('Tăng ca', 'overtime', 'Đơn xin làm thêm giờ', false, true, false, true, true, true, true, false, 10)
 ON CONFLICT (code) DO NOTHING;
 
 -- RLS Policies

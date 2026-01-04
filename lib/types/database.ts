@@ -269,6 +269,7 @@ export interface TimeAdjustmentRequestWithRelations extends TimeAdjustmentReques
 // =============================================
 
 export type RequestStatus = "pending" | "approved" | "rejected"
+export type ApprovalMode = "any" | "all"
 
 export interface RequestType {
   id: string
@@ -278,11 +279,15 @@ export interface RequestType {
   requires_date_range: boolean
   requires_single_date: boolean
   requires_time: boolean
+  requires_time_range: boolean
   requires_reason: boolean
   requires_attachment: boolean
   affects_attendance: boolean
   affects_payroll: boolean
   deduct_leave_balance: boolean
+  approval_mode: ApprovalMode
+  min_approver_level: number | null
+  max_approver_level: number | null
   is_active: boolean
   display_order: number
   created_at: string
@@ -297,6 +302,8 @@ export interface EmployeeRequest {
   to_date: string | null
   request_date: string | null
   request_time: string | null
+  from_time: string | null
+  to_time: string | null
   reason: string | null
   attachment_url: string | null
   status: RequestStatus
@@ -311,4 +318,35 @@ export interface EmployeeRequestWithRelations extends EmployeeRequest {
   employee?: Employee | null
   approver?: Employee | null
   request_type?: RequestType | null
+}
+
+// Request Type Approvers
+export interface RequestTypeApprover {
+  id: string
+  request_type_id: string
+  approver_employee_id: string | null
+  approver_position_id: string | null
+  approver_role_code: string | null
+  display_order: number
+  created_at: string
+}
+
+export interface RequestTypeApproverWithRelations extends RequestTypeApprover {
+  employee?: Employee | null
+  position?: Position | null
+}
+
+// Request Approvals (trạng thái duyệt của từng người)
+export interface RequestApproval {
+  id: string
+  request_id: string
+  approver_id: string
+  status: RequestStatus
+  comment: string | null
+  approved_at: string | null
+  created_at: string
+}
+
+export interface RequestApprovalWithRelations extends RequestApproval {
+  approver?: Employee | null
 }
