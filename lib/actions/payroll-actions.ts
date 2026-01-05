@@ -8,6 +8,7 @@ import type {
   SalaryStructure,
   PayrollAdjustmentType,
 } from "@/lib/types/database"
+import { calculateOvertimePay } from "./overtime-actions"
 
 const STANDARD_WORKING_DAYS = 26 // Công chuẩn VN
 
@@ -582,10 +583,22 @@ export async function generatePayroll(month: number, year: number) {
     }
 
     // =============================================
+    // TÍNH TIỀN TĂNG CA (OT)
+    // =============================================
+    const otResult = await calculateOvertimePay(
+      emp.id,
+      baseSalary,
+      STANDARD_WORKING_DAYS,
+      startDate,
+      endDate
+    )
+    const totalOTPay = otResult.totalOTPay
+
+    // =============================================
     // TÍNH LƯƠNG CUỐI CÙNG
     // =============================================
     // actualWorkingDays đã tính: ngày đủ + 0.5 * nửa ngày, trừ ngày không tính công
-    const grossSalary = dailySalary * actualWorkingDays + dailySalary * leaveDays + totalAllowances
+    const grossSalary = dailySalary * actualWorkingDays + dailySalary * leaveDays + totalAllowances + totalOTPay
     const totalDeduction = dailySalary * unpaidLeaveDays + totalDeductions + totalPenalties
     const netSalary = grossSalary - totalDeduction
 
@@ -596,6 +609,7 @@ export async function generatePayroll(month: number, year: number) {
     if (absentDays > 0) noteItems.push(`Không tính công: ${absentDays}`)
     const penaltyCount = adjustmentDetails.filter(d => d.category === 'penalty').length
     if (penaltyCount > 0) noteItems.push(`Phạt: ${penaltyCount} lần`)
+    if (otResult.totalOTHours > 0) noteItems.push(`OT: ${otResult.totalOTHours}h`)
 
     // Insert payroll item
     const { data: payrollItem, error: insertError } = await supabase
@@ -607,7 +621,7 @@ export async function generatePayroll(month: number, year: number) {
         leave_days: leaveDays,
         unpaid_leave_days: unpaidLeaveDays + absentDays, // Cộng thêm ngày không tính công
         base_salary: baseSalary,
-        allowances: totalAllowances,
+        allowances: totalAllowances + totalOTPay, // Bao gồm cả tiền OT
         total_income: grossSalary,
         total_deduction: totalDeduction,
         net_salary: netSalary,

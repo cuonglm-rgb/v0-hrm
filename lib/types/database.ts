@@ -350,3 +350,42 @@ export interface RequestApproval {
 export interface RequestApprovalWithRelations extends RequestApproval {
   approver?: Employee | null
 }
+
+// =============================================
+// OVERTIME SETTINGS (Hệ số tăng ca)
+// =============================================
+
+export type OvertimeStatus = "pending" | "approved" | "rejected"
+
+export interface OTSetting {
+  id: string
+  name: string
+  code: string
+  multiplier: number
+  description: string | null
+  is_active: boolean
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface OvertimeRecord {
+  id: string
+  employee_id: string
+  ot_date: string
+  ot_setting_id: string
+  hours: number
+  reason: string | null
+  status: OvertimeStatus
+  approver_id: string | null
+  approved_at: string | null
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OvertimeRecordWithRelations extends OvertimeRecord {
+  employee?: Employee | null
+  approver?: Employee | null
+  ot_setting?: OTSetting | null
+}

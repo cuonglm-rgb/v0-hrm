@@ -1,3 +1,0 @@
-module.exports=[89704,a=>{"use strict";var b=a.i(20624);a.s([],16549),a.i(16549),a.s(["00615a52a55e0a543ef75e5baea30072c1753e165d",()=>b.listEmployees,"00883990eb87fcbb43d391263ac0e80258f50fa142",()=>b.getMyRoles,"00b03b68086147c4f3c87b418d7c215dd6cb117979",()=>b.getMyEmployee,"4079a4797cba7170c9f24cb929d39c5458459914fe",()=>b.updateMyProfile,"40ddf02cc5e4765fa3a030fd637e5f355c5f442611",()=>b.createEmployee,"40e459b772c74c679b1dae2e3f27180379dec5296b",()=>b.getEmployee,"602895f5cf22992ec5b7c548983ba3ab1dbcb8093a",()=>b.updateEmployee],89704)}];
-
-//# sourceMappingURL=_next-internal_server_app_dashboard_profile_page_actions_295a0a83.js.map

@@ -214,6 +214,8 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
         onOpenChange={setShowBreakdown}
         payrollItem={selectedItem}
         standardWorkingDays={STANDARD_WORKING_DAYS}
+        month={payrollRun.month}
+        year={payrollRun.year}
       />
     </div>
   )

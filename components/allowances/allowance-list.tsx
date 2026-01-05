@@ -308,11 +308,6 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Quản lý phụ cấp & khấu trừ</h1>
-        <p className="text-muted-foreground">Thiết lập phụ cấp, quỹ chung, và các khoản phạt</p>
-      </div>
-
       <Tabs defaultValue="allowance">
         <TabsList>
           <TabsTrigger value="allowance" className="gap-2">
