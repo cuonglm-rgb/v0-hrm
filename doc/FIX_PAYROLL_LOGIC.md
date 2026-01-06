@@ -15,7 +15,7 @@ Code cũ chỉ xử lý bảng `leave_requests` (bảng cũ) nhưng KHÔNG xử 
 
 ### 1. Xử lý các phiếu từ `employee_requests`
 
-```typescript
+\`\`\`typescript
 // Lấy tất cả phiếu đã approved từ employee_requests
 const { data: employeeRequests } = await supabase
   .from("employee_requests")
@@ -32,7 +32,7 @@ const { data: employeeRequests } = await supabase
   `)
   .eq("employee_id", emp.id)
   .eq("status", "approved")
-```
+\`\`\`
 
 ### 2. Phân loại phiếu theo logic nghiệp vụ
 
@@ -51,7 +51,7 @@ const { data: employeeRequests } = await supabase
 
 ### 3. Công thức tính lương mới
 
-```typescript
+\`\`\`typescript
 // Ngày công thực tế = ngày đi làm + WFH + nghỉ phép có lương
 const actualWorkingDays = fullWorkDays + (halfDays * 0.5) + workFromHomeDays + paidLeaveDays
 
@@ -63,11 +63,11 @@ const totalDeduction = dailySalary * unpaidLeaveDays + totalDeductions + totalPe
 
 // Lương thực nhận
 const netSalary = grossSalary - totalDeduction
-```
+\`\`\`
 
 ### 4. Xử lý phạt đi muộn thông minh
 
-```typescript
+\`\`\`typescript
 // Kiểm tra phiếu từ employee_requests
 const approvedByDate = new Map<string, string[]>()
 
@@ -87,7 +87,7 @@ if (exemptWithRequest && v.hasApprovedRequest) {
   )
   if (hasExemptRequest) return false // Không phạt
 }
-```
+\`\`\`
 
 ## Kết quả
 
@@ -147,4 +147,3 @@ Phiếu lương sẽ hiển thị chi tiết:
 - ❌ Loại bỏ xử lý `leave_requests` (bảng cũ)
 - ❌ Loại bỏ xử lý `time_adjustment_requests` (bảng cũ)
 - ✅ Chỉ xử lý `employee_requests` (bảng mới - single source of truth)
-
