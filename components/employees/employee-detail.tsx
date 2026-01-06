@@ -13,10 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
-import { Save, ArrowLeft, Shield, Building2, User, Briefcase, History, Wallet, Clock } from "lucide-react"
+import { Save, ArrowLeft, Shield, Building2, User, Briefcase, History, Wallet, Clock, Timer } from "lucide-react"
 import { updateEmployee } from "@/lib/actions/employee-actions"
 import { assignRole, removeRole } from "@/lib/actions/role-actions"
 import { EmployeeSalaryTab } from "./employee-salary-tab"
+import { EmployeeOTRatesTab } from "./employee-ot-rates-tab"
 import type { EmployeeWithRelations, Department, Position, Role, RoleCode, EmployeeJobHistoryWithRelations, SalaryStructure, WorkShift } from "@/lib/types/database"
 import Link from "next/link"
 
@@ -195,6 +196,12 @@ export function EmployeeDetail({
                   <TabsTrigger value="salary">
                     <Wallet className="h-4 w-4 mr-1" />
                     Lương
+                  </TabsTrigger>
+                )}
+                {isHROrAdmin && (
+                  <TabsTrigger value="ot-rates">
+                    <Timer className="h-4 w-4 mr-1" />
+                    Hệ số OT
                   </TabsTrigger>
                 )}
                 {isHROrAdmin && <TabsTrigger value="roles">Quyền</TabsTrigger>}
@@ -393,6 +400,15 @@ export function EmployeeDetail({
                   <EmployeeSalaryTab
                     employeeId={employee.id}
                     salaryHistory={salaryHistory}
+                    isHROrAdmin={isHROrAdmin}
+                  />
+                </TabsContent>
+              )}
+
+              {isHROrAdmin && (
+                <TabsContent value="ot-rates" className="mt-0">
+                  <EmployeeOTRatesTab
+                    employeeId={employee.id}
                     isHROrAdmin={isHROrAdmin}
                   />
                 </TabsContent>

@@ -369,12 +369,39 @@ export interface OTSetting {
   updated_at: string
 }
 
+export interface EmployeeOTRate {
+  id: string
+  employee_id: string
+  ot_setting_id: string
+  multiplier: number
+  effective_date: string
+  end_date: string | null
+  note: string | null
+  created_at: string
+}
+
+export interface EmployeeOTRateWithRelations extends EmployeeOTRate {
+  employee?: Employee | null
+  ot_setting?: OTSetting | null
+}
+
+export interface Holiday {
+  id: string
+  name: string
+  holiday_date: string
+  year: number
+  is_recurring: boolean
+  description: string | null
+  created_at: string
+}
+
 export interface OvertimeRecord {
   id: string
   employee_id: string
   ot_date: string
   ot_setting_id: string
   hours: number
+  multiplier_used: number | null
   reason: string | null
   status: OvertimeStatus
   approver_id: string | null

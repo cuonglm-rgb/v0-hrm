@@ -11,8 +11,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { getPayrollAdjustmentDetails } from "@/lib/actions/payroll-actions"
-import { listOvertimeRecords } from "@/lib/actions/overtime-actions"
-import type { PayrollItemWithRelations, OvertimeRecordWithRelations } from "@/lib/types/database"
+import { getOTBreakdownForPayroll, type OTBreakdownItem } from "@/lib/actions/overtime-actions"
+import type { PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
 import { Loader2, TrendingUp, TrendingDown, AlertTriangle, Wallet, Timer } from "lucide-react"
 
@@ -51,7 +51,7 @@ export function PayrollBreakdownDialog({
 }: PayrollBreakdownDialogProps) {
   const [loading, setLoading] = useState(false)
   const [details, setDetails] = useState<AdjustmentDetail[]>([])
-  const [otRecords, setOtRecords] = useState<OvertimeRecordWithRelations[]>([])
+  const [otItems, setOtItems] = useState<OTBreakdownItem[]>([])
 
   useEffect(() => {
     if (open && payrollItem) {
@@ -66,17 +66,18 @@ export function PayrollBreakdownDialog({
     const [adjustmentData, otData] = await Promise.all([
       getPayrollAdjustmentDetails(payrollItem.id),
       month && year && payrollItem.employee?.id
-        ? listOvertimeRecords({
-            employee_id: payrollItem.employee.id,
+        ? getOTBreakdownForPayroll(
+            payrollItem.employee.id,
+            payrollItem.base_salary || 0,
+            standardWorkingDays,
             month,
-            year,
-            status: "approved",
-          })
+            year
+          )
         : Promise.resolve([]),
     ])
     
     setDetails(adjustmentData)
-    setOtRecords(otData)
+    setOtItems(otData)
     setLoading(false)
   }
 
@@ -95,13 +96,9 @@ export function PayrollBreakdownDialog({
   const totalDeductionFromDetails = deductions.reduce((sum, d) => sum + d.final_amount, 0)
   const totalPenaltyFromDetails = penalties.reduce((sum, d) => sum + d.final_amount, 0)
 
-  // Tính tiền OT
-  const hourlyRate = (payrollItem.base_salary || 0) / standardWorkingDays / 8
-  const totalOTHours = otRecords.reduce((sum, r) => sum + r.hours, 0)
-  const totalOTPay = otRecords.reduce((sum, r) => {
-    const multiplier = (r.ot_setting as any)?.multiplier || 1.5
-    return sum + hourlyRate * r.hours * multiplier
-  }, 0)
+  // Tính tiền OT từ otItems
+  const totalOTHours = otItems.reduce((sum, item) => sum + item.hours, 0)
+  const totalOTPay = otItems.reduce((sum, item) => sum + item.amount, 0)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,33 +175,28 @@ export function PayrollBreakdownDialog({
                 )}
 
                 {/* Tiền tăng ca (OT) */}
-                {otRecords.length > 0 && (
+                {otItems.length > 0 && (
                   <>
                     <Separator className="my-2" />
                     <p className="text-xs text-muted-foreground font-medium flex items-center gap-1">
                       <Timer className="h-3 w-3" />
                       Tiền tăng ca:
                     </p>
-                    {otRecords.map((record) => {
-                      const multiplier = (record.ot_setting as any)?.multiplier || 1.5
-                      const otName = (record.ot_setting as any)?.name || "Tăng ca"
-                      const amount = hourlyRate * record.hours * multiplier
-                      return (
-                        <div key={record.id} className="flex justify-between text-sm">
-                          <span className="flex items-center gap-2">
-                            {otName}
-                            <span className="text-xs text-muted-foreground">
-                              ({record.hours}h x{multiplier} - {record.ot_date})
-                            </span>
+                    {otItems.map((item) => (
+                      <div key={item.id} className="flex justify-between text-sm">
+                        <span className="flex items-center gap-2">
+                          {item.otType}
+                          <span className="text-xs text-muted-foreground">
+                            ({item.hours.toFixed(1)}h x{item.multiplier} - {item.date})
                           </span>
-                          <span className="font-medium text-green-600">
-                            +{formatCurrency(amount)}
-                          </span>
-                        </div>
-                      )
-                    })}
+                        </span>
+                        <span className="font-medium text-green-600">
+                          +{formatCurrency(item.amount)}
+                        </span>
+                      </div>
+                    ))}
                     <div className="flex justify-between text-sm font-medium text-amber-600 pl-4">
-                      <span>Tổng OT ({totalOTHours}h)</span>
+                      <span>Tổng OT ({totalOTHours.toFixed(1)}h)</span>
                       <span>+{formatCurrency(totalOTPay)}</span>
                     </div>
                   </>
