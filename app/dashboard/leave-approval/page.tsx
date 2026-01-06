@@ -2,7 +2,6 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { listLeaveRequests } from "@/lib/actions/leave-actions"
 import { listRequestTypes, listEmployeeRequests } from "@/lib/actions/request-type-actions"
 import { listPositions } from "@/lib/actions/department-actions"
 import { LeaveApprovalPanel } from "@/components/leave/leave-approval-panel"
@@ -18,10 +17,9 @@ export default async function LeaveApprovalPage() {
   }
 
   // Lấy tất cả phiếu (không chỉ pending) để có thể xem lịch sử
-  const [employee, userRoles, leaveRequests, requestTypes, employeeRequests, positions] = await Promise.all([
+  const [employee, userRoles, requestTypes, employeeRequests, positions] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
-    listLeaveRequests({}), // Lấy tất cả
     listRequestTypes(false),
     listEmployeeRequests({}), // Lấy tất cả
     listPositions(),
@@ -32,8 +30,7 @@ export default async function LeaveApprovalPage() {
   const isAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
 
   // Đếm số phiếu pending
-  const pendingCount = leaveRequests.filter(r => r.status === "pending").length + 
-                       employeeRequests.filter(r => r.status === "pending").length
+  const pendingCount = employeeRequests.filter(r => r.status === "pending").length
 
   if (!canApprove) {
     redirect("/dashboard")
@@ -59,7 +56,6 @@ export default async function LeaveApprovalPage() {
 
           <TabsContent value="approval" className="mt-4">
             <LeaveApprovalPanel 
-              leaveRequests={leaveRequests} 
               employeeRequests={employeeRequests}
             />
           </TabsContent>

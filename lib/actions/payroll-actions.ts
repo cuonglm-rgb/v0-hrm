@@ -8,9 +8,97 @@ import type {
   SalaryStructure,
   PayrollAdjustmentType,
 } from "@/lib/types/database"
-import { calculateOvertimePay } from "./overtime-actions"
+import { calculateOvertimePay, listHolidays } from "./overtime-actions"
 
-const STANDARD_WORKING_DAYS = 26 // Công chuẩn VN
+// =============================================
+// TÍNH CÔNG CHUẨN ĐỘNG THEO THÁNG
+// =============================================
+
+// Tuần gốc để xác định quy luật thứ 7 xen kẽ
+// Tuần chứa ngày 6/1/2026 là tuần NGHỈ thứ 7
+// Dùng số tuần ISO để xác định: tuần lẻ nghỉ, tuần chẵn làm (hoặc ngược lại)
+const REFERENCE_DATE = new Date(Date.UTC(2026, 0, 6)) // 6/1/2026
+const REFERENCE_WEEK_IS_OFF = true // Tuần này nghỉ thứ 7
+
+// Lấy số tuần ISO của một ngày
+function getISOWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
+// Kiểm tra thứ 7 có phải ngày nghỉ không (theo quy luật xen kẽ)
+function isSaturdayOff(date: Date): boolean {
+  const refWeek = getISOWeekNumber(REFERENCE_DATE)
+  const currentWeek = getISOWeekNumber(date)
+  
+  // Nếu tuần gốc nghỉ, thì các tuần cùng tính chẵn/lẻ với tuần gốc cũng nghỉ
+  const refIsOdd = refWeek % 2 === 1
+  const currentIsOdd = currentWeek % 2 === 1
+  
+  if (REFERENCE_WEEK_IS_OFF) {
+    // Tuần gốc nghỉ → tuần cùng loại (chẵn/lẻ) cũng nghỉ
+    return refIsOdd === currentIsOdd
+  } else {
+    // Tuần gốc làm → tuần khác loại nghỉ
+    return refIsOdd !== currentIsOdd
+  }
+}
+
+// Tính công chuẩn của một tháng
+export async function calculateStandardWorkingDays(month: number, year: number): Promise<{
+  totalDays: number
+  sundays: number
+  saturdaysOff: number
+  holidays: number
+  standardDays: number
+}> {
+  // Lấy danh sách ngày lễ
+  const holidays = await listHolidays(year)
+  const holidayDates = new Set(holidays.map(h => h.holiday_date))
+  
+  const firstDay = new Date(Date.UTC(year, month - 1, 1))
+  const lastDay = new Date(Date.UTC(year, month, 0)).getDate()
+  
+  let sundays = 0
+  let saturdaysOff = 0
+  let holidayCount = 0
+  
+  for (let day = 1; day <= lastDay; day++) {
+    const date = new Date(Date.UTC(year, month - 1, day))
+    const dayOfWeek = date.getUTCDay()
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    
+    // Đếm Chủ nhật
+    if (dayOfWeek === 0) {
+      sundays++
+      continue // Không đếm ngày lễ trùng Chủ nhật
+    }
+    
+    // Đếm Thứ 7 nghỉ (xen kẽ)
+    if (dayOfWeek === 6 && isSaturdayOff(date)) {
+      saturdaysOff++
+      continue // Không đếm ngày lễ trùng Thứ 7 nghỉ
+    }
+    
+    // Đếm ngày lễ (không trùng với ngày nghỉ cuối tuần)
+    if (holidayDates.has(dateStr)) {
+      holidayCount++
+    }
+  }
+  
+  const standardDays = lastDay - sundays - saturdaysOff - holidayCount
+  
+  return {
+    totalDays: lastDay,
+    sundays,
+    saturdaysOff,
+    holidays: holidayCount,
+    standardDays,
+  }
+}
 
 // =============================================
 // EMPLOYEE ACTIONS
@@ -156,10 +244,13 @@ async function getEmployeeViolations(
     .gte("check_in", startDate)
     .lte("check_in", endDate + "T23:59:59")
 
-  // Lấy time adjustment requests đã approved (với loại phiếu)
+  // Lấy phiếu đã approved từ employee_requests
   const { data: approvedRequests } = await supabase
-    .from("time_adjustment_requests")
-    .select("request_date, request_type")
+    .from("employee_requests")
+    .select(`
+      request_date,
+      request_type:request_types!request_type_id(code)
+    `)
     .eq("employee_id", employeeId)
     .eq("status", "approved")
     .gte("request_date", startDate)
@@ -167,10 +258,14 @@ async function getEmployeeViolations(
 
   // Group by date với các loại phiếu
   const approvedByDate = new Map<string, string[]>()
+  
   for (const req of approvedRequests || []) {
-    const types = approvedByDate.get(req.request_date) || []
-    types.push(req.request_type)
-    approvedByDate.set(req.request_date, types)
+    const reqType = req.request_type as any
+    if (reqType?.code) {
+      const types = approvedByDate.get(req.request_date) || []
+      types.push(reqType.code)
+      approvedByDate.set(req.request_date, types)
+    }
   }
 
   if (logs) {
@@ -309,7 +404,15 @@ export async function generatePayroll(month: number, year: number) {
 
   // Tính ngày đầu và cuối tháng
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`
-  const endDate = new Date(year, month, 0).toISOString().split("T")[0]
+  // Tính ngày cuối tháng đúng cách (tránh timezone issues)
+  const lastDay = new Date(year, month, 0).getDate() // Lấy số ngày trong tháng
+  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+
+  // Tính công chuẩn động theo tháng
+  const workingDaysInfo = await calculateStandardWorkingDays(month, year)
+  const STANDARD_WORKING_DAYS = workingDaysInfo.standardDays
+  
+  console.log(`[Payroll] Tháng ${month}/${year}: Tổng ${workingDaysInfo.totalDays} ngày, CN: ${workingDaysInfo.sundays}, T7 nghỉ: ${workingDaysInfo.saturdaysOff}, Lễ: ${workingDaysInfo.holidays} => Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
 
   let processedCount = 0
   for (const emp of employees) {
@@ -334,29 +437,198 @@ export async function generatePayroll(month: number, year: number) {
       .gte("check_in", startDate)
       .lte("check_in", endDate + "T23:59:59")
 
-    // Đếm ngày nghỉ phép
-    const { data: leaveRequests } = await supabase
-      .from("leave_requests")
-      .select("from_date, to_date, leave_type")
+    // =============================================
+    // XỬ LÝ CÁC PHIẾU TỪ EMPLOYEE_REQUESTS
+    // =============================================
+    const { data: employeeRequests } = await supabase
+      .from("employee_requests")
+      .select(`
+        *,
+        request_type:request_types!request_type_id(
+          code, 
+          name, 
+          affects_payroll, 
+          deduct_leave_balance,
+          requires_date_range,
+          requires_single_date
+        )
+      `)
       .eq("employee_id", emp.id)
       .eq("status", "approved")
-      .lte("from_date", endDate)
-      .gte("to_date", startDate)
+      .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
 
-    let leaveDays = 0
-    let unpaidLeaveDays = 0
+    let paidLeaveDays = 0 // Nghỉ phép có lương (annual_leave, sick_leave, maternity_leave)
+    let unpaidLeaveDays = 0 // Nghỉ không lương
+    let workFromHomeDays = 0 // Làm việc từ xa (chỉ tính nếu affects_payroll=true)
 
-    if (leaveRequests) {
-      for (const leave of leaveRequests) {
-        const leaveStart = new Date(Math.max(new Date(leave.from_date).getTime(), new Date(startDate).getTime()))
-        const leaveEnd = new Date(Math.min(new Date(leave.to_date).getTime(), new Date(endDate).getTime()))
-        const days = Math.ceil((leaveEnd.getTime() - leaveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    if (employeeRequests) {
+      console.log(`[Payroll] ${emp.full_name}: Found ${employeeRequests.length} approved requests`)
+      
+      for (const request of employeeRequests) {
+        const reqType = request.request_type as any
+        if (!reqType) continue
 
-        if (leave.leave_type === "unpaid") {
-          unpaidLeaveDays += days
-        } else {
-          leaveDays += days
+        const code = reqType.code
+        const affectsPayroll = reqType.affects_payroll === true
+        
+        console.log(`[Payroll] ${emp.full_name}: Processing ${code}, affects_payroll=${reqType.affects_payroll}, from=${request.from_date}, to=${request.to_date}`)
+
+        // Bỏ qua phiếu tăng ca (đã xử lý riêng)
+        if (code === "overtime") continue
+
+        // Bỏ qua phiếu không ảnh hưởng lương (trừ nghỉ không lương)
+        if (!affectsPayroll && code !== "unpaid_leave") {
+          console.log(`[Payroll] ${emp.full_name}: Skipping ${code} because affects_payroll=false`)
+          continue
         }
+
+        // Tính số ngày của phiếu (có hỗ trợ nửa buổi)
+        let days = 0
+        
+        // Helper: Tính số ngày nghỉ cho 1 ngày dựa trên from_time và to_time
+        const calculateDayFraction = (fromTime: string | null, toTime: string | null): number => {
+          if (!fromTime || !toTime) return 1 // Không có giờ → cả ngày
+          
+          // Lấy shift của nhân viên để xác định giờ làm việc
+          const empShift = emp.shift_id ? shiftMap.get(emp.shift_id) : null
+          const shiftStart = empShift?.start_time?.slice(0, 5) || "08:00"
+          const shiftEnd = empShift?.end_time?.slice(0, 5) || "17:00"
+          const breakStart = empShift?.break_start?.slice(0, 5) || "12:00"
+          const breakEnd = empShift?.break_end?.slice(0, 5) || "13:00"
+          
+          // Parse time to minutes
+          const parseTime = (t: string) => {
+            const [h, m] = t.split(":").map(Number)
+            return h * 60 + (m || 0)
+          }
+          
+          const fromMinutes = parseTime(fromTime)
+          const toMinutes = parseTime(toTime)
+          const shiftStartMin = parseTime(shiftStart)
+          const shiftEndMin = parseTime(shiftEnd)
+          const breakStartMin = parseTime(breakStart)
+          const breakEndMin = parseTime(breakEnd)
+          
+          // Tính tổng giờ làm việc trong ngày (trừ nghỉ trưa)
+          const morningHours = (breakStartMin - shiftStartMin) / 60 // Ca sáng
+          const afternoonHours = (shiftEndMin - breakEndMin) / 60 // Ca chiều
+          const totalWorkHours = morningHours + afternoonHours
+          
+          // Tính số giờ nghỉ
+          let leaveHours = (toMinutes - fromMinutes) / 60
+          if (leaveHours <= 0) leaveHours = totalWorkHours // Fallback nếu giờ không hợp lệ
+          
+          // Xác định nghỉ nửa buổi hay cả ngày
+          // Nghỉ buổi sáng: từ đầu ca đến giờ nghỉ trưa (08:00 - 12:00)
+          // Nghỉ buổi chiều: từ sau nghỉ trưa đến cuối ca (13:00 - 17:00)
+          
+          // Nếu nghỉ từ đầu ca sáng đến giờ nghỉ trưa → nửa ngày sáng
+          if (fromMinutes <= shiftStartMin + 30 && toMinutes >= breakStartMin - 30 && toMinutes <= breakEndMin + 30) {
+            console.log(`[Payroll] Half-day morning leave: ${fromTime} - ${toTime}`)
+            return 0.5
+          }
+          
+          // Nếu nghỉ từ sau nghỉ trưa đến cuối ca → nửa ngày chiều
+          if (fromMinutes >= breakStartMin - 30 && fromMinutes <= breakEndMin + 30 && toMinutes >= shiftEndMin - 30) {
+            console.log(`[Payroll] Half-day afternoon leave: ${fromTime} - ${toTime}`)
+            return 0.5
+          }
+          
+          // Nếu số giờ nghỉ <= một nửa tổng giờ làm việc → nửa ngày
+          if (leaveHours <= totalWorkHours / 2 + 0.5) { // +0.5 để có margin
+            console.log(`[Payroll] Half-day leave by hours: ${leaveHours}h / ${totalWorkHours}h total`)
+            return 0.5
+          }
+          
+          // Mặc định: cả ngày
+          return 1
+        }
+        
+        if (reqType.requires_date_range && request.from_date && request.to_date) {
+          // Parse dates as UTC to avoid timezone issues
+          const parseDate = (dateStr: string) => {
+            const [year, month, day] = dateStr.split('-').map(Number)
+            return new Date(Date.UTC(year, month - 1, day))
+          }
+          
+          const reqFromDate = parseDate(request.from_date)
+          const reqToDate = parseDate(request.to_date)
+          const periodStart = parseDate(startDate)
+          const periodEnd = parseDate(endDate)
+          
+          const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+          const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+          
+          // Tính số ngày = (endDate - startDate) / 1 ngày + 1
+          const diffTime = reqEnd.getTime() - reqStart.getTime()
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+          const fullDays = diffDays + 1
+          
+          // Nếu chỉ 1 ngày và có from_time/to_time → kiểm tra nửa buổi
+          if (fullDays === 1 && request.from_time && request.to_time) {
+            days = calculateDayFraction(request.from_time, request.to_time)
+          } else {
+            days = fullDays
+          }
+          
+          console.log(`[Payroll] Request ${code}: from=${request.from_date}, to=${request.to_date}, from_time=${request.from_time}, to_time=${request.to_time}, days=${days}`)
+        } else if (reqType.requires_single_date && request.request_date) {
+          // Phiếu 1 ngày - kiểm tra nửa buổi
+          days = calculateDayFraction(request.from_time, request.to_time)
+          console.log(`[Payroll] Request ${code}: date=${request.request_date}, from_time=${request.from_time}, to_time=${request.to_time}, days=${days}`)
+        } else if (request.from_date && request.to_date) {
+          // Fallback: nếu có from_date và to_date nhưng requires_date_range=false
+          const parseDate = (dateStr: string) => {
+            const [year, month, day] = dateStr.split('-').map(Number)
+            return new Date(Date.UTC(year, month - 1, day))
+          }
+          
+          const reqFromDate = parseDate(request.from_date)
+          const reqToDate = parseDate(request.to_date)
+          const periodStart = parseDate(startDate)
+          const periodEnd = parseDate(endDate)
+          
+          const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+          const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+          
+          const diffTime = reqEnd.getTime() - reqStart.getTime()
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+          const fullDays = diffDays + 1
+          
+          // Nếu chỉ 1 ngày và có from_time/to_time → kiểm tra nửa buổi
+          if (fullDays === 1 && request.from_time && request.to_time) {
+            days = calculateDayFraction(request.from_time, request.to_time)
+          } else {
+            days = fullDays
+          }
+          
+          console.log(`[Payroll] Request ${code} (fallback): from=${request.from_date}, to=${request.to_date}, from_time=${request.from_time}, to_time=${request.to_time}, days=${days}`)
+        }
+
+        if (days <= 0) continue
+
+        // Phân loại theo code và affects_payroll
+        if (code === "unpaid_leave") {
+          // Nghỉ không lương - luôn trừ lương
+          unpaidLeaveDays += days
+          console.log(`[Payroll] ${emp.full_name}: unpaid_leave +${days} days`)
+        } else if (code === "work_from_home" && affectsPayroll) {
+          // Làm việc từ xa - chỉ tính nếu affects_payroll=true
+          workFromHomeDays += days
+          console.log(`[Payroll] ${emp.full_name}: work_from_home +${days} days (affects_payroll=${affectsPayroll})`)
+        } else if (affectsPayroll && reqType.deduct_leave_balance) {
+          // Nghỉ phép năm (annual_leave) - có lương, trừ phép
+          paidLeaveDays += days
+          console.log(`[Payroll] ${emp.full_name}: ${code} (paid leave with deduct) +${days} days`)
+        } else if (affectsPayroll && !reqType.deduct_leave_balance) {
+          // Nghỉ ốm, thai sản, công tác... - có lương, không trừ phép
+          paidLeaveDays += days
+          console.log(`[Payroll] ${emp.full_name}: ${code} (paid leave no deduct) +${days} days`)
+        } else {
+          console.log(`[Payroll] ${emp.full_name}: ${code} skipped (affects_payroll=${affectsPayroll})`)
+        }
+        // Các phiếu khác (late_arrival, early_leave, forgot_checkin) 
+        // không ảnh hưởng đến số ngày công, chỉ ảnh hưởng đến phạt
       }
     }
 
@@ -376,7 +648,12 @@ export async function generatePayroll(month: number, year: number) {
     const absentDays = violations.filter((v) => v.isAbsent).length
     const halfDays = violations.filter((v) => v.isHalfDay && !v.isAbsent).length
     const fullWorkDays = violations.filter((v) => !v.isHalfDay && !v.isAbsent).length
-    const actualWorkingDays = fullWorkDays + (halfDays * 0.5)
+    
+    // Ngày đi làm thực tế (chấm công)
+    const actualAttendanceDays = fullWorkDays + (halfDays * 0.5)
+    
+    // Tổng ngày công = ngày đi làm + ngày làm từ xa + ngày nghỉ phép có lương
+    const totalWorkingDays = actualAttendanceDays + workFromHomeDays + paidLeaveDays
     
     const lateCount = violations.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
 
@@ -597,13 +874,22 @@ export async function generatePayroll(month: number, year: number) {
     // =============================================
     // TÍNH LƯƠNG CUỐI CÙNG
     // =============================================
-    // actualWorkingDays đã tính: ngày đủ + 0.5 * nửa ngày, trừ ngày không tính công
-    const grossSalary = dailySalary * actualWorkingDays + dailySalary * leaveDays + totalAllowances + totalOTPay
+    // Lương theo ngày công = lương ngày đi làm + WFH + nghỉ phép có lương
+    const grossSalary = dailySalary * totalWorkingDays + totalAllowances + totalOTPay
     const totalDeduction = dailySalary * unpaidLeaveDays + totalDeductions + totalPenalties
     const netSalary = grossSalary - totalDeduction
 
-    // Tạo ghi chú chi tiết
+    // Tạo ghi chú chi tiết với format có cấu trúc
     let noteItems: string[] = []
+    let noteData: any = {
+      attendance: actualAttendanceDays,
+      wfh: workFromHomeDays,
+      paidLeave: paidLeaveDays,
+    }
+    
+    if (actualAttendanceDays > 0) noteItems.push(`Chấm công: ${actualAttendanceDays} ngày`)
+    if (workFromHomeDays > 0) noteItems.push(`WFH: ${workFromHomeDays} ngày`)
+    if (paidLeaveDays > 0) noteItems.push(`Nghỉ phép: ${paidLeaveDays} ngày`)
     if (lateCount > 0) noteItems.push(`Đi muộn: ${lateCount} lần`)
     if (halfDays > 0) noteItems.push(`Nửa ngày: ${halfDays}`)
     if (absentDays > 0) noteItems.push(`Không tính công: ${absentDays}`)
@@ -617,8 +903,8 @@ export async function generatePayroll(month: number, year: number) {
       .insert({
         payroll_run_id: run.id,
         employee_id: emp.id,
-        working_days: actualWorkingDays,
-        leave_days: leaveDays,
+        working_days: totalWorkingDays, // Tổng ngày công
+        leave_days: paidLeaveDays, // Ngày nghỉ phép có lương (để hiển thị riêng)
         unpaid_leave_days: unpaidLeaveDays + absentDays, // Cộng thêm ngày không tính công
         base_salary: baseSalary,
         allowances: totalAllowances + totalOTPay, // Bao gồm cả tiền OT
@@ -707,6 +993,32 @@ export async function deletePayrollRun(id: string) {
 
   revalidatePath("/dashboard/payroll")
   return { success: true }
+}
+
+export async function refreshPayroll(id: string) {
+  const supabase = await createClient()
+
+  // Lấy thông tin payroll run
+  const { data: run, error: runError } = await supabase
+    .from("payroll_runs")
+    .select("*")
+    .eq("id", id)
+    .single()
+
+  if (runError || !run) {
+    return { success: false, error: "Không tìm thấy bảng lương" }
+  }
+
+  // Chỉ refresh được draft
+  if (run.status !== "draft") {
+    return { success: false, error: "Chỉ có thể tính lại bảng lương ở trạng thái Nháp" }
+  }
+
+  // Gọi lại generatePayroll với tháng/năm của bảng lương hiện tại
+  // generatePayroll sẽ tự động xóa dữ liệu cũ và tính lại
+  const result = await generatePayroll(run.month, run.year)
+
+  return result
 }
 
 // =============================================

@@ -24,10 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { generatePayroll, deletePayrollRun } from "@/lib/actions/payroll-actions"
+import { generatePayroll, deletePayrollRun, refreshPayroll } from "@/lib/actions/payroll-actions"
 import type { PayrollRun } from "@/lib/types/database"
 import { formatDateVN } from "@/lib/utils/date-utils"
-import { Plus, Eye, Trash2, Calculator, Wallet } from "lucide-react"
+import { Plus, Eye, Trash2, Calculator, Wallet, RefreshCw } from "lucide-react"
 
 interface PayrollListPanelProps {
   payrollRuns: PayrollRun[]
@@ -51,6 +51,7 @@ const months = [
 export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [refreshingId, setRefreshingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string>("")
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
@@ -87,6 +88,24 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
   const handleDelete = async (id: string) => {
     if (!confirm("Bạn có chắc muốn xóa bảng lương này?")) return
     await deletePayrollRun(id)
+  }
+
+  const handleRefresh = async (id: string) => {
+    if (!confirm("Tính lại bảng lương sẽ cập nhật tất cả dữ liệu. Tiếp tục?")) return
+    
+    setRefreshingId(id)
+    try {
+      const result = await refreshPayroll(id)
+      if (!result.success) {
+        alert(result.error || "Không thể tính lại bảng lương")
+      } else if (result.message) {
+        alert(result.message)
+      }
+    } catch (err) {
+      alert("Lỗi khi tính lại bảng lương")
+      console.error(err)
+    }
+    setRefreshingId(null)
   }
 
   const getStatusBadge = (status: string) => {
@@ -237,14 +256,25 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
                           </Link>
                         </Button>
                         {run.status === "draft" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(run.id)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRefresh(run.id)}
+                              disabled={refreshingId === run.id}
+                              title="Tính lại bảng lương"
+                            >
+                              <RefreshCw className={`h-4 w-4 ${refreshingId === run.id ? 'animate-spin' : ''}`} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDelete(run.id)}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>

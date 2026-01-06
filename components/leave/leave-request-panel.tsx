@@ -19,14 +19,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
-import { cancelLeaveRequest } from "@/lib/actions/leave-actions"
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
-import type { LeaveRequest, RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+import type { RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
 import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search } from "lucide-react"
 
 interface LeaveRequestPanelProps {
-  leaveRequests: LeaveRequest[]
   requestTypes: RequestType[]
   employeeRequests: EmployeeRequestWithRelations[]
 }
@@ -34,7 +32,6 @@ interface LeaveRequestPanelProps {
 // Unified request type for combined list
 interface UnifiedRequest {
   id: string
-  type: "leave" | "other"
   typeName: string
   typeCode: string
   fromDate: string | null
@@ -44,10 +41,10 @@ interface UnifiedRequest {
   status: string
   attachmentUrl: string | null
   createdAt: string
-  originalData: LeaveRequest | EmployeeRequestWithRelations
+  originalData: EmployeeRequestWithRelations
 }
 
-export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequests }: LeaveRequestPanelProps) {
+export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveRequestPanelProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -64,37 +61,10 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
   const [filterToDate, setFilterToDate] = useState<string>("")
   const [searchText, setSearchText] = useState<string>("")
 
-  const getLeaveTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      annual: "Nghỉ phép năm",
-      sick: "Nghỉ ốm",
-      unpaid: "Nghỉ không lương",
-      maternity: "Nghỉ thai sản",
-      other: "Khác",
-    }
-    return labels[type] || type
-  }
-
-  // Combine and normalize all requests
+  // Normalize all requests
   const allRequests = useMemo<UnifiedRequest[]>(() => {
-    const leaveItems: UnifiedRequest[] = leaveRequests.map((r) => ({
+    return employeeRequests.map((r) => ({
       id: r.id,
-      type: "leave" as const,
-      typeName: getLeaveTypeLabel(r.leave_type),
-      typeCode: r.leave_type,
-      fromDate: r.from_date,
-      toDate: r.to_date,
-      time: null,
-      reason: r.reason,
-      status: r.status,
-      attachmentUrl: null,
-      createdAt: r.created_at,
-      originalData: r,
-    }))
-
-    const otherItems: UnifiedRequest[] = employeeRequests.map((r) => ({
-      id: r.id,
-      type: "other" as const,
       typeName: r.request_type?.name || "N/A",
       typeCode: r.request_type?.code || "",
       fromDate: r.from_date || r.request_date,
@@ -105,12 +75,10 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
       attachmentUrl: r.attachment_url,
       createdAt: r.created_at,
       originalData: r,
-    }))
-
-    return [...leaveItems, ...otherItems].sort(
+    })).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
-  }, [leaveRequests, employeeRequests])
+  }, [employeeRequests])
 
   // Get unique type options for filter
   const typeOptions = useMemo(() => {
@@ -223,11 +191,7 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
 
   const handleCancel = async (request: UnifiedRequest) => {
     if (!confirm("Bạn có chắc muốn hủy phiếu này?")) return
-    if (request.type === "leave") {
-      await cancelLeaveRequest(request.id)
-    } else {
-      await cancelEmployeeRequest(request.id)
-    }
+    await cancelEmployeeRequest(request.id)
   }
 
   const getStatusBadge = (status: string) => {
@@ -539,9 +503,9 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
                 </TableRow>
               ) : (
                 filteredRequests.map((request) => (
-                  <TableRow key={`${request.type}-${request.id}`}>
+                  <TableRow key={request.id}>
                     <TableCell>
-                      <Badge variant={request.type === "leave" ? "default" : "secondary"}>
+                      <Badge variant="secondary">
                         {request.typeName}
                       </Badge>
                     </TableCell>
@@ -551,7 +515,7 @@ export function LeaveRequestPanel({ leaveRequests, requestTypes, employeeRequest
                       ) : request.fromDate ? (
                         formatDateVN(request.fromDate)
                       ) : "-"}
-                      {request.type === "leave" && request.fromDate && request.toDate && (
+                      {request.fromDate && request.toDate && (
                         <div className="text-xs text-muted-foreground">
                           {calculateDays(request.fromDate, request.toDate)} ngày
                         </div>

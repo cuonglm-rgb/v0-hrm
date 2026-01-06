@@ -8,21 +8,18 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { approveLeaveRequest, rejectLeaveRequest } from "@/lib/actions/leave-actions"
 import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/request-type-actions"
-import type { LeaveRequestWithRelations, EmployeeRequestWithRelations } from "@/lib/types/database"
+import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
 import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip } from "lucide-react"
 
 interface LeaveApprovalPanelProps {
-  leaveRequests: LeaveRequestWithRelations[]
-  employeeRequests?: EmployeeRequestWithRelations[]
+  employeeRequests: EmployeeRequestWithRelations[]
 }
 
 // Unified request type for combined list
 interface UnifiedApprovalRequest {
   id: string
-  type: "leave" | "other"
   typeName: string
   typeCode: string
   employeeName: string
@@ -34,10 +31,10 @@ interface UnifiedApprovalRequest {
   status: string
   attachmentUrl: string | null
   createdAt: string
-  originalData: LeaveRequestWithRelations | EmployeeRequestWithRelations
+  originalData: EmployeeRequestWithRelations
 }
 
-export function LeaveApprovalPanel({ leaveRequests, employeeRequests = [] }: LeaveApprovalPanelProps) {
+export function LeaveApprovalPanel({ employeeRequests }: LeaveApprovalPanelProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
 
   // Filter states - mặc định hiển thị phiếu chờ duyệt
@@ -47,39 +44,10 @@ export function LeaveApprovalPanel({ leaveRequests, employeeRequests = [] }: Lea
   const [filterToDate, setFilterToDate] = useState<string>("")
   const [searchText, setSearchText] = useState<string>("")
 
-  const getLeaveTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      annual: "Nghỉ phép năm",
-      sick: "Nghỉ ốm",
-      unpaid: "Nghỉ không lương",
-      maternity: "Nghỉ thai sản",
-      other: "Khác",
-    }
-    return labels[type] || type
-  }
-
   // Combine and normalize all requests
   const allRequests = useMemo<UnifiedApprovalRequest[]>(() => {
-    const leaveItems: UnifiedApprovalRequest[] = leaveRequests.map((r) => ({
+    return employeeRequests.map((r) => ({
       id: r.id,
-      type: "leave" as const,
-      typeName: getLeaveTypeLabel(r.leave_type),
-      typeCode: r.leave_type,
-      employeeName: r.employee?.full_name || "N/A",
-      employeeCode: r.employee?.employee_code || "",
-      fromDate: r.from_date,
-      toDate: r.to_date,
-      time: null,
-      reason: r.reason,
-      status: r.status,
-      attachmentUrl: null,
-      createdAt: r.created_at,
-      originalData: r,
-    }))
-
-    const otherItems: UnifiedApprovalRequest[] = employeeRequests.map((r) => ({
-      id: r.id,
-      type: "other" as const,
       typeName: r.request_type?.name || "N/A",
       typeCode: r.request_type?.code || "",
       employeeName: r.employee?.full_name || "N/A",
@@ -92,12 +60,10 @@ export function LeaveApprovalPanel({ leaveRequests, employeeRequests = [] }: Lea
       attachmentUrl: r.attachment_url,
       createdAt: r.created_at,
       originalData: r,
-    }))
-
-    return [...leaveItems, ...otherItems].sort(
+    })).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
-  }, [leaveRequests, employeeRequests])
+  }, [employeeRequests])
 
   // Get unique type options for filter
   const typeOptions = useMemo(() => {
@@ -119,9 +85,9 @@ export function LeaveApprovalPanel({ leaveRequests, employeeRequests = [] }: Lea
     // Unique employees with pending requests
     const pendingEmployees = new Set(pending.map((r) => r.employeeCode))
     
-    // Total leave days for pending
+    // Total leave days for pending (chỉ tính phiếu có date range)
     const pendingLeaveDays = pending
-      .filter((r) => r.type === "leave" && r.fromDate && r.toDate)
+      .filter((r) => r.fromDate && r.toDate)
       .reduce((sum, r) => sum + calculateDays(r.fromDate!, r.toDate!), 0)
 
     return {
@@ -163,22 +129,14 @@ export function LeaveApprovalPanel({ leaveRequests, employeeRequests = [] }: Lea
 
   const handleApprove = async (request: UnifiedApprovalRequest) => {
     setLoadingId(request.id)
-    if (request.type === "leave") {
-      await approveLeaveRequest(request.id)
-    } else {
-      await approveEmployeeRequest(request.id)
-    }
+    await approveEmployeeRequest(request.id)
     setLoadingId(null)
   }
 
   const handleReject = async (request: UnifiedApprovalRequest) => {
     if (!confirm("Bạn có chắc muốn từ chối phiếu này?")) return
     setLoadingId(request.id)
-    if (request.type === "leave") {
-      await rejectLeaveRequest(request.id)
-    } else {
-      await rejectEmployeeRequest(request.id)
-    }
+    await rejectEmployeeRequest(request.id)
     setLoadingId(null)
   }
 
@@ -356,7 +314,7 @@ export function LeaveApprovalPanel({ leaveRequests, employeeRequests = [] }: Lea
                 </TableRow>
               ) : (
                 filteredRequests.map((request) => (
-                  <TableRow key={`${request.type}-${request.id}`}>
+                  <TableRow key={request.id}>
                     <TableCell>
                       <div>
                         <div className="font-medium">{request.employeeName}</div>
@@ -364,7 +322,7 @@ export function LeaveApprovalPanel({ leaveRequests, employeeRequests = [] }: Lea
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={request.type === "leave" ? "default" : "secondary"}>
+                      <Badge variant="secondary">
                         {request.typeName}
                       </Badge>
                     </TableCell>
@@ -374,7 +332,7 @@ export function LeaveApprovalPanel({ leaveRequests, employeeRequests = [] }: Lea
                       ) : request.fromDate ? (
                         formatDateVN(request.fromDate)
                       ) : "-"}
-                      {request.type === "leave" && request.fromDate && request.toDate && (
+                      {request.fromDate && request.toDate && (
                         <div className="text-xs text-muted-foreground">
                           {calculateDays(request.fromDate, request.toDate)} ngày
                         </div>

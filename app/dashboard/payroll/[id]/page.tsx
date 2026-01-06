@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { getPayrollRun, getPayrollItems } from "@/lib/actions/payroll-actions"
+import { getPayrollRun, getPayrollItems, calculateStandardWorkingDays } from "@/lib/actions/payroll-actions"
 import { PayrollDetailPanel } from "@/components/payroll/payroll-detail-panel"
 
 interface PageProps {
@@ -39,6 +39,9 @@ export default async function PayrollDetailPage({ params }: PageProps) {
     notFound()
   }
 
+  // Tính công chuẩn động theo tháng
+  const workingDaysInfo = await calculateStandardWorkingDays(payrollRun.month, payrollRun.year)
+
   return (
     <DashboardLayout employee={employee} userRoles={userRoles}>
       <div className="space-y-6">
@@ -48,7 +51,12 @@ export default async function PayrollDetailPage({ params }: PageProps) {
           </h1>
           <p className="text-muted-foreground">Chi tiết lương từng nhân viên</p>
         </div>
-        <PayrollDetailPanel payrollRun={payrollRun} payrollItems={payrollItems} />
+        <PayrollDetailPanel 
+          payrollRun={payrollRun} 
+          payrollItems={payrollItems} 
+          standardWorkingDays={workingDaysInfo.standardDays}
+          workingDaysInfo={workingDaysInfo}
+        />
       </div>
     </DashboardLayout>
   )

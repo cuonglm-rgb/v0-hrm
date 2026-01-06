@@ -324,9 +324,10 @@ export async function suggestOTType(date: string): Promise<string> {
     return "OT_HOLIDAY"
   }
 
-  // Kiểm tra cuối tuần
+  // Kiểm tra cuối tuần - chỉ Chủ nhật (dayOfWeek = 0) mới tính OT_WEEKEND
+  // Thứ 7 (dayOfWeek = 6) tính như ngày thường
   const dayOfWeek = new Date(date).getDay()
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
+  if (dayOfWeek === 0) {
     return "OT_WEEKEND"
   }
 

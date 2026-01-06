@@ -10,16 +10,29 @@ import { lockPayroll, markPayrollPaid } from "@/lib/actions/payroll-actions"
 import { PayrollBreakdownDialog } from "./payroll-breakdown-dialog"
 import type { PayrollRun, PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
-import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye } from "lucide-react"
+import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar } from "lucide-react"
 
-const STANDARD_WORKING_DAYS = 26
+interface WorkingDaysInfo {
+  totalDays: number
+  sundays: number
+  saturdaysOff: number
+  holidays: number
+  standardDays: number
+}
 
 interface PayrollDetailPanelProps {
   payrollRun: PayrollRun
   payrollItems: PayrollItemWithRelations[]
+  standardWorkingDays?: number
+  workingDaysInfo?: WorkingDaysInfo
 }
 
-export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPanelProps) {
+export function PayrollDetailPanel({ 
+  payrollRun, 
+  payrollItems, 
+  standardWorkingDays = 26,
+  workingDaysInfo 
+}: PayrollDetailPanelProps) {
   const [loading, setLoading] = useState<"lock" | "paid" | null>(null)
   const [selectedItem, setSelectedItem] = useState<PayrollItemWithRelations | null>(null)
   const [showBreakdown, setShowBreakdown] = useState(false)
@@ -84,6 +97,24 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
           )}
         </div>
       </div>
+
+      {/* Thông tin công chuẩn */}
+      {workingDaysInfo && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-blue-600" />
+                <span className="font-medium text-blue-800">Công chuẩn tháng {payrollRun.month}/{payrollRun.year}:</span>
+                <span className="font-bold text-blue-600">{workingDaysInfo.standardDays} ngày</span>
+              </div>
+              <div className="text-muted-foreground">
+                ({workingDaysInfo.totalDays} ngày - {workingDaysInfo.sundays} CN - {workingDaysInfo.saturdaysOff} T7 nghỉ - {workingDaysInfo.holidays} lễ)
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Thống kê */}
       <div className="grid grid-cols-4 gap-4">
@@ -213,7 +244,7 @@ export function PayrollDetailPanel({ payrollRun, payrollItems }: PayrollDetailPa
         open={showBreakdown}
         onOpenChange={setShowBreakdown}
         payrollItem={selectedItem}
-        standardWorkingDays={STANDARD_WORKING_DAYS}
+        standardWorkingDays={standardWorkingDays}
         month={payrollRun.month}
         year={payrollRun.year}
       />

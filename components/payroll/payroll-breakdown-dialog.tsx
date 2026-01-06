@@ -84,8 +84,28 @@ export function PayrollBreakdownDialog({
   if (!payrollItem) return null
 
   const dailySalary = (payrollItem.base_salary || 0) / standardWorkingDays
-  const workingSalary = dailySalary * (payrollItem.working_days || 0)
-  const leaveSalary = dailySalary * (payrollItem.leave_days || 0)
+  
+  // Parse note để lấy chi tiết ngày công
+  const parseWorkingDaysFromNote = (note: string | null) => {
+    if (!note) return { attendance: 0, wfh: 0, paidLeave: 0 }
+    
+    const attendanceMatch = note.match(/Chấm công: ([\d.]+) ngày/)
+    const wfhMatch = note.match(/WFH: ([\d.]+) ngày/)
+    const paidLeaveMatch = note.match(/Nghỉ phép: ([\d.]+) ngày/)
+    
+    return {
+      attendance: attendanceMatch ? parseFloat(attendanceMatch[1]) : 0,
+      wfh: wfhMatch ? parseFloat(wfhMatch[1]) : 0,
+      paidLeave: paidLeaveMatch ? parseFloat(paidLeaveMatch[1]) : 0,
+    }
+  }
+  
+  const workingDaysDetail = parseWorkingDaysFromNote(payrollItem.note)
+  
+  // Tính lương theo từng loại
+  const attendanceSalary = dailySalary * workingDaysDetail.attendance
+  const wfhSalary = dailySalary * workingDaysDetail.wfh
+  const paidLeaveSalary = dailySalary * workingDaysDetail.paidLeave
   const unpaidDeduction = dailySalary * (payrollItem.unpaid_leave_days || 0)
 
   const allowances = details.filter((d) => d.category === "allowance")
@@ -142,14 +162,22 @@ export function PayrollBreakdownDialog({
                 Thu nhập
               </h4>
               <div className="space-y-2 pl-6">
-                <div className="flex justify-between text-sm">
-                  <span>Lương theo ngày công ({payrollItem.working_days} ngày)</span>
-                  <span className="font-medium text-green-600">+{formatCurrency(workingSalary)}</span>
-                </div>
-                {(payrollItem.leave_days || 0) > 0 && (
+                {workingDaysDetail.attendance > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span>Lương nghỉ phép có lương ({payrollItem.leave_days} ngày)</span>
-                    <span className="font-medium text-green-600">+{formatCurrency(leaveSalary)}</span>
+                    <span>Lương theo ngày công ({workingDaysDetail.attendance} ngày)</span>
+                    <span className="font-medium text-green-600">+{formatCurrency(attendanceSalary)}</span>
+                  </div>
+                )}
+                {workingDaysDetail.wfh > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>Làm việc từ xa ({workingDaysDetail.wfh} ngày)</span>
+                    <span className="font-medium text-green-600">+{formatCurrency(wfhSalary)}</span>
+                  </div>
+                )}
+                {workingDaysDetail.paidLeave > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>Lương nghỉ phép có lương ({workingDaysDetail.paidLeave} ngày)</span>
+                    <span className="font-medium text-green-600">+{formatCurrency(paidLeaveSalary)}</span>
                   </div>
                 )}
 
