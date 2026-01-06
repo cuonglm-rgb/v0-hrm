@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { listRequestTypes, listEmployeeRequests } from "@/lib/actions/request-type-actions"
+import { listRequestTypes, listEmployeeRequests, getCurrentApproverInfo } from "@/lib/actions/request-type-actions"
 import { listPositions } from "@/lib/actions/department-actions"
 import { LeaveApprovalPanel } from "@/components/leave/leave-approval-panel"
 import { RequestTypeManagement } from "@/components/leave/request-type-management"
@@ -17,12 +17,13 @@ export default async function LeaveApprovalPage() {
   }
 
   // Lấy tất cả phiếu (không chỉ pending) để có thể xem lịch sử
-  const [employee, userRoles, requestTypes, employeeRequests, positions] = await Promise.all([
+  const [employee, userRoles, requestTypes, employeeRequests, positions, approverInfo] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listRequestTypes(false),
     listEmployeeRequests({}), // Lấy tất cả
     listPositions(),
+    getCurrentApproverInfo(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
@@ -57,6 +58,7 @@ export default async function LeaveApprovalPage() {
           <TabsContent value="approval" className="mt-4">
             <LeaveApprovalPanel 
               employeeRequests={employeeRequests}
+              approverInfo={approverInfo}
             />
           </TabsContent>
 

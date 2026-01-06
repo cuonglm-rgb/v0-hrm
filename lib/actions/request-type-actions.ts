@@ -165,6 +165,44 @@ export async function deleteRequestType(id: string) {
 // EMPLOYEE REQUESTS (Phiếu yêu cầu)
 // =============================================
 
+// Lấy thông tin quyền duyệt của user hiện tại
+export async function getCurrentApproverInfo() {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select(`
+      id,
+      full_name,
+      position_id,
+      position:positions!position_id(id, name, level)
+    `)
+    .eq("user_id", user.id)
+    .single()
+
+  if (!employee) return null
+
+  // Lấy roles của user
+  const { data: userRoles } = await supabase
+    .from("user_roles")
+    .select(`
+      role:roles!role_id(code, name)
+    `)
+    .eq("user_id", user.id)
+
+  return {
+    employeeId: employee.id,
+    fullName: employee.full_name,
+    positionId: employee.position_id,
+    positionName: (employee.position as any)?.name || null,
+    positionLevel: (employee.position as any)?.level || 0,
+    roles: userRoles?.map((ur: any) => ur.role?.code).filter(Boolean) || []
+  }
+}
+
 export async function listEmployeeRequests(filters?: {
   status?: string
   request_type_id?: string
@@ -287,17 +325,62 @@ export async function approveEmployeeRequest(id: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Not authenticated" }
 
-  const { data: employee } = await supabase
+  // Lấy thông tin employee và position level của người duyệt
+  const { data: approverEmployee } = await supabase
     .from("employees")
-    .select("id")
+    .select(`
+      id,
+      position_id,
+      position:positions!position_id(id, level)
+    `)
     .eq("user_id", user.id)
     .single()
+
+  if (!approverEmployee) return { success: false, error: "Employee not found" }
+
+  // Lấy thông tin phiếu và loại phiếu
+  const { data: request } = await supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types!request_type_id(*)
+    `)
+    .eq("id", id)
+    .eq("status", "pending")
+    .single()
+
+  if (!request) return { success: false, error: "Phiếu không tồn tại hoặc đã được xử lý" }
+
+  const requestType = request.request_type
+
+  // Kiểm tra quyền duyệt dựa trên level chức vụ
+  const approverLevel = (approverEmployee.position as any)?.level || 0
+  
+  if (requestType?.min_approver_level && approverLevel < requestType.min_approver_level) {
+    return { 
+      success: false, 
+      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để duyệt loại phiếu này` 
+    }
+  }
+  
+  if (requestType?.max_approver_level && approverLevel > requestType.max_approver_level) {
+    return { 
+      success: false, 
+      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này` 
+    }
+  }
+
+  // Kiểm tra xem có danh sách người duyệt được chỉ định không
+  const canApprove = await checkApproverPermission(supabase, request.request_type_id, approverEmployee.id, approverEmployee.position_id)
+  if (!canApprove.allowed) {
+    return { success: false, error: canApprove.reason || "Bạn không có quyền duyệt loại phiếu này" }
+  }
 
   const { error } = await supabase
     .from("employee_requests")
     .update({
       status: "approved",
-      approver_id: employee?.id,
+      approver_id: approverEmployee.id,
       approved_at: new Date().toISOString(),
     })
     .eq("id", id)
@@ -313,23 +396,120 @@ export async function approveEmployeeRequest(id: string) {
   return { success: true }
 }
 
+// Helper function để kiểm tra quyền duyệt
+async function checkApproverPermission(
+  supabase: any, 
+  requestTypeId: string, 
+  approverId: string, 
+  approverPositionId: string | null
+): Promise<{ allowed: boolean; reason?: string }> {
+  // Lấy danh sách người duyệt được chỉ định cho loại phiếu này
+  const { data: approvers } = await supabase
+    .from("request_type_approvers")
+    .select("*")
+    .eq("request_type_id", requestTypeId)
+
+  // Nếu không có ai được chỉ định -> cho phép tất cả (theo level đã check ở trên)
+  if (!approvers || approvers.length === 0) {
+    return { allowed: true }
+  }
+
+  // Kiểm tra xem người duyệt có trong danh sách không
+  for (const approver of approvers) {
+    // Chỉ định theo employee cụ thể
+    if (approver.approver_employee_id && approver.approver_employee_id === approverId) {
+      return { allowed: true }
+    }
+    
+    // Chỉ định theo position
+    if (approver.approver_position_id && approverPositionId && approver.approver_position_id === approverPositionId) {
+      return { allowed: true }
+    }
+    
+    // Chỉ định theo role (cần check thêm user_roles)
+    if (approver.approver_role_code) {
+      const { data: userRoles } = await supabase
+        .from("user_roles")
+        .select(`
+          role:roles!role_id(code)
+        `)
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
+      
+      const hasRole = userRoles?.some((ur: any) => ur.role?.code === approver.approver_role_code)
+      if (hasRole) {
+        return { allowed: true }
+      }
+    }
+  }
+
+  return { 
+    allowed: false, 
+    reason: "Bạn không nằm trong danh sách người duyệt được chỉ định cho loại phiếu này" 
+  }
+}
+
 export async function rejectEmployeeRequest(id: string, rejection_reason?: string) {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Not authenticated" }
 
-  const { data: employee } = await supabase
+  // Lấy thông tin employee và position level của người duyệt
+  const { data: approverEmployee } = await supabase
     .from("employees")
-    .select("id")
+    .select(`
+      id,
+      position_id,
+      position:positions!position_id(id, level)
+    `)
     .eq("user_id", user.id)
     .single()
+
+  if (!approverEmployee) return { success: false, error: "Employee not found" }
+
+  // Lấy thông tin phiếu và loại phiếu
+  const { data: request } = await supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types!request_type_id(*)
+    `)
+    .eq("id", id)
+    .eq("status", "pending")
+    .single()
+
+  if (!request) return { success: false, error: "Phiếu không tồn tại hoặc đã được xử lý" }
+
+  const requestType = request.request_type
+
+  // Kiểm tra quyền duyệt dựa trên level chức vụ
+  const approverLevel = (approverEmployee.position as any)?.level || 0
+  
+  if (requestType?.min_approver_level && approverLevel < requestType.min_approver_level) {
+    return { 
+      success: false, 
+      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để từ chối loại phiếu này` 
+    }
+  }
+  
+  if (requestType?.max_approver_level && approverLevel > requestType.max_approver_level) {
+    return { 
+      success: false, 
+      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này` 
+    }
+  }
+
+  // Kiểm tra xem có danh sách người duyệt được chỉ định không
+  const canApprove = await checkApproverPermission(supabase, request.request_type_id, approverEmployee.id, approverEmployee.position_id)
+  if (!canApprove.allowed) {
+    return { success: false, error: canApprove.reason || "Bạn không có quyền từ chối loại phiếu này" }
+  }
 
   const { error } = await supabase
     .from("employee_requests")
     .update({
       status: "rejected",
-      approver_id: employee?.id,
+      approver_id: approverEmployee.id,
       approved_at: new Date().toISOString(),
       rejection_reason,
     })
@@ -464,20 +644,63 @@ export async function approveRequestByApprover(requestId: string, comment?: stri
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Not authenticated" }
 
-  const { data: employee } = await supabase
+  // Lấy thông tin employee và position level của người duyệt
+  const { data: approverEmployee } = await supabase
     .from("employees")
-    .select("id")
+    .select(`
+      id,
+      position_id,
+      position:positions!position_id(id, level)
+    `)
     .eq("user_id", user.id)
     .single()
 
-  if (!employee) return { success: false, error: "Employee not found" }
+  if (!approverEmployee) return { success: false, error: "Employee not found" }
+
+  // Lấy thông tin phiếu và loại phiếu
+  const { data: request } = await supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types!request_type_id(*)
+    `)
+    .eq("id", requestId)
+    .eq("status", "pending")
+    .single()
+
+  if (!request) return { success: false, error: "Phiếu không tồn tại hoặc đã được xử lý" }
+
+  const requestType = request.request_type
+
+  // Kiểm tra quyền duyệt dựa trên level chức vụ
+  const approverLevel = (approverEmployee.position as any)?.level || 0
+  
+  if (requestType?.min_approver_level && approverLevel < requestType.min_approver_level) {
+    return { 
+      success: false, 
+      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để duyệt loại phiếu này` 
+    }
+  }
+  
+  if (requestType?.max_approver_level && approverLevel > requestType.max_approver_level) {
+    return { 
+      success: false, 
+      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này` 
+    }
+  }
+
+  // Kiểm tra xem có danh sách người duyệt được chỉ định không
+  const canApprove = await checkApproverPermission(supabase, request.request_type_id, approverEmployee.id, approverEmployee.position_id)
+  if (!canApprove.allowed) {
+    return { success: false, error: canApprove.reason || "Bạn không có quyền duyệt loại phiếu này" }
+  }
 
   // Cập nhật trạng thái duyệt của người này
   const { error: approvalError } = await supabase
     .from("request_approvals")
     .upsert({
       request_id: requestId,
-      approver_id: employee.id,
+      approver_id: approverEmployee.id,
       status: "approved",
       comment,
       approved_at: new Date().toISOString(),
@@ -502,20 +725,63 @@ export async function rejectRequestByApprover(requestId: string, comment?: strin
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: "Not authenticated" }
 
-  const { data: employee } = await supabase
+  // Lấy thông tin employee và position level của người duyệt
+  const { data: approverEmployee } = await supabase
     .from("employees")
-    .select("id")
+    .select(`
+      id,
+      position_id,
+      position:positions!position_id(id, level)
+    `)
     .eq("user_id", user.id)
     .single()
 
-  if (!employee) return { success: false, error: "Employee not found" }
+  if (!approverEmployee) return { success: false, error: "Employee not found" }
+
+  // Lấy thông tin phiếu và loại phiếu
+  const { data: request } = await supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types!request_type_id(*)
+    `)
+    .eq("id", requestId)
+    .eq("status", "pending")
+    .single()
+
+  if (!request) return { success: false, error: "Phiếu không tồn tại hoặc đã được xử lý" }
+
+  const requestType = request.request_type
+
+  // Kiểm tra quyền duyệt dựa trên level chức vụ
+  const approverLevel = (approverEmployee.position as any)?.level || 0
+  
+  if (requestType?.min_approver_level && approverLevel < requestType.min_approver_level) {
+    return { 
+      success: false, 
+      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để từ chối loại phiếu này` 
+    }
+  }
+  
+  if (requestType?.max_approver_level && approverLevel > requestType.max_approver_level) {
+    return { 
+      success: false, 
+      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này` 
+    }
+  }
+
+  // Kiểm tra xem có danh sách người duyệt được chỉ định không
+  const canApprove = await checkApproverPermission(supabase, request.request_type_id, approverEmployee.id, approverEmployee.position_id)
+  if (!canApprove.allowed) {
+    return { success: false, error: canApprove.reason || "Bạn không có quyền từ chối loại phiếu này" }
+  }
 
   // Cập nhật trạng thái từ chối
   const { error: approvalError } = await supabase
     .from("request_approvals")
     .upsert({
       request_id: requestId,
-      approver_id: employee.id,
+      approver_id: approverEmployee.id,
       status: "rejected",
       comment,
       approved_at: new Date().toISOString(),
@@ -531,7 +797,7 @@ export async function rejectRequestByApprover(requestId: string, comment?: strin
     .from("employee_requests")
     .update({
       status: "rejected",
-      approver_id: employee.id,
+      approver_id: approverEmployee.id,
       approved_at: new Date().toISOString(),
       rejection_reason: comment,
     })
@@ -598,16 +864,87 @@ async function checkAndUpdateRequestStatus(requestId: string) {
       })
       .eq("id", requestId)
   } else if (approvalMode === "all") {
-    // Cần tất cả người duyệt
-    // Lấy số người duyệt được chỉ định
+    // Cần tất cả người duyệt được chỉ định
     const { data: requiredApprovers } = await supabase
       .from("request_type_approvers")
-      .select("id")
+      .select(`
+        *,
+        position:positions!approver_position_id(id)
+      `)
       .eq("request_type_id", request.request_type_id)
 
-    const requiredCount = requiredApprovers?.length || 1
+    // Nếu không có ai được chỉ định -> chỉ cần 1 người duyệt (fallback)
+    if (!requiredApprovers || requiredApprovers.length === 0) {
+      if (approvedCount >= 1) {
+        const approver = approvals.find(a => a.status === "approved")
+        await supabase
+          .from("employee_requests")
+          .update({
+            status: "approved",
+            approver_id: approver?.approver_id,
+            approved_at: new Date().toISOString(),
+          })
+          .eq("id", requestId)
+      }
+      return
+    }
+
+    // Đếm số người duyệt cần thiết (unique)
+    // Với approver_employee_id: cần đúng người đó
+    // Với approver_position_id: cần 1 người có position đó
+    // Với approver_role_code: cần 1 người có role đó
     
-    if (approvedCount >= requiredCount) {
+    let allApproved = true
+    
+    for (const required of requiredApprovers) {
+      let found = false
+      
+      if (required.approver_employee_id) {
+        // Kiểm tra employee cụ thể đã duyệt chưa
+        found = approvals.some(a => 
+          a.approver_id === required.approver_employee_id && a.status === "approved"
+        )
+      } else if (required.approver_position_id) {
+        // Kiểm tra có ai có position đó đã duyệt chưa
+        const { data: positionEmployees } = await supabase
+          .from("employees")
+          .select("id")
+          .eq("position_id", required.approver_position_id)
+        
+        const positionEmployeeIds = positionEmployees?.map(e => e.id) || []
+        found = approvals.some(a => 
+          positionEmployeeIds.includes(a.approver_id) && a.status === "approved"
+        )
+      } else if (required.approver_role_code) {
+        // Kiểm tra có ai có role đó đã duyệt chưa
+        const { data: roleUsers } = await supabase
+          .from("user_roles")
+          .select(`
+            user_id,
+            role:roles!role_id(code)
+          `)
+          .eq("roles.code", required.approver_role_code)
+        
+        if (roleUsers) {
+          const { data: roleEmployees } = await supabase
+            .from("employees")
+            .select("id")
+            .in("user_id", roleUsers.map(r => r.user_id))
+          
+          const roleEmployeeIds = roleEmployees?.map(e => e.id) || []
+          found = approvals.some(a => 
+            roleEmployeeIds.includes(a.approver_id) && a.status === "approved"
+          )
+        }
+      }
+      
+      if (!found) {
+        allApproved = false
+        break
+      }
+    }
+    
+    if (allApproved) {
       const lastApprover = approvals.filter(a => a.status === "approved").pop()
       await supabase
         .from("employee_requests")

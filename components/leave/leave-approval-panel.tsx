@@ -11,10 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/request-type-actions"
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
-import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip } from "lucide-react"
+import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip, ShieldCheck } from "lucide-react"
+
+interface ApproverInfo {
+  employeeId: string
+  fullName: string
+  positionId: string | null
+  positionName: string | null
+  positionLevel: number
+  roles: string[]
+}
 
 interface LeaveApprovalPanelProps {
   employeeRequests: EmployeeRequestWithRelations[]
+  approverInfo?: ApproverInfo | null
 }
 
 // Unified request type for combined list
@@ -34,7 +44,7 @@ interface UnifiedApprovalRequest {
   originalData: EmployeeRequestWithRelations
 }
 
-export function LeaveApprovalPanel({ employeeRequests }: LeaveApprovalPanelProps) {
+export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveApprovalPanelProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
 
   // Filter states - mặc định hiển thị phiếu chờ duyệt
@@ -134,15 +144,23 @@ export function LeaveApprovalPanel({ employeeRequests }: LeaveApprovalPanelProps
 
   const handleApprove = async (request: UnifiedApprovalRequest) => {
     setLoadingId(request.id)
-    await approveEmployeeRequest(request.id)
+    const result = await approveEmployeeRequest(request.id)
     setLoadingId(null)
+    if (!result.success) {
+      alert(result.error || "Có lỗi xảy ra khi duyệt phiếu")
+    }
   }
 
   const handleReject = async (request: UnifiedApprovalRequest) => {
-    if (!confirm("Bạn có chắc muốn từ chối phiếu này?")) return
+    const reason = prompt("Nhập lý do từ chối (không bắt buộc):")
+    if (reason === null) return // User cancelled
+    
     setLoadingId(request.id)
-    await rejectEmployeeRequest(request.id)
+    const result = await rejectEmployeeRequest(request.id, reason || undefined)
     setLoadingId(null)
+    if (!result.success) {
+      alert(result.error || "Có lỗi xảy ra khi từ chối phiếu")
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -166,8 +184,41 @@ export function LeaveApprovalPanel({ employeeRequests }: LeaveApprovalPanelProps
 
   const hasActiveFilters = filterStatus !== "pending" || filterType !== "all" || filterFromDate || filterToDate || searchText
 
+  // Kiểm tra xem user có thể duyệt phiếu cụ thể không (dựa trên level)
+  const canApproveRequest = (request: UnifiedApprovalRequest): boolean => {
+    if (!approverInfo) return false
+    const requestType = request.originalData.request_type
+    if (!requestType) return true
+    
+    const { positionLevel } = approverInfo
+    if (requestType.min_approver_level && positionLevel < requestType.min_approver_level) return false
+    if (requestType.max_approver_level && positionLevel > requestType.max_approver_level) return false
+    
+    return true
+  }
+
   return (
     <div className="space-y-6">
+      {/* Thông tin quyền duyệt */}
+      {approverInfo && (
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="font-medium text-blue-900">
+                  Quyền duyệt của bạn: {approverInfo.fullName}
+                </p>
+                <p className="text-sm text-blue-700">
+                  Chức vụ: {approverInfo.positionName || "Chưa có"} (Level {approverInfo.positionLevel})
+                  {approverInfo.roles.length > 0 && ` • Vai trò: ${approverInfo.roles.join(", ")}`}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Thống kê */}
       <div className="grid grid-cols-5 gap-4">
         <Card>
@@ -366,26 +417,35 @@ export function LeaveApprovalPanel({ employeeRequests }: LeaveApprovalPanelProps
                     <TableCell>{getStatusBadge(request.status)}</TableCell>
                     <TableCell>
                       {request.status === "pending" ? (
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleApprove(request)}
-                            disabled={loadingId === request.id}
-                            className="gap-1 bg-green-600 hover:bg-green-700"
-                          >
-                            <Check className="h-4 w-4" />
-                            Duyệt
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleReject(request)}
-                            disabled={loadingId === request.id}
-                            className="gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                          >
-                            <X className="h-4 w-4" />
-                            Từ chối
-                          </Button>
+                        <div className="flex flex-col gap-1">
+                          {!canApproveRequest(request) && (
+                            <span className="text-xs text-orange-600">
+                              Level {request.originalData.request_type?.min_approver_level || "?"} trở lên
+                            </span>
+                          )}
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleApprove(request)}
+                              disabled={loadingId === request.id || !canApproveRequest(request)}
+                              className="gap-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                              title={!canApproveRequest(request) ? "Bạn không đủ quyền duyệt loại phiếu này" : ""}
+                            >
+                              <Check className="h-4 w-4" />
+                              Duyệt
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleReject(request)}
+                              disabled={loadingId === request.id || !canApproveRequest(request)}
+                              className="gap-1 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+                              title={!canApproveRequest(request) ? "Bạn không đủ quyền từ chối loại phiếu này" : ""}
+                            >
+                              <X className="h-4 w-4" />
+                              Từ chối
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
