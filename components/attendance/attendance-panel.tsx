@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -11,6 +11,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { checkIn, checkOut } from "@/lib/actions/attendance-actions"
 import type { AttendanceLog, WorkShift } from "@/lib/types/database"
 import {
@@ -20,7 +27,7 @@ import {
   getTodayVN,
   formatSourceVN,
 } from "@/lib/utils/date-utils"
-import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle } from "lucide-react"
+import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter } from "lucide-react"
 
 interface AttendanceViolation {
   type: "late" | "early_leave" | "no_checkin" | "no_checkout"
@@ -103,10 +110,19 @@ interface AttendancePanelProps {
   shift?: WorkShift | null
 }
 
+// Tạm ẩn phần chấm công hôm nay - có thể bật lại sau
+const SHOW_TODAY_CHECKIN = false
+
 export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps) {
   const [loading, setLoading] = useState<"checkin" | "checkout" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
+  
+  // Bộ lọc lịch sử chấm công
+  const currentDate = new Date()
+  const [filterMonth, setFilterMonth] = useState<string>((currentDate.getMonth() + 1).toString())
+  const [filterYear, setFilterYear] = useState<string>(currentDate.getFullYear().toString())
+  const [filterStatus, setFilterStatus] = useState<string>("all")
 
   // Cập nhật giờ mỗi giây
   useEffect(() => {
@@ -119,6 +135,44 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
 
   const hasCheckedIn = !!todayLog
   const hasCheckedOut = !!todayLog?.check_out
+
+  // Lọc dữ liệu chấm công
+  const filteredLogs = useMemo(() => {
+    return attendanceLogs.filter((log) => {
+      if (!log.check_in) return false
+      
+      const logDate = new Date(log.check_in)
+      const logMonth = logDate.getMonth() + 1
+      const logYear = logDate.getFullYear()
+      
+      // Lọc theo tháng/năm
+      if (filterMonth !== "all" && logMonth !== parseInt(filterMonth)) return false
+      if (filterYear !== "all" && logYear !== parseInt(filterYear)) return false
+      
+      // Lọc theo trạng thái
+      if (filterStatus !== "all") {
+        const violations = checkViolations(log.check_in, log.check_out, shift)
+        const hasViolation = violations.length > 0
+        
+        if (filterStatus === "violation" && !hasViolation) return false
+        if (filterStatus === "complete" && (hasViolation || !log.check_out)) return false
+        if (filterStatus === "incomplete" && log.check_out) return false
+      }
+      
+      return true
+    })
+  }, [attendanceLogs, filterMonth, filterYear, filterStatus, shift])
+
+  // Lấy danh sách năm từ dữ liệu
+  const availableYears = useMemo(() => {
+    const years = new Set<number>()
+    attendanceLogs.forEach((log) => {
+      if (log.check_in) {
+        years.add(new Date(log.check_in).getFullYear())
+      }
+    })
+    return Array.from(years).sort((a, b) => b - a)
+  }, [attendanceLogs])
 
   const handleCheckIn = async () => {
     setLoading("checkin")
@@ -166,7 +220,8 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
 
   return (
     <div className="space-y-6">
-      {/* Card chấm công hôm nay */}
+      {/* Card chấm công hôm nay - Tạm ẩn */}
+      {SHOW_TODAY_CHECKIN && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -245,14 +300,69 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Lịch sử chấm công */}
       <Card>
         <CardHeader>
           <CardTitle>Lịch sử chấm công</CardTitle>
-          <CardDescription>30 ngày gần nhất - Vi phạm được đánh dấu màu đỏ</CardDescription>
+          <CardDescription>Vi phạm được đánh dấu màu đỏ</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Bộ lọc */}
+          <div className="flex flex-wrap gap-3 items-center p-3 bg-muted/50 rounded-lg">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Tháng:</span>
+              <Select value={filterMonth} onValueChange={setFilterMonth}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={(i + 1).toString()}>
+                      Tháng {i + 1}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Năm:</span>
+              <Select value={filterYear} onValueChange={setFilterYear}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  {availableYears.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Trạng thái:</span>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  <SelectItem value="complete">Hoàn thành</SelectItem>
+                  <SelectItem value="incomplete">Chưa ra</SelectItem>
+                  <SelectItem value="violation">Vi phạm</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <span className="text-sm text-muted-foreground ml-auto">
+              {filteredLogs.length} bản ghi
+            </span>
+          </div>
+
           <TooltipProvider>
             <Table>
               <TableHeader>
@@ -265,14 +375,14 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {attendanceLogs.length === 0 ? (
+                {filteredLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      Chưa có dữ liệu chấm công
+                      Không có dữ liệu chấm công
                     </TableCell>
                   </TableRow>
                 ) : (
-                  attendanceLogs.slice(0, 30).map((log) => {
+                  filteredLogs.map((log) => {
                     const violations = checkViolations(log.check_in, log.check_out, shift)
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")

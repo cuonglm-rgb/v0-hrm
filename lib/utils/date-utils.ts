@@ -79,6 +79,38 @@ export function calculateDays(from: string, to: string): number {
 }
 
 /**
+ * Tính số ngày nghỉ dựa trên ngày và giờ
+ * Nếu có giờ từ-đến trong cùng 1 ngày, tính theo số giờ / 8 (1 ngày = 8 giờ làm việc)
+ */
+export function calculateLeaveDays(
+  fromDate: string | null, 
+  toDate: string | null, 
+  fromTime?: string | null, 
+  toTime?: string | null
+): number {
+  if (!fromDate) return 0
+  
+  // Nếu cùng ngày và có giờ từ-đến, tính theo giờ
+  if (fromDate === toDate || !toDate) {
+    if (fromTime && toTime) {
+      const [fromH, fromM] = fromTime.split(":").map(Number)
+      const [toH, toM] = toTime.split(":").map(Number)
+      const fromMinutes = fromH * 60 + fromM
+      const toMinutes = toH * 60 + toM
+      const hours = (toMinutes - fromMinutes) / 60
+      // 8 giờ = 1 ngày, làm tròn 0.5
+      return Math.round((hours / 8) * 2) / 2
+    }
+    return 1
+  }
+  
+  // Nhiều ngày
+  const from = new Date(fromDate)
+  const to = new Date(toDate)
+  return Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+}
+
+/**
  * Format nguồn chấm công sang tiếng Việt
  */
 export function formatSourceVN(source: string | null | undefined): string {

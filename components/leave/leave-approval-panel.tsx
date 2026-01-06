@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/request-type-actions"
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
-import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip } from "lucide-react"
 
 interface LeaveApprovalPanelProps {
@@ -87,8 +87,13 @@ export function LeaveApprovalPanel({ employeeRequests }: LeaveApprovalPanelProps
     
     // Total leave days for pending (chỉ tính phiếu có date range)
     const pendingLeaveDays = pending
-      .filter((r) => r.fromDate && r.toDate)
-      .reduce((sum, r) => sum + calculateDays(r.fromDate!, r.toDate!), 0)
+      .filter((r) => r.fromDate)
+      .reduce((sum, r) => sum + calculateLeaveDays(
+        r.fromDate, 
+        r.toDate, 
+        r.originalData.from_time, 
+        r.originalData.to_time
+      ), 0)
 
     return {
       total: allRequests.length,
@@ -332,9 +337,14 @@ export function LeaveApprovalPanel({ employeeRequests }: LeaveApprovalPanelProps
                       ) : request.fromDate ? (
                         formatDateVN(request.fromDate)
                       ) : "-"}
-                      {request.fromDate && request.toDate && (
+                      {request.fromDate && (
                         <div className="text-xs text-muted-foreground">
-                          {calculateDays(request.fromDate, request.toDate)} ngày
+                          {calculateLeaveDays(
+                            request.fromDate, 
+                            request.toDate, 
+                            request.originalData.from_time, 
+                            request.originalData.to_time
+                          )} ngày
                         </div>
                       )}
                     </TableCell>

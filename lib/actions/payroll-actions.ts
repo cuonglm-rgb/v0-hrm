@@ -294,10 +294,24 @@ async function getEmployeeViolations(
       const approvedRequestTypes = approvedByDate.get(dateStr) || []
       const hasApprovedRequest = approvedRequestTypes.length > 0
 
+      // Parse shift end time
+      const [shiftEndH, shiftEndM] = shift.endTime.split(":").map(Number)
+      const shiftEndMinutes = shiftEndH * 60 + shiftEndM
+
+      // Parse check out time
+      let checkOutMinutes = 0
+      let hasCheckOut = false
+      if (log.check_out) {
+        const checkOutDate = new Date(log.check_out)
+        checkOutMinutes = checkOutDate.getHours() * 60 + checkOutDate.getMinutes()
+        hasCheckOut = true
+      }
+
       // Kiểm tra nếu check in trong giờ nghỉ trưa hoặc sau giờ nghỉ trưa
       // => Nghỉ ca sáng, đi làm ca chiều (tính nửa ngày)
       let isHalfDay = false
       let lateMinutes = 0
+      let earlyMinutes = 0
 
       if (breakStartMinutes > 0 && breakEndMinutes > 0) {
         // Check in trong khoảng nghỉ trưa hoặc đầu ca chiều
@@ -312,6 +326,14 @@ async function getEmployeeViolations(
         } else {
           // Check in trước giờ nghỉ trưa => tính đi muộn bình thường
           lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
+          
+          // Kiểm tra check out sớm (trước hoặc trong giờ nghỉ trưa)
+          // => Chỉ làm ca sáng, nghỉ ca chiều (tính nửa ngày)
+          if (hasCheckOut && checkOutMinutes <= breakEndMinutes) {
+            // Check out trước 13:00 (hoặc breakEnd) => chỉ làm ca sáng
+            isHalfDay = true
+            earlyMinutes = shiftEndMinutes - checkOutMinutes
+          }
         }
       } else {
         // Không có giờ nghỉ trưa => tính đi muộn bình thường
@@ -324,7 +346,7 @@ async function getEmployeeViolations(
       violations.push({
         date: dateStr,
         lateMinutes,
-        earlyMinutes: 0,
+        earlyMinutes,
         isHalfDay,
         isAbsent,
         hasApprovedRequest,
@@ -874,8 +896,11 @@ export async function generatePayroll(month: number, year: number) {
     // =============================================
     // TÍNH LƯƠNG CUỐI CÙNG
     // =============================================
+    // Ngày công thực tế = ngày đi làm + WFH (không bao gồm nghỉ phép)
+    const actualWorkingDays = actualAttendanceDays + workFromHomeDays
+    
     // Lương theo ngày công = lương ngày đi làm + WFH + nghỉ phép có lương
-    const grossSalary = dailySalary * totalWorkingDays + totalAllowances + totalOTPay
+    const grossSalary = dailySalary * (actualWorkingDays + paidLeaveDays) + totalAllowances + totalOTPay
     const totalDeduction = dailySalary * unpaidLeaveDays + totalDeductions + totalPenalties
     const netSalary = grossSalary - totalDeduction
 
@@ -903,8 +928,8 @@ export async function generatePayroll(month: number, year: number) {
       .insert({
         payroll_run_id: run.id,
         employee_id: emp.id,
-        working_days: totalWorkingDays, // Tổng ngày công
-        leave_days: paidLeaveDays, // Ngày nghỉ phép có lương (để hiển thị riêng)
+        working_days: actualWorkingDays, // Ngày công thực tế (chấm công + WFH)
+        leave_days: paidLeaveDays, // Ngày nghỉ phép có lương (tách riêng)
         unpaid_leave_days: unpaidLeaveDays + absentDays, // Cộng thêm ngày không tính công
         base_salary: baseSalary,
         allowances: totalAllowances + totalOTPay, // Bao gồm cả tiền OT

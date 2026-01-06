@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { TimeInput } from "@/components/ui/time-input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -179,20 +180,18 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="start_time">Giờ bắt đầu</Label>
-                    <Input
+                    <TimeInput
                       id="start_time"
-                      type="time"
                       value={formData.start_time}
-                      onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                      onChange={(value) => setFormData({ ...formData, start_time: value })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="end_time">Giờ kết thúc</Label>
-                    <Input
+                    <TimeInput
                       id="end_time"
-                      type="time"
                       value={formData.end_time}
-                      onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                      onChange={(value) => setFormData({ ...formData, end_time: value })}
                     />
                   </div>
                 </div>
@@ -205,20 +204,18 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="break_start" className="text-sm">Bắt đầu nghỉ</Label>
-                      <Input
+                      <TimeInput
                         id="break_start"
-                        type="time"
                         value={formData.break_start}
-                        onChange={(e) => setFormData({ ...formData, break_start: e.target.value })}
+                        onChange={(value) => setFormData({ ...formData, break_start: value })}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="break_end" className="text-sm">Kết thúc nghỉ</Label>
-                      <Input
+                      <TimeInput
                         id="break_end"
-                        type="time"
                         value={formData.break_end}
-                        onChange={(e) => setFormData({ ...formData, break_end: e.target.value })}
+                        onChange={(value) => setFormData({ ...formData, break_end: value })}
                       />
                     </div>
                   </div>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { TimeInput } from "@/components/ui/time-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -21,7 +22,7 @@ import {
 import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
-import { formatDateVN, calculateDays } from "@/lib/utils/date-utils"
+import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search } from "lucide-react"
 
 interface LeaveRequestPanelProps {
@@ -324,18 +325,18 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                 {selectedType.requires_time && (
                   <div className="grid gap-2">
                     <Label>Giờ *</Label>
-                    <Input type="time" name="request_time" required />
+                    <TimeInput name="request_time" required />
                   </div>
                 )}
                 {selectedType.requires_time_range && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Từ giờ *</Label>
-                      <Input type="time" name="from_time" required />
+                      <TimeInput name="from_time" required />
                     </div>
                     <div className="grid gap-2">
                       <Label>Đến giờ *</Label>
-                      <Input type="time" name="to_time" required />
+                      <TimeInput name="to_time" required />
                     </div>
                   </div>
                 )}
@@ -515,9 +516,14 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                       ) : request.fromDate ? (
                         formatDateVN(request.fromDate)
                       ) : "-"}
-                      {request.fromDate && request.toDate && (
+                      {request.fromDate && (
                         <div className="text-xs text-muted-foreground">
-                          {calculateDays(request.fromDate, request.toDate)} ngày
+                          {calculateLeaveDays(
+                            request.fromDate, 
+                            request.toDate, 
+                            request.originalData.from_time, 
+                            request.originalData.to_time
+                          )} ngày
                         </div>
                       )}
                     </TableCell>
