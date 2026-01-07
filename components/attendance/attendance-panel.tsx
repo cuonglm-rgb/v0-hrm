@@ -105,6 +105,14 @@ function checkViolations(
   return violations
 }
 
+// Hàm lấy tên thứ trong tuần
+function getDayOfWeekVN(date: string): string {
+  const dateObj = new Date(date)
+  const dayOfWeek = dateObj.getDay()
+  const days = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"]
+  return days[dayOfWeek]
+}
+
 // Hàm kiểm tra xem ngày có phải ngày cuối tuần không
 // Chủ nhật luôn nghỉ, Thứ 7 xen kẽ theo quy luật
 const REFERENCE_DATE = new Date(Date.UTC(2026, 0, 6)) // 6/1/2026
@@ -144,11 +152,15 @@ function isWeekend(date: Date): boolean {
 // Hàm tạo danh sách ngày làm việc trong khoảng thời gian
 function generateWorkingDays(fromDate: Date, toDate: Date): string[] {
   const days: string[] = []
-  const current = new Date(fromDate)
+  const current = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate())
+  const end = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate())
   
-  while (current <= toDate) {
-    // Thêm tất cả các ngày, không loại trừ cuối tuần
-    days.push(current.toISOString().split('T')[0])
+  while (current <= end) {
+    // Format ngày theo YYYY-MM-DD
+    const year = current.getFullYear()
+    const month = String(current.getMonth() + 1).padStart(2, '0')
+    const day = String(current.getDate()).padStart(2, '0')
+    days.push(`${year}-${month}-${day}`)
     current.setDate(current.getDate() + 1)
   }
   
@@ -415,7 +427,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Tháng:</span>
               <Select value={filterMonth} onValueChange={setFilterMonth}>
-                <SelectTrigger className="w-[100px]">
+                <SelectTrigger className="w-[110px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -468,6 +480,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
               <TableHeader>
                 <TableRow>
                   <TableHead>Ngày</TableHead>
+                  <TableHead>Thứ</TableHead>
                   <TableHead>Giờ vào</TableHead>
                   <TableHead>Giờ ra</TableHead>
                   <TableHead>Nguồn</TableHead>
@@ -477,7 +490,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
               <TableBody>
                 {workingDaysWithAttendance.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
                       Không có dữ liệu chấm công
                     </TableCell>
                   </TableRow>
@@ -502,6 +515,11 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                     return (
                       <TableRow key={date} className={hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay) ? "bg-red-50" : ""}>
                         <TableCell>{formatDateVN(date)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-mono">
+                            {getDayOfWeekVN(date)}
+                          </Badge>
+                        </TableCell>
                         <TableCell>
                           {hasNoAttendance ? (
                             <span className="text-muted-foreground">-</span>
