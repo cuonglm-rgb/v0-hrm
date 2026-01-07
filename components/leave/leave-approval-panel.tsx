@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/request-type-actions"
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
-import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip, ShieldCheck } from "lucide-react"
+import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip, ShieldCheck, CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
 
 interface ApproverInfo {
   employeeId: string
@@ -23,7 +24,7 @@ interface ApproverInfo {
 }
 
 interface LeaveApprovalPanelProps {
-  employeeRequests: EmployeeRequestWithRelations[]
+  employeeRequests: (EmployeeRequestWithRelations & { my_approval_status?: string })[]
   approverInfo?: ApproverInfo | null
 }
 
@@ -41,7 +42,9 @@ interface UnifiedApprovalRequest {
   status: string
   attachmentUrl: string | null
   createdAt: string
-  originalData: EmployeeRequestWithRelations
+  myApprovalStatus?: string
+  approvalMode?: string
+  originalData: EmployeeRequestWithRelations & { my_approval_status?: string }
 }
 
 export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveApprovalPanelProps) {
@@ -69,6 +72,8 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       status: r.status,
       attachmentUrl: r.attachment_url,
       createdAt: r.created_at,
+      myApprovalStatus: r.my_approval_status,
+      approvalMode: r.request_type?.approval_mode,
       originalData: r,
     })).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -102,7 +107,12 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
         r.fromDate, 
         r.toDate, 
         r.originalData.from_time, 
-        r.originalData.to_time
+        r.originalData.to_time,
+        r.originalData.request_type ? {
+          requires_date_range: r.originalData.request_type.requires_date_range,
+          requires_single_date: r.originalData.request_type.requires_single_date,
+          requires_time_range: r.originalData.request_type.requires_time_range,
+        } : undefined
       ), 0)
 
     return {
@@ -146,8 +156,14 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     setLoadingId(request.id)
     const result = await approveEmployeeRequest(request.id)
     setLoadingId(null)
-    if (!result.success) {
-      alert(result.error || "Có lỗi xảy ra khi duyệt phiếu")
+    if (result.success) {
+      if (result.message) {
+        toast.success(result.message)
+      } else {
+        toast.success("Đã duyệt phiếu thành công")
+      }
+    } else {
+      toast.error(result.error || "Có lỗi xảy ra khi duyệt phiếu")
     }
   }
 
@@ -158,8 +174,10 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     setLoadingId(request.id)
     const result = await rejectEmployeeRequest(request.id, reason || undefined)
     setLoadingId(null)
-    if (!result.success) {
-      alert(result.error || "Có lỗi xảy ra khi từ chối phiếu")
+    if (result.success) {
+      toast.success("Đã từ chối phiếu")
+    } else {
+      toast.error(result.error || "Có lỗi xảy ra khi từ chối phiếu")
     }
   }
 
@@ -394,7 +412,12 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                             request.fromDate, 
                             request.toDate, 
                             request.originalData.from_time, 
-                            request.originalData.to_time
+                            request.originalData.to_time,
+                            request.originalData.request_type ? {
+                              requires_date_range: request.originalData.request_type.requires_date_range,
+                              requires_single_date: request.originalData.request_type.requires_single_date,
+                              requires_time_range: request.originalData.request_type.requires_time_range,
+                            } : undefined
                           )} ngày
                         </div>
                       )}
@@ -418,34 +441,49 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                     <TableCell>
                       {request.status === "pending" ? (
                         <div className="flex flex-col gap-1">
-                          {!canApproveRequest(request) && (
-                            <span className="text-xs text-orange-600">
-                              Level {request.originalData.request_type?.min_approver_level || "?"} trở lên
-                            </span>
-                          )}
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleApprove(request)}
-                              disabled={loadingId === request.id || !canApproveRequest(request)}
-                              className="gap-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
-                              title={!canApproveRequest(request) ? "Bạn không đủ quyền duyệt loại phiếu này" : ""}
-                            >
-                              <Check className="h-4 w-4" />
-                              Duyệt
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleReject(request)}
-                              disabled={loadingId === request.id || !canApproveRequest(request)}
-                              className="gap-1 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
-                              title={!canApproveRequest(request) ? "Bạn không đủ quyền từ chối loại phiếu này" : ""}
-                            >
+                          {/* Nếu đã duyệt rồi (với approval_mode = all) */}
+                          {request.myApprovalStatus === "approved" ? (
+                            <div className="flex items-center gap-2 text-green-600">
+                              <CheckCircle2 className="h-4 w-4" />
+                              <span className="text-sm">Bạn đã duyệt</span>
+                            </div>
+                          ) : request.myApprovalStatus === "rejected" ? (
+                            <div className="flex items-center gap-2 text-red-600">
                               <X className="h-4 w-4" />
-                              Từ chối
-                            </Button>
-                          </div>
+                              <span className="text-sm">Bạn đã từ chối</span>
+                            </div>
+                          ) : (
+                            <>
+                              {!canApproveRequest(request) && (
+                                <span className="text-xs text-orange-600">
+                                  Level {request.originalData.request_type?.min_approver_level || "?"} trở lên
+                                </span>
+                              )}
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleApprove(request)}
+                                  disabled={loadingId === request.id || !canApproveRequest(request)}
+                                  className="gap-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                                  title={!canApproveRequest(request) ? "Bạn không đủ quyền duyệt loại phiếu này" : ""}
+                                >
+                                  <Check className="h-4 w-4" />
+                                  Duyệt
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleReject(request)}
+                                  disabled={loadingId === request.id || !canApproveRequest(request)}
+                                  className="gap-1 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+                                  title={!canApproveRequest(request) ? "Bạn không đủ quyền từ chối loại phiếu này" : ""}
+                                >
+                                  <X className="h-4 w-4" />
+                                  Từ chối
+                                </Button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>

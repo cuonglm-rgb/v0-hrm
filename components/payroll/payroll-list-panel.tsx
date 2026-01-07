@@ -28,6 +28,7 @@ import { generatePayroll, deletePayrollRun, refreshPayroll } from "@/lib/actions
 import type { PayrollRun } from "@/lib/types/database"
 import { formatDateVN } from "@/lib/utils/date-utils"
 import { Plus, Eye, Trash2, Calculator, Wallet, RefreshCw } from "lucide-react"
+import { toast } from "sonner"
 
 interface PayrollListPanelProps {
   payrollRuns: PayrollRun[]
@@ -73,10 +74,7 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
       } else {
         setOpen(false)
         setSelectedMonth("")
-        // Hiển thị thông báo thành công nếu có message
-        if (result.message) {
-          alert(result.message)
-        }
+        toast.success(result.message || "Đã tạo bảng lương thành công")
       }
     } catch (err) {
       setError("Lỗi không xác định khi tạo bảng lương")
@@ -87,7 +85,12 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Bạn có chắc muốn xóa bảng lương này?")) return
-    await deletePayrollRun(id)
+    const result = await deletePayrollRun(id)
+    if (result.success) {
+      toast.success("Đã xóa bảng lương")
+    } else {
+      toast.error(result.error || "Không thể xóa bảng lương")
+    }
   }
 
   const handleRefresh = async (id: string) => {
@@ -97,12 +100,12 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
     try {
       const result = await refreshPayroll(id)
       if (!result.success) {
-        alert(result.error || "Không thể tính lại bảng lương")
-      } else if (result.message) {
-        alert(result.message)
+        toast.error(result.error || "Không thể tính lại bảng lương")
+      } else {
+        toast.success(result.message || "Đã tính lại bảng lương")
       }
     } catch (err) {
-      alert("Lỗi khi tính lại bảng lương")
+      toast.error("Lỗi khi tính lại bảng lương")
       console.error(err)
     }
     setRefreshingId(null)

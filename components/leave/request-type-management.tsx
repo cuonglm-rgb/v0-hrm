@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createRequestType, updateRequestType, deleteRequestType } from "@/lib/actions/request-type-actions"
 import type { RequestType, Position } from "@/lib/types/database"
 import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip, Users } from "lucide-react"
+import { toast } from "sonner"
 
 interface RequestTypeManagementProps {
   requestTypes: RequestType[]
@@ -69,10 +70,11 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
     const result = await createRequestType(formData)
     setLoading(false)
     if (result.success) {
+      toast.success("Đã tạo loại phiếu mới")
       setIsCreateOpen(false)
       resetForm()
     } else {
-      alert(result.error)
+      toast.error(result.error || "Không thể tạo loại phiếu")
     }
   }
 
@@ -104,23 +106,31 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
     const result = await updateRequestType(editingType.id, updateData)
     setLoading(false)
     if (result.success) {
+      toast.success("Đã cập nhật loại phiếu")
       setEditingType(null)
       resetForm()
     } else {
-      alert(result.error)
+      toast.error(result.error || "Không thể cập nhật loại phiếu")
     }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm("Bạn có chắc muốn xóa loại phiếu này?")) return
     const result = await deleteRequestType(id)
-    if (!result.success) {
-      alert(result.error)
+    if (result.success) {
+      toast.success("Đã xóa loại phiếu")
+    } else {
+      toast.error(result.error || "Không thể xóa loại phiếu")
     }
   }
 
   const handleToggleActive = async (type: RequestType) => {
-    await updateRequestType(type.id, { is_active: !type.is_active })
+    const result = await updateRequestType(type.id, { is_active: !type.is_active })
+    if (result.success) {
+      toast.success(type.is_active ? "Đã tắt loại phiếu" : "Đã bật loại phiếu")
+    } else {
+      toast.error(result.error || "Không thể cập nhật trạng thái")
+    }
   }
 
   // Nhóm positions theo level và lấy tên các chức vụ

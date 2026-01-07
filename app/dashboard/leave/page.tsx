@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { listRequestTypes, getMyEmployeeRequests } from "@/lib/actions/request-type-actions"
+import { listRequestTypes, getMyEmployeeRequests, checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { LeaveRequestPanel } from "@/components/leave/leave-request-panel"
 
 export default async function LeavePage() {
@@ -13,15 +13,16 @@ export default async function LeavePage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, requestTypes, employeeRequests] = await Promise.all([
+  const [employee, userRoles, requestTypes, employeeRequests, canApproveRequests] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listRequestTypes(true),
     getMyEmployeeRequests(),
+    checkCanApproveRequests(),
   ])
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles}>
+    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Tạo phiếu phép</h1>

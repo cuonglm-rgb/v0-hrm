@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { listRequestTypes, listEmployeeRequests, getCurrentApproverInfo } from "@/lib/actions/request-type-actions"
+import { listRequestTypes, listEmployeeRequestsWithMyApprovalStatus, getCurrentApproverInfo, checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { listPositions } from "@/lib/actions/department-actions"
 import { LeaveApprovalPanel } from "@/components/leave/leave-approval-panel"
 import { RequestTypeManagement } from "@/components/leave/request-type-management"
@@ -17,28 +17,29 @@ export default async function LeaveApprovalPage() {
   }
 
   // Lấy tất cả phiếu (không chỉ pending) để có thể xem lịch sử
-  const [employee, userRoles, requestTypes, employeeRequests, positions, approverInfo] = await Promise.all([
+  const [employee, userRoles, requestTypes, employeeRequests, positions, approverInfo, canApproveRequests] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listRequestTypes(false),
-    listEmployeeRequests({}), // Lấy tất cả
+    listEmployeeRequestsWithMyApprovalStatus({}), // Lấy tất cả kèm trạng thái duyệt của user hiện tại
     listPositions(),
     getCurrentApproverInfo(),
+    checkCanApproveRequests(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
-  const canApprove = roleCodes.includes("hr") || roleCodes.includes("admin") || roleCodes.includes("manager")
   const isAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
+
+  // Kiểm tra quyền truy cập: HR/Admin hoặc có level phù hợp để duyệt
+  if (!isAdmin && !canApproveRequests) {
+    redirect("/dashboard")
+  }
 
   // Đếm số phiếu pending
   const pendingCount = employeeRequests.filter(r => r.status === "pending").length
 
-  if (!canApprove) {
-    redirect("/dashboard")
-  }
-
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles}>
+    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Duyệt phiếu phép</h1>

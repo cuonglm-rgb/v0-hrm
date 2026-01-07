@@ -7,6 +7,7 @@ import { listWorkShifts } from "@/lib/actions/shift-actions"
 import { getUserRoles, listRoles } from "@/lib/actions/role-actions"
 import { getEmployeeJobHistory } from "@/lib/actions/job-history-actions"
 import { listSalaryStructure } from "@/lib/actions/payroll-actions"
+import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { EmployeeDetail } from "@/components/employees/employee-detail"
 
 interface EmployeeDetailPageProps {
@@ -26,7 +27,7 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
     redirect("/login")
   }
 
-  const [currentEmployee, currentUserRoles, targetEmployee, departments, positions, shifts, roles, jobHistory] =
+  const [currentEmployee, currentUserRoles, targetEmployee, departments, positions, shifts, roles, jobHistory, canApproveRequests] =
     await Promise.all([
       getMyEmployee(),
       getMyRoles(),
@@ -36,6 +37,7 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
       listWorkShifts(),
       listRoles(),
       getEmployeeJobHistory(id),
+      checkCanApproveRequests(),
     ])
 
   if (!targetEmployee) {
@@ -61,6 +63,7 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
       employee={currentEmployee}
       userRoles={currentUserRoles}
       breadcrumbs={[{ label: "Nhân viên", href: "/dashboard/employees" }, { label: targetEmployee.full_name }]}
+      canApproveRequests={canApproveRequests}
     >
       <EmployeeDetail
         employee={targetEmployee}

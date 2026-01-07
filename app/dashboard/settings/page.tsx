@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
+import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Settings, Database, Shield, Building2 } from "lucide-react"
@@ -17,7 +18,11 @@ export default async function SettingsPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles] = await Promise.all([getMyEmployee(), getMyRoles()])
+  const [employee, userRoles, canApproveRequests] = await Promise.all([
+    getMyEmployee(), 
+    getMyRoles(),
+    checkCanApproveRequests(),
+  ])
 
   // Check permission
   const roleCodes = userRoles.map((ur) => ur.role.code)
@@ -28,7 +33,7 @@ export default async function SettingsPage() {
   }
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Settings" }]}>
+    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Settings" }]} canApproveRequests={canApproveRequests}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Settings</h1>

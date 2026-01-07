@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useMemo } from "react"
+import { useState, useRef, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -10,6 +10,7 @@ import { TimeInput } from "@/components/ui/time-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ApproverSelect } from "@/components/ui/approver-select"
 import {
   Dialog,
   DialogContent,
@@ -19,11 +20,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { createEmployeeRequest, cancelEmployeeRequest } from "@/lib/actions/request-type-actions"
+import { createEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers } from "@/lib/actions/request-type-actions"
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
-import type { RequestType, EmployeeRequestWithRelations } from "@/lib/types/database"
+import type { RequestType, EmployeeRequestWithRelations, EligibleApprover } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
-import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search } from "lucide-react"
+import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users } from "lucide-react"
 
 interface LeaveRequestPanelProps {
   requestTypes: RequestType[]
@@ -55,12 +56,47 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
   const [attachmentName, setAttachmentName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Người duyệt
+  const [eligibleApprovers, setEligibleApprovers] = useState<EligibleApprover[]>([])
+  const [selectedApprovers, setSelectedApprovers] = useState<string[]>([])
+  const [loadingApprovers, setLoadingApprovers] = useState(false)
+
   // Filter states
   const [filterType, setFilterType] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterFromDate, setFilterFromDate] = useState<string>("")
   const [filterToDate, setFilterToDate] = useState<string>("")
   const [searchText, setSearchText] = useState<string>("")
+
+  // Load danh sách người duyệt khi chọn loại phiếu
+  const selectedTypeId = selectedType?.id
+  useEffect(() => {
+    if (selectedTypeId) {
+      let cancelled = false
+      setLoadingApprovers(true)
+      setSelectedApprovers([])
+      setEligibleApprovers([])
+      
+      getEligibleApprovers(selectedTypeId)
+        .then(approvers => {
+          if (!cancelled) {
+            setEligibleApprovers(approvers)
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadingApprovers(false)
+          }
+        })
+      
+      return () => {
+        cancelled = true
+      }
+    } else {
+      setEligibleApprovers([])
+      setSelectedApprovers([])
+    }
+  }, [selectedTypeId])
 
   // Normalize all requests
   const allRequests = useMemo<UnifiedRequest[]>(() => {
@@ -177,6 +213,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       to_time: selectedType.requires_time_range ? formData.get("to_time") as string : undefined,
       reason: formData.get("reason") as string,
       attachment_url: attachmentUrl || undefined,
+      assigned_approver_ids: selectedApprovers.length > 0 ? selectedApprovers : undefined,
     })
 
     if (!result.success) {
@@ -186,6 +223,8 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       setSelectedType(null)
       setAttachmentUrl(null)
       setAttachmentName(null)
+      setSelectedApprovers([])
+      setEligibleApprovers([])
     }
     setLoading(false)
   }
@@ -259,7 +298,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       </div>
 
       {/* Nút tạo phiếu */}
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null) } }}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]) } }}>
         <DialogTrigger asChild>
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
@@ -392,11 +431,37 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     </div>
                   </div>
                 )}
+                
+                {/* Phần chọn người duyệt */}
+                <div className="grid gap-2">
+                  <Label className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Người duyệt *
+                  </Label>
+                  <ApproverSelect
+                    approvers={eligibleApprovers}
+                    selected={selectedApprovers}
+                    onChange={setSelectedApprovers}
+                    loading={loadingApprovers}
+                    placeholder="Tìm người duyệt..."
+                  />
+                  {eligibleApprovers.length > 0 && selectedApprovers.length === 0 && (
+                    <p className="text-sm text-destructive">Vui lòng chọn ít nhất 1 người duyệt</p>
+                  )}
+                </div>
+
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setSelectedType(null)}>Quay lại</Button>
-                <Button type="submit" disabled={loading || (selectedType.requires_attachment && !attachmentUrl)}>
+                <Button 
+                  type="submit" 
+                  disabled={
+                    loading || 
+                    (selectedType.requires_attachment && !attachmentUrl) ||
+                    (eligibleApprovers.length > 0 && selectedApprovers.length === 0)
+                  }
+                >
                   {loading ? "Đang gửi..." : "Gửi phiếu"}
                 </Button>
               </DialogFooter>

@@ -351,6 +351,32 @@ export interface RequestApprovalWithRelations extends RequestApproval {
   approver?: Employee | null
 }
 
+// Request Assigned Approvers (người duyệt được chỉ định khi tạo phiếu)
+export interface RequestAssignedApprover {
+  id: string
+  request_id: string
+  approver_id: string
+  display_order: number
+  status: RequestStatus
+  comment: string | null
+  approved_at: string | null
+  created_at: string
+}
+
+export interface RequestAssignedApproverWithRelations extends RequestAssignedApprover {
+  approver?: Employee | null
+}
+
+// Eligible Approver (người có quyền duyệt)
+export interface EligibleApprover {
+  id: string
+  full_name: string
+  employee_code: string | null
+  position_name: string | null
+  position_level: number
+  department_name: string | null
+}
+
 // =============================================
 // OVERTIME SETTINGS (Hệ số tăng ca)
 // =============================================

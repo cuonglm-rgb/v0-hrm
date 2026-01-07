@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { listPayrollRuns } from "@/lib/actions/payroll-actions"
+import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { PayrollListPanel } from "@/components/payroll/payroll-list-panel"
 
 export default async function PayrollPage() {
@@ -16,10 +17,11 @@ export default async function PayrollPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, payrollRuns] = await Promise.all([
+  const [employee, userRoles, payrollRuns, canApproveRequests] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listPayrollRuns(),
+    checkCanApproveRequests(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
@@ -30,7 +32,7 @@ export default async function PayrollPage() {
   }
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles}>
+    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Quản lý bảng lương</h1>

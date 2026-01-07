@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { listDepartments, listPositions } from "@/lib/actions/department-actions"
+import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { CreateEmployeeForm } from "@/components/employees/create-employee-form"
 
 export default async function NewEmployeePage() {
@@ -16,11 +17,12 @@ export default async function NewEmployeePage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, departments, positions] = await Promise.all([
+  const [employee, userRoles, departments, positions, canApproveRequests] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listDepartments(),
     listPositions(),
+    checkCanApproveRequests(),
   ])
 
   // Check permission
@@ -36,6 +38,7 @@ export default async function NewEmployeePage() {
       employee={employee}
       userRoles={userRoles}
       breadcrumbs={[{ label: "Employees", href: "/dashboard/employees" }, { label: "New Employee" }]}
+      canApproveRequests={canApproveRequests}
     >
       <CreateEmployeeForm departments={departments} positions={positions} />
     </DashboardLayout>

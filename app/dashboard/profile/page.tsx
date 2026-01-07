@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
+import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { ProfileView } from "@/components/profile/profile-view"
 
 export default async function ProfilePage() {
@@ -15,10 +16,14 @@ export default async function ProfilePage() {
     redirect("/login")
   }
 
-  const [employee, userRoles] = await Promise.all([getMyEmployee(), getMyRoles()])
+  const [employee, userRoles, canApproveRequests] = await Promise.all([
+    getMyEmployee(), 
+    getMyRoles(),
+    checkCanApproveRequests(),
+  ])
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "My Profile" }]}>
+    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "My Profile" }]} canApproveRequests={canApproveRequests}>
       <ProfileView employee={employee} userRoles={userRoles} />
     </DashboardLayout>
   )

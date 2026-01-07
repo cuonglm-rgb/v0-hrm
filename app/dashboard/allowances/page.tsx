@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { listAdjustmentTypes } from "@/lib/actions/allowance-actions"
 import { listOTSettings, listHolidays } from "@/lib/actions/overtime-actions"
+import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { AllowanceList } from "@/components/allowances/allowance-list"
 import { OTSettingsList } from "@/components/allowances/ot-settings-list"
 import { HolidayList } from "@/components/allowances/holiday-list"
@@ -21,19 +22,20 @@ export default async function AllowancesPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, adjustments, otSettings, holidays] = await Promise.all([
+  const [employee, userRoles, adjustments, otSettings, holidays, canApproveRequests] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listAdjustmentTypes(),
     listOTSettings(),
     listHolidays(),
+    checkCanApproveRequests(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const isHROrAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Phụ cấp & Khấu trừ" }]}>
+    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Phụ cấp & Khấu trừ" }]} canApproveRequests={canApproveRequests}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Quản lý phụ cấp & khấu trừ</h1>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -34,7 +34,7 @@ import {
 } from "@/lib/actions/attendance-import-actions"
 import type { AttendanceLogWithRelations, WorkShift } from "@/lib/types/database"
 import { formatDateVN, formatTimeVN, formatSourceVN } from "@/lib/utils/date-utils"
-import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, AlertTriangle, Clock } from "lucide-react"
+import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, AlertTriangle, Clock, Filter, Search } from "lucide-react"
 
 interface AttendanceManagementPanelProps {
   attendanceLogs: (AttendanceLogWithRelations & { employee?: { shift?: WorkShift | null } | null })[]
@@ -152,6 +152,59 @@ export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManageme
   const [selectedYear, setSelectedYear] = useState(String(currentDate.getFullYear()))
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Bộ lọc dữ liệu chấm công
+  const [filterMonth, setFilterMonth] = useState<string>((currentDate.getMonth() + 1).toString())
+  const [filterYear, setFilterYear] = useState<string>(currentDate.getFullYear().toString())
+  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [filterEmployee, setFilterEmployee] = useState<string>("")
+
+  // Lọc dữ liệu chấm công
+  const filteredLogs = useMemo(() => {
+    return attendanceLogs.filter((log) => {
+      if (!log.check_in) return false
+      
+      const logDate = new Date(log.check_in)
+      const logMonth = logDate.getMonth() + 1
+      const logYear = logDate.getFullYear()
+      
+      // Lọc theo tháng/năm
+      if (filterMonth !== "all" && logMonth !== parseInt(filterMonth)) return false
+      if (filterYear !== "all" && logYear !== parseInt(filterYear)) return false
+      
+      // Lọc theo nhân viên
+      if (filterEmployee) {
+        const searchLower = filterEmployee.toLowerCase()
+        const matchName = log.employee?.full_name?.toLowerCase().includes(searchLower)
+        const matchCode = log.employee?.employee_code?.toLowerCase().includes(searchLower)
+        if (!matchName && !matchCode) return false
+      }
+      
+      // Lọc theo trạng thái
+      if (filterStatus !== "all") {
+        const shift = log.employee?.shift
+        const violations = checkViolations(log.check_in, log.check_out, shift)
+        const hasViolation = violations.length > 0
+        
+        if (filterStatus === "violation" && !hasViolation) return false
+        if (filterStatus === "complete" && (hasViolation || !log.check_out)) return false
+        if (filterStatus === "incomplete" && log.check_out) return false
+      }
+      
+      return true
+    })
+  }, [attendanceLogs, filterMonth, filterYear, filterStatus, filterEmployee])
+
+  // Lấy danh sách năm từ dữ liệu
+  const availableYears = useMemo(() => {
+    const years = new Set<number>()
+    attendanceLogs.forEach((log) => {
+      if (log.check_in) {
+        years.add(new Date(log.check_in).getFullYear())
+      }
+    })
+    return Array.from(years).sort((a, b) => b - a)
+  }, [attendanceLogs])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -320,10 +373,73 @@ export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManageme
       {/* Attendance List */}
       <Card>
         <CardHeader>
-          <CardTitle>Dữ liệu chấm công gần đây</CardTitle>
-          <CardDescription>100 bản ghi mới nhất - Vi phạm được đánh dấu màu đỏ</CardDescription>
+          <CardTitle>Dữ liệu chấm công</CardTitle>
+          <CardDescription>Vi phạm được đánh dấu màu đỏ</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Bộ lọc */}
+          <div className="flex flex-wrap gap-3 items-center p-3 bg-muted/50 rounded-lg">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Tháng:</span>
+              <Select value={filterMonth} onValueChange={setFilterMonth}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={(i + 1).toString()}>
+                      Tháng {i + 1}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Năm:</span>
+              <Select value={filterYear} onValueChange={setFilterYear}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  {availableYears.map((year) => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Trạng thái:</span>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả</SelectItem>
+                  <SelectItem value="complete">Hoàn thành</SelectItem>
+                  <SelectItem value="incomplete">Chưa ra</SelectItem>
+                  <SelectItem value="violation">Vi phạm</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm theo tên hoặc mã NV..."
+                value={filterEmployee}
+                onChange={(e) => setFilterEmployee(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <span className="text-sm text-muted-foreground">
+              {filteredLogs.length} bản ghi
+            </span>
+          </div>
+
           <TooltipProvider>
             <Table>
               <TableHeader>
@@ -338,14 +454,14 @@ export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManageme
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {attendanceLogs.length === 0 ? (
+                {filteredLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground">
-                      Chưa có dữ liệu chấm công
+                      Không có dữ liệu chấm công
                     </TableCell>
                   </TableRow>
                 ) : (
-                  attendanceLogs.map((log) => {
+                  filteredLogs.map((log) => {
                     const shift = log.employee?.shift
                     const violations = checkViolations(log.check_in, log.check_out, shift)
                     const hasViolation = violations.length > 0

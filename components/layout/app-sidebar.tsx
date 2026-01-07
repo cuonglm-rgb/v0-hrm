@@ -21,7 +21,15 @@ import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import type { EmployeeWithRelations, UserRoleWithRelations } from "@/lib/types/database"
 
-const mainNavItems = [
+interface NavItem {
+  title: string
+  url: string
+  icon: any
+  roles?: string[]
+  checkApproverLevel?: boolean // Kiểm tra level chức vụ có quyền duyệt phiếu
+}
+
+const mainNavItems: NavItem[] = [
   {
     title: "Tổng quan",
     url: "/dashboard",
@@ -46,7 +54,7 @@ const mainNavItems = [
     title: "Duyệt phiếu phép",
     url: "/dashboard/leave-approval",
     icon: CheckSquare,
-    roles: ["hr", "admin", "manager"],
+    checkApproverLevel: true, // Kiểm tra level thay vì roles
   },
   {
     title: "Quản lý chấm công",
@@ -87,15 +95,15 @@ const mainNavItems = [
 interface AppSidebarProps {
   employee: EmployeeWithRelations | null
   userRoles: UserRoleWithRelations[]
+  canApproveRequests?: boolean // Có quyền duyệt phiếu dựa trên level
 }
 
-export function AppSidebar({ employee, userRoles }: AppSidebarProps) {
+export function AppSidebar({ employee, userRoles, canApproveRequests }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const isHROrAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
-  const isManager = roleCodes.includes("manager")
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -113,8 +121,15 @@ export function AppSidebar({ employee, userRoles }: AppSidebarProps) {
       .slice(0, 2) || "U"
 
   const filteredNavItems = mainNavItems.filter((item) => {
-    if (!item.roles) return true
-    return item.roles.some((role) => roleCodes.includes(role as any))
+    // Kiểm tra quyền duyệt phiếu dựa trên level
+    if (item.checkApproverLevel) {
+      return canApproveRequests || isHROrAdmin
+    }
+    // Kiểm tra roles
+    if (item.roles) {
+      return item.roles.some((role) => roleCodes.includes(role as any))
+    }
+    return true
   })
 
   return (
