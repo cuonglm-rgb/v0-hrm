@@ -240,9 +240,9 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Ca làm</TableHead>
-                <TableHead>Giờ làm việc</TableHead>
-                <TableHead>Giờ nghỉ trưa</TableHead>
-                <TableHead>Thời gian nghỉ</TableHead>
+                <TableHead className="text-center">Giờ làm việc</TableHead>
+                <TableHead className="text-center">Giờ nghỉ trưa</TableHead>
+                <TableHead className="text-center">Thời gian nghỉ</TableHead>
                 {isHROrAdmin && <TableHead className="text-right">Thao tác</TableHead>}
               </TableRow>
             </TableHeader>
@@ -264,12 +264,12 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
                         <span className="font-medium">{shift.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       <Badge variant="outline" className="font-mono">
                         {formatTime(shift.start_time)} - {formatTime(shift.end_time)}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       {shift.break_start && shift.break_end ? (
                         <Badge variant="secondary" className="font-mono">
                           <Coffee className="h-3 w-3 mr-1" />
@@ -279,7 +279,7 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="text-center">
                       {shift.break_minutes > 0 ? (
                         <span>{shift.break_minutes} phút</span>
                       ) : (

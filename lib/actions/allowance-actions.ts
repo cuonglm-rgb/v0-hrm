@@ -163,6 +163,7 @@ export async function assignAdjustmentToEmployee(input: {
   employee_id: string
   adjustment_type_id: string
   custom_amount?: number
+  custom_percentage?: number
   effective_date: string
   end_date?: string
   note?: string
@@ -173,6 +174,7 @@ export async function assignAdjustmentToEmployee(input: {
     employee_id: input.employee_id,
     adjustment_type_id: input.adjustment_type_id,
     custom_amount: input.custom_amount || null,
+    custom_percentage: input.custom_percentage || null,
     effective_date: input.effective_date,
     end_date: input.end_date || null,
     note: input.note || null,

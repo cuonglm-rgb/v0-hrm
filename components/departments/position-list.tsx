@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Dialog,
@@ -37,13 +37,7 @@ interface PositionListProps {
   isHROrAdmin: boolean
 }
 
-const levelLabels: Record<number, { label: string; color: string }> = {
-  1: { label: "Nhân viên", color: "bg-slate-100 text-slate-700" },
-  2: { label: "Chuyên viên", color: "bg-blue-100 text-blue-700" },
-  3: { label: "Trưởng nhóm", color: "bg-indigo-100 text-indigo-700" },
-  4: { label: "Trưởng phòng", color: "bg-purple-100 text-purple-700" },
-  5: { label: "Giám đốc", color: "bg-amber-100 text-amber-700" },
-}
+
 
 export function PositionList({ positions, isHROrAdmin }: PositionListProps) {
   const router = useRouter()
@@ -116,10 +110,7 @@ export function PositionList({ positions, isHROrAdmin }: PositionListProps) {
     setDeletePos(null)
   }
 
-  const getLevelBadge = (level: number) => {
-    const config = levelLabels[level] || { label: `Level ${level}`, color: "bg-gray-100 text-gray-700" }
-    return <Badge className={config.color}>{config.label}</Badge>
-  }
+
 
   return (
     <div className="space-y-4">
@@ -179,13 +170,7 @@ export function PositionList({ positions, isHROrAdmin }: PositionListProps) {
                     >
                       <ArrowUp className="h-4 w-4" />
                     </Button>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      {levelLabels[formData.level]?.label || `Level ${formData.level}`}
-                    </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    1 = Nhân viên, 2 = Chuyên viên, 3 = Trưởng nhóm, 4 = Trưởng phòng, 5 = Giám đốc
-                  </p>
                 </div>
               </div>
               <DialogFooter>
@@ -207,8 +192,8 @@ export function PositionList({ positions, isHROrAdmin }: PositionListProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Vị trí</TableHead>
-                <TableHead>Cấp bậc</TableHead>
-                <TableHead>Ngày tạo</TableHead>
+                <TableHead className="text-center">Cấp bậc</TableHead>
+                <TableHead className="text-center">Ngày tạo</TableHead>
                 {isHROrAdmin && <TableHead className="text-right">Thao tác</TableHead>}
               </TableRow>
             </TableHeader>
@@ -230,8 +215,8 @@ export function PositionList({ positions, isHROrAdmin }: PositionListProps) {
                         <span className="font-medium">{pos.name}</span>
                       </div>
                     </TableCell>
-                    <TableCell>{getLevelBadge(pos.level)}</TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-center">{pos.level}</TableCell>
+                    <TableCell className="text-center text-muted-foreground">
                       {new Date(pos.created_at).toLocaleDateString("vi-VN")}
                     </TableCell>
                     {isHROrAdmin && (

@@ -140,8 +140,7 @@ export function AppSidebar({ employee, userRoles, canApproveRequests }: AppSideb
             <Users className="h-5 w-5 text-white" />
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-sidebar-foreground">HRM System</span>
-            <span className="text-xs text-sidebar-foreground/60">Phase 3</span>
+            <span className="font-semibold text-sidebar-foreground">Pamo HRM</span>
           </div>
         </div>
       </SidebarHeader>

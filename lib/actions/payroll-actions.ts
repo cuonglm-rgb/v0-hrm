@@ -855,28 +855,69 @@ export async function generatePayroll(month: number, year: number) {
         const adjType = empAdj.adjustment_type as PayrollAdjustmentType
         if (!adjType || adjType.is_auto_applied) continue // Bỏ qua auto-applied (đã xử lý ở trên)
 
-        const amount = empAdj.custom_amount || adjType.amount
+        let finalAmount = empAdj.custom_amount || adjType.amount
 
         if (adjType.category === "allowance") {
-          totalAllowances += amount
+          // Phụ cấp: ưu tiên custom_percentage > custom_amount > auto_rules.percentage > amount
+          if (empAdj.custom_percentage) {
+            finalAmount = (baseSalary * empAdj.custom_percentage) / 100
+          } else if (empAdj.custom_amount) {
+            finalAmount = empAdj.custom_amount
+          } else if (adjType.auto_rules?.calculate_from === "base_salary" && adjType.auto_rules?.percentage) {
+            finalAmount = (baseSalary * adjType.auto_rules.percentage) / 100
+          }
+          totalAllowances += finalAmount
+          adjustmentDetails.push({
+            adjustment_type_id: adjType.id,
+            category: "allowance",
+            base_amount: adjType.amount,
+            adjusted_amount: 0,
+            final_amount: finalAmount,
+            reason: empAdj.custom_percentage 
+              ? `${adjType.name} (${empAdj.custom_percentage}% lương)`
+              : adjType.name,
+            occurrence_count: 1,
+          })
         } else if (adjType.category === "deduction") {
-          // Tính BHXH theo % lương cơ bản
-          let finalAmount = amount
-          if (adjType.auto_rules?.calculate_from === "base_salary" && adjType.auto_rules?.percentage) {
+          // Khấu trừ: ưu tiên custom_percentage > custom_amount > auto_rules.percentage > amount
+          if (empAdj.custom_percentage) {
+            finalAmount = (baseSalary * empAdj.custom_percentage) / 100
+          } else if (empAdj.custom_amount) {
+            finalAmount = empAdj.custom_amount
+          } else if (adjType.auto_rules?.calculate_from === "base_salary" && adjType.auto_rules?.percentage) {
             finalAmount = (baseSalary * adjType.auto_rules.percentage) / 100
           }
           totalDeductions += finalAmount
           adjustmentDetails.push({
             adjustment_type_id: adjType.id,
             category: "deduction",
-            base_amount: amount,
+            base_amount: adjType.amount,
             adjusted_amount: 0,
             final_amount: finalAmount,
-            reason: adjType.name,
+            reason: empAdj.custom_percentage 
+              ? `${adjType.name} (${empAdj.custom_percentage}% lương)`
+              : adjType.name,
             occurrence_count: 1,
           })
         } else if (adjType.category === "penalty") {
-          totalPenalties += amount
+          // Phạt: ưu tiên custom_percentage > custom_amount > amount
+          if (empAdj.custom_percentage) {
+            finalAmount = (baseSalary * empAdj.custom_percentage) / 100
+          } else if (empAdj.custom_amount) {
+            finalAmount = empAdj.custom_amount
+          }
+          totalPenalties += finalAmount
+          adjustmentDetails.push({
+            adjustment_type_id: adjType.id,
+            category: "penalty",
+            base_amount: adjType.amount,
+            adjusted_amount: 0,
+            final_amount: finalAmount,
+            reason: empAdj.custom_percentage 
+              ? `${adjType.name} (${empAdj.custom_percentage}% lương)`
+              : adjType.name,
+            occurrence_count: 1,
+          })
         }
       }
     }

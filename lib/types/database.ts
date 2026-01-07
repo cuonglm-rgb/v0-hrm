@@ -217,6 +217,7 @@ export interface EmployeeAdjustment {
   employee_id: string
   adjustment_type_id: string
   custom_amount: number | null
+  custom_percentage: number | null // % lương tùy chỉnh (VD: 8 = 8%)
   effective_date: string
   end_date: string | null
   note: string | null
