@@ -18,8 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { checkIn, checkOut } from "@/lib/actions/attendance-actions"
-import type { AttendanceLog, WorkShift } from "@/lib/types/database"
+import { checkIn, checkOut, getMyApprovedLeaveRequests } from "@/lib/actions/attendance-actions"
+import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations } from "@/lib/types/database"
 import {
   formatDateVN,
   formatTimeVN,
@@ -27,7 +27,7 @@ import {
   getTodayVN,
   formatSourceVN,
 } from "@/lib/utils/date-utils"
-import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter } from "lucide-react"
+import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter, Calendar } from "lucide-react"
 
 interface AttendanceViolation {
   type: "late" | "early_leave" | "no_checkin" | "no_checkout"
@@ -105,15 +105,74 @@ function checkViolations(
   return violations
 }
 
+// Hàm kiểm tra xem ngày có phải ngày cuối tuần không
+// Chủ nhật luôn nghỉ, Thứ 7 xen kẽ theo quy luật
+const REFERENCE_DATE = new Date(Date.UTC(2026, 0, 6)) // 6/1/2026
+const REFERENCE_WEEK_IS_OFF = true // Tuần này nghỉ thứ 7
+
+function getISOWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+
+function isSaturdayOff(date: Date): boolean {
+  const refWeek = getISOWeekNumber(REFERENCE_DATE)
+  const currentWeek = getISOWeekNumber(date)
+  
+  const refIsOdd = refWeek % 2 === 1
+  const currentIsOdd = currentWeek % 2 === 1
+  
+  if (REFERENCE_WEEK_IS_OFF) {
+    return refIsOdd === currentIsOdd
+  } else {
+    return refIsOdd !== currentIsOdd
+  }
+}
+
+function isWeekend(date: Date): boolean {
+  const day = date.getDay()
+  // Chủ nhật luôn nghỉ
+  if (day === 0) return true
+  // Thứ 7 xen kẽ
+  if (day === 6) return isSaturdayOff(date)
+  return false
+}
+
+// Hàm tạo danh sách ngày làm việc trong khoảng thời gian
+function generateWorkingDays(fromDate: Date, toDate: Date): string[] {
+  const days: string[] = []
+  const current = new Date(fromDate)
+  
+  while (current <= toDate) {
+    // Thêm tất cả các ngày, không loại trừ cuối tuần
+    days.push(current.toISOString().split('T')[0])
+    current.setDate(current.getDate() + 1)
+  }
+  
+  return days
+}
+
+// Hàm kiểm tra xem ngày có phiếu nghỉ được duyệt không
+function getLeaveRequestForDate(date: string, leaveRequests: EmployeeRequestWithRelations[]) {
+  return leaveRequests.find((req) => {
+    if (!req.from_date || !req.to_date) return false
+    return date >= req.from_date && date <= req.to_date
+  })
+}
+
 interface AttendancePanelProps {
   attendanceLogs: AttendanceLog[]
   shift?: WorkShift | null
+  leaveRequests?: EmployeeRequestWithRelations[]
 }
 
 // Tạm ẩn phần chấm công hôm nay - có thể bật lại sau
 const SHOW_TODAY_CHECKIN = false
 
-export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps) {
+export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: AttendancePanelProps) {
   const [loading, setLoading] = useState<"checkin" | "checkout" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -162,6 +221,47 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
       return true
     })
   }, [attendanceLogs, filterMonth, filterYear, filterStatus, shift])
+
+  // Tạo danh sách ngày làm việc kết hợp với attendance logs
+  const workingDaysWithAttendance = useMemo(() => {
+    // Xác định khoảng thời gian cần hiển thị
+    const now = new Date()
+    let startDate: Date
+    let endDate: Date = now
+    
+    if (filterMonth !== "all" && filterYear !== "all") {
+      const year = parseInt(filterYear)
+      const month = parseInt(filterMonth)
+      startDate = new Date(year, month - 1, 1)
+      endDate = new Date(year, month, 0) // Ngày cuối tháng
+    } else if (filterYear !== "all") {
+      const year = parseInt(filterYear)
+      startDate = new Date(year, 0, 1)
+      endDate = new Date(year, 11, 31)
+    } else {
+      // Mặc định hiển thị 30 ngày gần nhất
+      startDate = new Date(now)
+      startDate.setDate(startDate.getDate() - 30)
+    }
+    
+    // Tạo danh sách ngày làm việc
+    const workingDays = generateWorkingDays(startDate, endDate)
+    
+    // Kết hợp với attendance logs
+    const combined = workingDays.map((date) => {
+      const log = filteredLogs.find((l) => l.check_in?.startsWith(date))
+      const leaveRequest = getLeaveRequestForDate(date, leaveRequests)
+      
+      return {
+        date,
+        log,
+        leaveRequest,
+      }
+    })
+    
+    // Sắp xếp theo ngày giảm dần
+    return combined.reverse()
+  }, [filteredLogs, filterMonth, filterYear, leaveRequests])
 
   // Lấy danh sách năm từ dữ liệu
   const availableYears = useMemo(() => {
@@ -359,7 +459,7 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
               </Select>
             </div>
             <span className="text-sm text-muted-foreground ml-auto">
-              {filteredLogs.length} bản ghi
+              {workingDaysWithAttendance.length} bản ghi
             </span>
           </div>
 
@@ -375,26 +475,37 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLogs.length === 0 ? (
+                {workingDaysWithAttendance.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
                       Không có dữ liệu chấm công
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredLogs.map((log) => {
-                    const violations = checkViolations(log.check_in, log.check_out, shift)
+                  workingDaysWithAttendance.map(({ date, log, leaveRequest }) => {
+                    const violations = log ? checkViolations(log.check_in, log.check_out, shift) : []
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
                     const isEarlyLeave = violations.some((v) => v.type === "early_leave")
                     const noCheckIn = violations.some((v) => v.type === "no_checkin")
                     const noCheckOut = violations.some((v) => v.type === "no_checkout")
+                    
+                    // Nếu không có log chấm công
+                    const hasNoAttendance = !log
+                    const hasApprovedLeave = !!leaveRequest
+                    const leaveTypeName = leaveRequest?.request_type?.name || "Nghỉ phép"
+                    
+                    // Kiểm tra xem có phải ngày nghỉ cuối tuần không
+                    const dateObj = new Date(date)
+                    const isWeekendDay = isWeekend(dateObj)
 
                     return (
-                      <TableRow key={log.id} className={hasViolation ? "bg-red-50" : ""}>
-                        <TableCell>{formatDateVN(log.check_in)}</TableCell>
+                      <TableRow key={date} className={hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay) ? "bg-red-50" : ""}>
+                        <TableCell>{formatDateVN(date)}</TableCell>
                         <TableCell>
-                          {noCheckIn ? (
+                          {hasNoAttendance ? (
+                            <span className="text-muted-foreground">-</span>
+                          ) : noCheckIn ? (
                             <Tooltip>
                               <TooltipTrigger>
                                 <Badge variant="destructive" className="gap-1">
@@ -421,7 +532,9 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
                           )}
                         </TableCell>
                         <TableCell>
-                          {noCheckOut ? (
+                          {hasNoAttendance ? (
+                            <span className="text-muted-foreground">-</span>
+                          ) : noCheckOut ? (
                             <Tooltip>
                               <TooltipTrigger>
                                 <Badge variant="destructive" className="gap-1">
@@ -450,10 +563,30 @@ export function AttendancePanel({ attendanceLogs, shift }: AttendancePanelProps)
                           )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{formatSourceVN(log.source)}</Badge>
+                          {log ? (
+                            <Badge variant="outline">{formatSourceVN(log.source)}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          {hasViolation ? (
+                          {hasNoAttendance ? (
+                            isWeekendDay ? (
+                              <Badge variant="secondary" className="bg-gray-100 text-gray-700">
+                                Ngày nghỉ
+                              </Badge>
+                            ) : hasApprovedLeave ? (
+                              <Badge className="bg-blue-100 text-blue-800 gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {leaveTypeName}
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive" className="gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Nghỉ không phép
+                              </Badge>
+                            )
+                          ) : hasViolation ? (
                             <Tooltip>
                               <TooltipTrigger>
                                 <Badge variant="destructive" className="gap-1">

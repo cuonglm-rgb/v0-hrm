@@ -38,6 +38,50 @@ export async function getMyAttendance(from?: string, to?: string): Promise<Atten
   return data || []
 }
 
+// Lấy thông tin phiếu nghỉ được duyệt của nhân viên
+export async function getMyApprovedLeaveRequests(from?: string, to?: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .single()
+
+  if (!employee) return []
+
+  let query = supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types(
+        id,
+        name,
+        code,
+        affects_attendance,
+        affects_payroll
+      )
+    `)
+    .eq("employee_id", employee.id)
+    .eq("status", "approved")
+    .not("from_date", "is", null)
+
+  if (from) query = query.gte("from_date", from)
+  if (to) query = query.lte("to_date", to)
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("Error fetching leave requests:", error)
+    return []
+  }
+
+  return data || []
+}
+
 export async function checkIn() {
   const supabase = await createClient()
 

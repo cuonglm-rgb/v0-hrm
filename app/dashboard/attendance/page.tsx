@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { getMyAttendance } from "@/lib/actions/attendance-actions"
+import { getMyAttendance, getMyApprovedLeaveRequests } from "@/lib/actions/attendance-actions"
 import { getMyShift } from "@/lib/actions/shift-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { AttendancePanel } from "@/components/attendance/attendance-panel"
@@ -15,12 +15,13 @@ export default async function AttendancePage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, attendanceLogs, shift, canApproveRequests] = await Promise.all([
+  const [employee, userRoles, attendanceLogs, shift, canApproveRequests, leaveRequests] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     getMyAttendance(),
     getMyShift(),
     checkCanApproveRequests(),
+    getMyApprovedLeaveRequests(),
   ])
 
   return (
@@ -30,7 +31,7 @@ export default async function AttendancePage() {
           <h1 className="text-2xl font-bold">Chấm công</h1>
           <p className="text-muted-foreground">Check in/out và xem lịch sử chấm công</p>
         </div>
-        <AttendancePanel attendanceLogs={attendanceLogs} shift={shift} />
+        <AttendancePanel attendanceLogs={attendanceLogs} shift={shift} leaveRequests={leaveRequests} />
       </div>
     </DashboardLayout>
   )

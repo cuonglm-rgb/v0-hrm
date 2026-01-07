@@ -181,7 +181,7 @@ export interface PayrollItemWithRelations extends PayrollItem {
 
 export type AdjustmentCategory = "allowance" | "deduction" | "penalty"
 export type AdjustmentCalculationType = "fixed" | "daily" | "per_occurrence"
-export type ExemptRequestType = "late_arrival" | "early_leave" | "half_day_leave"
+export type ExemptRequestType = string // Lấy từ request_types.code trong database
 
 export interface AdjustmentAutoRules {
   trigger?: "attendance" | "late" | "absent"
