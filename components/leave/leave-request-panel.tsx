@@ -20,11 +20,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { createEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers } from "@/lib/actions/request-type-actions"
+import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers } from "@/lib/actions/request-type-actions"
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
-import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users } from "lucide-react"
+import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users, Edit } from "lucide-react"
 
 interface LeaveRequestPanelProps {
   requestTypes: RequestType[]
@@ -55,6 +55,9 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null)
   const [attachmentName, setAttachmentName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Edit mode
+  const [editingRequest, setEditingRequest] = useState<UnifiedRequest | null>(null)
 
   // Người duyệt
   const [eligibleApprovers, setEligibleApprovers] = useState<EligibleApprover[]>([])
@@ -203,8 +206,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
 
     const formData = new FormData(e.currentTarget)
     
-    const result = await createEmployeeRequest({
-      request_type_id: selectedType.id,
+    const requestData = {
       from_date: selectedType.requires_date_range ? formData.get("from_date") as string : undefined,
       to_date: selectedType.requires_date_range ? formData.get("to_date") as string : undefined,
       request_date: selectedType.requires_single_date ? formData.get("request_date") as string : undefined,
@@ -214,10 +216,22 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       reason: formData.get("reason") as string,
       attachment_url: attachmentUrl || undefined,
       assigned_approver_ids: selectedApprovers.length > 0 ? selectedApprovers : undefined,
-    })
+    }
+    
+    let result
+    if (editingRequest) {
+      // Update existing request
+      result = await updateEmployeeRequest(editingRequest.id, requestData)
+    } else {
+      // Create new request
+      result = await createEmployeeRequest({
+        request_type_id: selectedType.id,
+        ...requestData,
+      })
+    }
 
     if (!result.success) {
-      setError(result.error || "Không thể tạo phiếu")
+      setError(result.error || (editingRequest ? "Không thể cập nhật phiếu" : "Không thể tạo phiếu"))
     } else {
       setOpen(false)
       setSelectedType(null)
@@ -225,8 +239,20 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       setAttachmentName(null)
       setSelectedApprovers([])
       setEligibleApprovers([])
+      setEditingRequest(null)
     }
     setLoading(false)
+  }
+
+  const handleEdit = (request: UnifiedRequest) => {
+    setEditingRequest(request)
+    const requestType = requestTypes.find(rt => rt.id === request.originalData.request_type_id)
+    if (requestType) {
+      setSelectedType(requestType)
+      setAttachmentUrl(request.attachmentUrl)
+      setAttachmentName(request.attachmentUrl ? "File đính kèm" : null)
+      setOpen(true)
+    }
   }
 
   const handleCancel = async (request: UnifiedRequest) => {
@@ -298,7 +324,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       </div>
 
       {/* Nút tạo phiếu */}
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]) } }}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]); setEditingRequest(null) } }}>
         <DialogTrigger asChild>
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
@@ -339,43 +365,70 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
           ) : (
             <form onSubmit={handleSubmitRequest}>
               <DialogHeader>
-                <DialogTitle>{selectedType.name}</DialogTitle>
-                <DialogDescription>{selectedType.description}</DialogDescription>
+                <DialogTitle>{editingRequest ? "Sửa phiếu" : selectedType.name}</DialogTitle>
+                <DialogDescription>{editingRequest ? selectedType.name : selectedType.description}</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 {selectedType.requires_date_range && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Từ ngày *</Label>
-                      <Input type="date" name="from_date" required />
+                      <Input 
+                        type="date" 
+                        name="from_date" 
+                        required 
+                        defaultValue={editingRequest?.originalData.from_date || ""}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label>Đến ngày *</Label>
-                      <Input type="date" name="to_date" required />
+                      <Input 
+                        type="date" 
+                        name="to_date" 
+                        required 
+                        defaultValue={editingRequest?.originalData.to_date || ""}
+                      />
                     </div>
                   </div>
                 )}
                 {selectedType.requires_single_date && (
                   <div className="grid gap-2">
                     <Label>Ngày *</Label>
-                    <Input type="date" name="request_date" required />
+                    <Input 
+                      type="date" 
+                      name="request_date" 
+                      required 
+                      defaultValue={editingRequest?.originalData.request_date || ""}
+                    />
                   </div>
                 )}
                 {selectedType.requires_time && (
                   <div className="grid gap-2">
                     <Label>Giờ *</Label>
-                    <TimeInput name="request_time" required />
+                    <TimeInput 
+                      name="request_time" 
+                      required 
+                      value={editingRequest?.originalData.request_time || undefined}
+                    />
                   </div>
                 )}
                 {selectedType.requires_time_range && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Từ giờ *</Label>
-                      <TimeInput name="from_time" required />
+                      <TimeInput 
+                        name="from_time" 
+                        required 
+                        value={editingRequest?.originalData.from_time || undefined}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label>Đến giờ *</Label>
-                      <TimeInput name="to_time" required />
+                      <TimeInput 
+                        name="to_time" 
+                        required 
+                        value={editingRequest?.originalData.to_time || undefined}
+                      />
                     </div>
                   </div>
                 )}
@@ -386,6 +439,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     placeholder="Nhập lý do..." 
                     required={selectedType.requires_reason}
                     rows={3}
+                    defaultValue={editingRequest?.reason || ""}
                   />
                 </div>
                 {selectedType.requires_attachment && (
@@ -453,7 +507,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setSelectedType(null)}>Quay lại</Button>
+                <Button type="button" variant="outline" onClick={() => { setSelectedType(null); setEditingRequest(null) }}>Quay lại</Button>
                 <Button 
                   type="submit" 
                   disabled={
@@ -462,7 +516,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     (eligibleApprovers.length > 0 && selectedApprovers.length === 0)
                   }
                 >
-                  {loading ? "Đang gửi..." : "Gửi phiếu"}
+                  {loading ? (editingRequest ? "Đang cập nhật..." : "Đang gửi...") : (editingRequest ? "Cập nhật" : "Gửi phiếu")}
                 </Button>
               </DialogFooter>
             </form>
@@ -610,9 +664,14 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     <TableCell>{getStatusBadge(request.status)}</TableCell>
                     <TableCell>
                       {request.status === "pending" && (
-                        <Button variant="ghost" size="sm" onClick={() => handleCancel(request)}>
-                          <X className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(request)} title="Sửa phiếu">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleCancel(request)} title="Hủy phiếu">
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>

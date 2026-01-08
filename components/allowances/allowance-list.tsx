@@ -51,6 +51,7 @@ import type {
   AdjustmentCategory,
   ExemptRequestType,
   RequestType,
+  PenaltyCondition,
 } from "@/lib/types/database"
 import { listRequestTypes } from "@/lib/actions/request-type-actions"
 
@@ -146,6 +147,22 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
 
     setSaving(true)
     try {
+      // Tự động set trigger dựa trên penalty_conditions
+      let autoRules = formData.auto_rules
+      if (formData.is_auto_applied && formData.category === "penalty" && formData.auto_rules.penalty_conditions) {
+        const conditions = formData.auto_rules.penalty_conditions
+        const hasLateOrEarly = conditions.includes("late_arrival") || conditions.includes("early_leave")
+        const hasForgot = conditions.includes("forgot_checkin") || conditions.includes("forgot_checkout")
+        
+        // Ưu tiên "attendance" nếu có điều kiện quên chấm công
+        // Nếu chỉ có đi muộn/về sớm thì dùng "late"
+        if (hasForgot) {
+          autoRules = { ...autoRules, trigger: "attendance" }
+        } else if (hasLateOrEarly) {
+          autoRules = { ...autoRules, trigger: "late" }
+        }
+      }
+
       const data = {
         name: formData.name,
         code: formData.code || undefined,
@@ -154,7 +171,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
         calculation_type: formData.calculation_type,
         is_auto_applied: formData.is_auto_applied,
         description: formData.description || undefined,
-        auto_rules: formData.is_auto_applied ? formData.auto_rules : undefined,
+        auto_rules: formData.is_auto_applied ? autoRules : undefined,
       }
 
       if (editing) {
@@ -380,9 +397,13 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Chỉ hiển thị field Số tiền nếu KHÔNG phải penalty HOẶC penalty_type = fixed_amount */}
+            {(formData.category !== "penalty" || formData.auto_rules.penalty_type === "fixed_amount") && (
               <div className="space-y-2">
-                <Label htmlFor="amount">Số tiền (VND)</Label>
+                <Label htmlFor="amount">
+                  Số tiền (VND)
+                  {formData.category === "penalty" && formData.auto_rules.penalty_type === "fixed_amount" && " *"}
+                </Label>
                 <Input
                   id="amount"
                   value={formData.amount}
@@ -391,26 +412,31 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                   }
                   placeholder="35,000"
                 />
-                <p className="text-xs text-muted-foreground">Để trống nếu tính theo công thức</p>
+                <p className="text-xs text-muted-foreground">
+                  {formData.category === "penalty" && formData.auto_rules.penalty_type === "fixed_amount"
+                    ? "Số tiền phạt cố định cho mỗi lần vi phạm"
+                    : "Để trống nếu tính theo công thức"}
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label>Cách tính</Label>
-                <Select
-                  value={formData.calculation_type}
-                  onValueChange={(v: "fixed" | "daily" | "per_occurrence") =>
-                    setFormData({ ...formData, calculation_type: v })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="fixed">Cố định/tháng</SelectItem>
-                    <SelectItem value="daily">Theo ngày công</SelectItem>
-                    <SelectItem value="per_occurrence">Theo lần vi phạm</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Cách tính</Label>
+              <Select
+                value={formData.calculation_type}
+                onValueChange={(v: "fixed" | "daily" | "per_occurrence") =>
+                  setFormData({ ...formData, calculation_type: v })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed">Cố định/tháng</SelectItem>
+                  <SelectItem value="daily">Theo ngày công</SelectItem>
+                  <SelectItem value="per_occurrence">Theo lần vi phạm</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -512,6 +538,87 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                 {formData.category === "penalty" && (
                   <>
                     <div className="space-y-2">
+                      <Label>Điều kiện phạt</Label>
+                      <div className="space-y-2 p-3 bg-background rounded-md border">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="penalty_late_arrival"
+                            checked={formData.auto_rules.penalty_conditions?.includes("late_arrival") ?? false}
+                            onChange={(e) => {
+                              const conditions = formData.auto_rules.penalty_conditions || []
+                              const newConditions: PenaltyCondition[] = e.target.checked
+                                ? [...conditions, "late_arrival"]
+                                : conditions.filter(c => c !== "late_arrival")
+                              setFormData({
+                                ...formData,
+                                auto_rules: { ...formData.auto_rules, penalty_conditions: newConditions },
+                              })
+                            }}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <Label htmlFor="penalty_late_arrival" className="text-sm font-normal">Đi làm muộn</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="penalty_early_leave"
+                            checked={formData.auto_rules.penalty_conditions?.includes("early_leave") ?? false}
+                            onChange={(e) => {
+                              const conditions = formData.auto_rules.penalty_conditions || []
+                              const newConditions: PenaltyCondition[] = e.target.checked
+                                ? [...conditions, "early_leave"]
+                                : conditions.filter(c => c !== "early_leave")
+                              setFormData({
+                                ...formData,
+                                auto_rules: { ...formData.auto_rules, penalty_conditions: newConditions },
+                              })
+                            }}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <Label htmlFor="penalty_early_leave" className="text-sm font-normal">Đi về sớm</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="penalty_forgot_checkin"
+                            checked={formData.auto_rules.penalty_conditions?.includes("forgot_checkin") ?? false}
+                            onChange={(e) => {
+                              const conditions = formData.auto_rules.penalty_conditions || []
+                              const newConditions: PenaltyCondition[] = e.target.checked
+                                ? [...conditions, "forgot_checkin"]
+                                : conditions.filter(c => c !== "forgot_checkin")
+                              setFormData({
+                                ...formData,
+                                auto_rules: { ...formData.auto_rules, penalty_conditions: newConditions },
+                              })
+                            }}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <Label htmlFor="penalty_forgot_checkin" className="text-sm font-normal">Quên chấm công đến</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="penalty_forgot_checkout"
+                            checked={formData.auto_rules.penalty_conditions?.includes("forgot_checkout") ?? false}
+                            onChange={(e) => {
+                              const conditions = formData.auto_rules.penalty_conditions || []
+                              const newConditions: PenaltyCondition[] = e.target.checked
+                                ? [...conditions, "forgot_checkout"]
+                                : conditions.filter(c => c !== "forgot_checkout")
+                              setFormData({
+                                ...formData,
+                                auto_rules: { ...formData.auto_rules, penalty_conditions: newConditions },
+                              })
+                            }}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <Label htmlFor="penalty_forgot_checkout" className="text-sm font-normal">Quên chấm công về</Label>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
                       <Label>Muộn từ (phút)</Label>
                       <Input
                         type="number"
@@ -527,6 +634,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                           })
                         }
                       />
+                      <p className="text-xs text-muted-foreground">Áp dụng cho điều kiện đi muộn/về sớm</p>
                     </div>
                     <div className="space-y-2">
                       <Label>Loại phạt</Label>
@@ -552,6 +660,23 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                         </SelectContent>
                       </Select>
                     </div>
+                    
+                    {/* Chỉ hiển thị field Số tiền khi chọn "Số tiền cố định" */}
+                    {formData.auto_rules.penalty_type === "fixed_amount" && (
+                      <div className="space-y-2 pl-4 border-l-2 border-blue-300">
+                        <Label htmlFor="penalty_amount">Số tiền phạt (VND) *</Label>
+                        <Input
+                          id="penalty_amount"
+                          value={formData.amount}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            setFormData({ ...formData, amount: formatInputCurrency(e.target.value) })
+                          }
+                          placeholder="50,000"
+                        />
+                        <p className="text-xs text-muted-foreground">Số tiền phạt cố định cho mỗi lần vi phạm</p>
+                      </div>
+                    )}
+                    
                     <div className="flex items-center justify-between">
                       <Label>Miễn nếu có phiếu xin phép</Label>
                       <Switch

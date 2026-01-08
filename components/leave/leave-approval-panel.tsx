@@ -49,6 +49,8 @@ interface UnifiedApprovalRequest {
 
 export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveApprovalPanelProps) {
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
 
   // Filter states - mặc định hiển thị phiếu chờ duyệt
   const [filterStatus, setFilterStatus] = useState<string>("pending")
@@ -181,6 +183,111 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     }
   }
 
+  // Bulk actions
+  const handleBulkApprove = async () => {
+    if (selectedIds.size === 0) {
+      toast.error("Vui lòng chọn ít nhất 1 phiếu")
+      return
+    }
+
+    if (!confirm(`Bạn có chắc muốn duyệt ${selectedIds.size} phiếu đã chọn?`)) return
+
+    setBulkLoading(true)
+    let successCount = 0
+    let failCount = 0
+
+    for (const id of selectedIds) {
+      const result = await approveEmployeeRequest(id)
+      if (result.success) {
+        successCount++
+      } else {
+        failCount++
+      }
+    }
+
+    setBulkLoading(false)
+    setSelectedIds(new Set())
+
+    if (failCount === 0) {
+      toast.success(`Đã duyệt thành công ${successCount} phiếu`)
+    } else {
+      toast.warning(`Duyệt thành công ${successCount} phiếu, thất bại ${failCount} phiếu`)
+    }
+  }
+
+  const handleBulkReject = async () => {
+    if (selectedIds.size === 0) {
+      toast.error("Vui lòng chọn ít nhất 1 phiếu")
+      return
+    }
+
+    const reason = prompt(`Nhập lý do từ chối ${selectedIds.size} phiếu (không bắt buộc):`)
+    if (reason === null) return // User cancelled
+
+    setBulkLoading(true)
+    let successCount = 0
+    let failCount = 0
+
+    for (const id of selectedIds) {
+      const result = await rejectEmployeeRequest(id, reason || undefined)
+      if (result.success) {
+        successCount++
+      } else {
+        failCount++
+      }
+    }
+
+    setBulkLoading(false)
+    setSelectedIds(new Set())
+
+    if (failCount === 0) {
+      toast.success(`Đã từ chối thành công ${successCount} phiếu`)
+    } else {
+      toast.warning(`Từ chối thành công ${successCount} phiếu, thất bại ${failCount} phiếu`)
+    }
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pendingRequests.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(pendingRequests.map(r => r.id)))
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  // Kiểm tra xem user có thể duyệt phiếu cụ thể không (dựa trên level)
+  const canApproveRequest = (request: UnifiedApprovalRequest): boolean => {
+    if (!approverInfo) return false
+    const requestType = request.originalData.request_type
+    if (!requestType) return true
+    
+    const { positionLevel } = approverInfo
+    if (requestType.min_approver_level && positionLevel < requestType.min_approver_level) return false
+    if (requestType.max_approver_level && positionLevel > requestType.max_approver_level) return false
+    
+    return true
+  }
+
+  // Lọc ra các phiếu pending có thể duyệt
+  const pendingRequests = useMemo(() => {
+    return filteredRequests.filter(r => 
+      r.status === "pending" && 
+      canApproveRequest(r) &&
+      r.myApprovalStatus !== "approved" &&
+      r.myApprovalStatus !== "rejected"
+    )
+  }, [filteredRequests, approverInfo])
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "approved":
@@ -201,19 +308,6 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
   }
 
   const hasActiveFilters = filterStatus !== "pending" || filterType !== "all" || filterFromDate || filterToDate || searchText
-
-  // Kiểm tra xem user có thể duyệt phiếu cụ thể không (dựa trên level)
-  const canApproveRequest = (request: UnifiedApprovalRequest): boolean => {
-    if (!approverInfo) return false
-    const requestType = request.originalData.request_type
-    if (!requestType) return true
-    
-    const { positionLevel } = approverInfo
-    if (requestType.min_approver_level && positionLevel < requestType.min_approver_level) return false
-    if (requestType.max_approver_level && positionLevel > requestType.max_approver_level) return false
-    
-    return true
-  }
 
   return (
     <div className="space-y-6">
@@ -360,15 +454,53 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       {/* Bảng danh sách */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Danh sách phiếu ({filteredRequests.length})
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Danh sách phiếu ({filteredRequests.length})
+            </CardTitle>
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Đã chọn {selectedIds.size} phiếu
+                </span>
+                <Button
+                  size="sm"
+                  onClick={handleBulkApprove}
+                  disabled={bulkLoading}
+                  className="gap-1 bg-green-600 hover:bg-green-700"
+                >
+                  <Check className="h-4 w-4" />
+                  Duyệt hàng loạt
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleBulkReject}
+                  disabled={bulkLoading}
+                  className="gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  <X className="h-4 w-4" />
+                  Từ chối hàng loạt
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[50px]">
+                  {pendingRequests.length > 0 && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === pendingRequests.length && pendingRequests.length > 0}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  )}
+                </TableHead>
                 <TableHead>Nhân viên</TableHead>
                 <TableHead>Loại phiếu</TableHead>
                 <TableHead>Ngày</TableHead>
@@ -382,13 +514,29 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
             <TableBody>
               {filteredRequests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground">
                     {hasActiveFilters ? "Không tìm thấy phiếu phù hợp" : "Không có phiếu nào"}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRequests.map((request) => (
-                  <TableRow key={request.id}>
+                filteredRequests.map((request) => {
+                  const canSelect = request.status === "pending" && 
+                                   canApproveRequest(request) &&
+                                   request.myApprovalStatus !== "approved" &&
+                                   request.myApprovalStatus !== "rejected"
+                  
+                  return (
+                    <TableRow key={request.id}>
+                      <TableCell>
+                        {canSelect && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(request.id)}
+                            onChange={() => toggleSelect(request.id)}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                        )}
+                      </TableCell>
                     <TableCell>
                       <div>
                         <div className="font-medium">{request.employeeName}</div>
@@ -490,7 +638,8 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                       )}
                     </TableCell>
                   </TableRow>
-                ))
+                  )
+                })
               )}
             </TableBody>
           </Table>

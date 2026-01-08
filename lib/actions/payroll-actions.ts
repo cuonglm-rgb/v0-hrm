@@ -319,6 +319,16 @@ async function getEmployeeViolations(
           // Check in từ 12:00 đến 13:45 => nghỉ ca sáng, đi ca chiều
           isHalfDay = true
           lateMinutes = 0 // Không tính là đi muộn
+          
+          // Kiểm tra check out: nếu check out cũng trong giờ nghỉ trưa hoặc ngay sau đó
+          // => Làm nửa ngày (đến và về đúng giờ ca làm của họ)
+          if (hasCheckOut && checkOutMinutes >= breakStartMinutes && checkOutMinutes <= breakEndMinutes + 15) {
+            // Check out cũng trong khoảng nghỉ trưa => làm nửa ngày, không phạt
+            earlyMinutes = 0
+          } else if (hasCheckOut && checkOutMinutes < shiftEndMinutes) {
+            // Check out sớm hơn giờ tan ca (nhưng sau giờ nghỉ trưa)
+            earlyMinutes = shiftEndMinutes - checkOutMinutes
+          }
         } else if (checkInMinutes > breakEndMinutes + 15) {
           // Check in sau 13:45 => đi muộn ca chiều
           lateMinutes = checkInMinutes - breakEndMinutes
@@ -332,12 +342,20 @@ async function getEmployeeViolations(
           if (hasCheckOut && checkOutMinutes <= breakEndMinutes) {
             // Check out trước 13:00 (hoặc breakEnd) => chỉ làm ca sáng
             isHalfDay = true
+            earlyMinutes = 0 // Không tính về sớm vì đã làm đủ ca sáng
+          } else if (hasCheckOut && checkOutMinutes < shiftEndMinutes) {
+            // Check out sớm hơn giờ tan ca (nhưng sau giờ nghỉ trưa)
             earlyMinutes = shiftEndMinutes - checkOutMinutes
           }
         }
       } else {
         // Không có giờ nghỉ trưa => tính đi muộn bình thường
         lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
+        
+        // Tính về sớm
+        if (hasCheckOut && checkOutMinutes < shiftEndMinutes) {
+          earlyMinutes = shiftEndMinutes - checkOutMinutes
+        }
       }
 
       // Đi muộn >60 phút và không có phép => không tính công (isAbsent)
@@ -451,13 +469,104 @@ export async function generatePayroll(month: number, year: number) {
     const baseSalary = salary?.base_salary || 0
     const dailySalary = baseSalary / STANDARD_WORKING_DAYS
 
-    // Đếm ngày công
-    const { count: workingDaysCount } = await supabase
+    // Lấy danh sách ngày có phiếu tăng ca được duyệt
+    const { data: overtimeRequestDates } = await supabase
+      .from("employee_requests")
+      .select(`
+        request_date,
+        from_time,
+        to_time,
+        request_type:request_types!request_type_id(code)
+      `)
+      .eq("employee_id", emp.id)
+      .eq("status", "approved")
+      .gte("request_date", startDate)
+      .lte("request_date", endDate)
+
+    // Lấy shift của nhân viên để xác định giờ làm việc
+    const empShift = emp.shift_id ? shiftMap.get(emp.shift_id) : null
+    const shiftStart = empShift?.start_time?.slice(0, 5) || "08:00"
+    const shiftEnd = empShift?.end_time?.slice(0, 5) || "17:00"
+    const breakStart = empShift?.break_start?.slice(0, 5) || "12:00"
+    const breakEnd = empShift?.break_end?.slice(0, 5) || "13:30"
+
+    // Helper: Parse time to minutes
+    const parseTime = (t: string) => {
+      const [h, m] = t.split(":").map(Number)
+      return h * 60 + (m || 0)
+    }
+
+    const shiftStartMin = parseTime(shiftStart)
+    const shiftEndMin = parseTime(shiftEnd)
+    const breakStartMin = parseTime(breakStart)
+    const breakEndMin = parseTime(breakEnd)
+
+    // Phân loại ngày tăng ca:
+    // - overtimeDates: Tăng ca THAY THẾ ca làm (ngày nghỉ, không có chấm công hoặc tăng ca cả ngày)
+    // - overtimeWithinShift: Tăng ca NGOÀI giờ làm việc (giờ nghỉ trưa, trước/sau ca)
+    const overtimeDates = new Set<string>() // Ngày chỉ tính OT, không tính lương cơ bản
+    const overtimeWithinShift = new Set<string>() // Ngày tính cả lương cơ bản + OT
+
+    if (overtimeRequestDates) {
+      for (const req of overtimeRequestDates) {
+        const reqType = req.request_type as any
+        if (reqType?.code !== "overtime") continue
+
+        const date = req.request_date
+        const fromTime = req.from_time
+        const toTime = req.to_time
+
+        // Nếu không có giờ cụ thể → coi như tăng ca cả ngày (thay thế ca làm)
+        if (!fromTime || !toTime) {
+          overtimeDates.add(date)
+          continue
+        }
+
+        const fromMin = parseTime(fromTime)
+        const toMin = parseTime(toTime)
+
+        // Kiểm tra xem OT có nằm NGOÀI giờ làm việc không:
+        // 1. Trước giờ vào ca (< shiftStart)
+        // 2. Sau giờ tan ca (> shiftEnd)
+        // 3. Trong giờ nghỉ trưa (breakStart <= from < to <= breakEnd)
+        const isBeforeShift = toMin <= shiftStartMin
+        const isAfterShift = fromMin >= shiftEndMin
+        const isDuringBreak = fromMin >= breakStartMin && toMin <= breakEndMin
+
+        if (isBeforeShift || isAfterShift || isDuringBreak) {
+          // Tăng ca ngoài giờ làm việc → tính cả lương cơ bản + OT
+          overtimeWithinShift.add(date)
+        } else {
+          // Tăng ca trong giờ làm việc hoặc không xác định → coi như thay thế ca làm
+          overtimeDates.add(date)
+        }
+      }
+    }
+
+    console.log(`[Payroll] ${emp.full_name}: OT dates (replace work): ${overtimeDates.size}, OT within shift: ${overtimeWithinShift.size}`)
+
+    // Lấy tất cả attendance logs để lọc
+    const { data: allAttendanceLogs } = await supabase
       .from("attendance_logs")
-      .select("*", { count: "exact", head: true })
+      .select("check_in")
       .eq("employee_id", emp.id)
       .gte("check_in", startDate)
       .lte("check_in", endDate + "T23:59:59")
+    
+    // Đếm ngày công (LOẠI TRỪ các ngày có phiếu tăng ca THAY THẾ ca làm)
+    // KHÔNG loại trừ các ngày tăng ca ngoài giờ làm việc (overtimeWithinShift)
+    let workingDaysCount = 0
+    if (allAttendanceLogs) {
+      for (const log of allAttendanceLogs) {
+        const logDate = new Date(log.check_in).toISOString().split("T")[0]
+        // Chỉ loại trừ nếu là OT thay thế ca làm (không phải OT ngoài giờ)
+        if (!overtimeDates.has(logDate)) {
+          workingDaysCount++
+        }
+      }
+    }
+    
+    console.log(`[Payroll] ${emp.full_name}: Total attendance logs: ${allAttendanceLogs?.length || 0}, After excluding OT replacement dates: ${workingDaysCount}`)
 
     // =============================================
     // XỬ LÝ CÁC PHIẾU TỪ EMPLOYEE_REQUESTS
@@ -666,18 +775,24 @@ export async function generatePayroll(month: number, year: number) {
     // Lấy vi phạm chấm công
     const violations = await getEmployeeViolations(supabase, emp.id, startDate, endDate, shiftInfo)
     
-    // Tính ngày công thực tế (trừ ngày không tính công và nửa ngày)
-    const absentDays = violations.filter((v) => v.isAbsent).length
-    const halfDays = violations.filter((v) => v.isHalfDay && !v.isAbsent).length
-    const fullWorkDays = violations.filter((v) => !v.isHalfDay && !v.isAbsent).length
+    // Lọc bỏ các ngày có phiếu tăng ca THAY THẾ ca làm (không tính vào ngày công cơ bản)
+    // KHÔNG lọc bỏ các ngày tăng ca ngoài giờ làm việc (vẫn tính lương cơ bản + phạt nếu có)
+    const violationsWithoutOT = violations.filter((v) => !overtimeDates.has(v.date))
     
-    // Ngày đi làm thực tế (chấm công)
+    console.log(`[Payroll] ${emp.full_name}: Total violations: ${violations.length}, After excluding OT replacement dates: ${violationsWithoutOT.length}`)
+    
+    // Tính ngày công thực tế (trừ ngày không tính công và nửa ngày) - KHÔNG BAO GỒM NGÀY TĂNG CA THAY THẾ
+    const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
+    const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
+    const fullWorkDays = violationsWithoutOT.filter((v) => !v.isHalfDay && !v.isAbsent).length
+    
+    // Ngày đi làm thực tế (chấm công) - KHÔNG BAO GỒM NGÀY TĂNG CA THAY THẾ, NHƯNG BAO GỒM NGÀY TĂNG CA NGOÀI GIỜ
     const actualAttendanceDays = fullWorkDays + (halfDays * 0.5)
     
     // Tổng ngày công = ngày đi làm + ngày làm từ xa + ngày nghỉ phép có lương
     const totalWorkingDays = actualAttendanceDays + workFromHomeDays + paidLeaveDays
     
-    const lateCount = violations.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
+    const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
 
     // Lấy các điều chỉnh được gán cho nhân viên
     const { data: empAdjustments } = await supabase
@@ -805,43 +920,236 @@ export async function generatePayroll(month: number, year: number) {
         }
 
         // ========== PHẠT TỰ ĐỘNG ==========
-        if (adjType.category === "penalty" && rules?.trigger === "late") {
+        // Hỗ trợ cả trigger "late" (đi muộn/về sớm) và "attendance" (quên chấm công)
+        if (adjType.category === "penalty" && (rules?.trigger === "late" || rules?.trigger === "attendance")) {
+          console.log(`[Payroll] ${emp.full_name}: Xử lý phạt "${adjType.name}" (trigger: ${rules?.trigger})`)
+          
           const thresholdMinutes = rules.late_threshold_minutes || 30
           const exemptWithRequest = rules.exempt_with_request !== false
           const exemptRequestTypes = rules.exempt_request_types || ["late_arrival", "early_leave"]
+          const penaltyConditions = rules.penalty_conditions || ["late_arrival"] // Mặc định chỉ phạt đi muộn
 
-          const penaltyDays = violations.filter((v) => {
-            if (v.lateMinutes <= thresholdMinutes) return false
-            
+          console.log(`[Payroll] ${emp.full_name}: Penalty conditions: ${JSON.stringify(penaltyConditions)}`)
+          console.log(`[Payroll] ${emp.full_name}: Penalty type: ${rules.penalty_type}, Daily salary: ${dailySalary}`)
+
+          const penaltyViolations: Array<{ date: string; reason: string; amount: number }> = []
+
+          // Chỉ xử lý vi phạm KHÔNG PHẢI ngày tăng ca
+          for (const v of violationsWithoutOT) {
             // Kiểm tra miễn phạt nếu có phiếu phù hợp
+            let isExempt = false
             if (exemptWithRequest && v.hasApprovedRequest) {
-              // Kiểm tra xem có loại phiếu nào được miễn không
               const hasExemptRequest = v.approvedRequestTypes.some(
                 (type) => exemptRequestTypes.includes(type as any)
               )
-              if (hasExemptRequest) return false
-            }
-            return true
-          })
-
-          for (const v of penaltyDays) {
-            let penaltyAmount = 0
-            if (rules.penalty_type === "half_day_salary") {
-              penaltyAmount = dailySalary / 2
-            } else if (rules.penalty_type === "full_day_salary") {
-              penaltyAmount = dailySalary
-            } else if (rules.penalty_type === "fixed_amount") {
-              penaltyAmount = adjType.amount
+              if (hasExemptRequest) isExempt = true
             }
 
-            totalPenalties += penaltyAmount
+            if (isExempt) continue
+
+            // Kiểm tra các điều kiện phạt
+            // 1. Đi làm muộn
+            if (penaltyConditions.includes("late_arrival") && v.lateMinutes > thresholdMinutes) {
+              let penaltyAmount = 0
+              if (rules.penalty_type === "half_day_salary") {
+                penaltyAmount = dailySalary / 2
+              } else if (rules.penalty_type === "full_day_salary") {
+                penaltyAmount = dailySalary
+              } else if (rules.penalty_type === "fixed_amount") {
+                penaltyAmount = adjType.amount
+              }
+              penaltyViolations.push({
+                date: v.date,
+                reason: `Đi muộn ${v.lateMinutes} phút`,
+                amount: penaltyAmount,
+              })
+            }
+
+            // 2. Đi về sớm
+            if (penaltyConditions.includes("early_leave") && v.earlyMinutes > thresholdMinutes) {
+              let penaltyAmount = 0
+              if (rules.penalty_type === "half_day_salary") {
+                penaltyAmount = dailySalary / 2
+              } else if (rules.penalty_type === "full_day_salary") {
+                penaltyAmount = dailySalary
+              } else if (rules.penalty_type === "fixed_amount") {
+                penaltyAmount = adjType.amount
+              }
+              penaltyViolations.push({
+                date: v.date,
+                reason: `Về sớm ${v.earlyMinutes} phút`,
+                amount: penaltyAmount,
+              })
+            }
+          }
+
+          // 3. Quên chấm công đến
+          if (penaltyConditions.includes("forgot_checkin")) {
+            // Lấy tất cả attendance logs để kiểm tra ngày nào thiếu check_in
+            const { data: allLogs } = await supabase
+              .from("attendance_logs")
+              .select("check_in, check_out")
+              .eq("employee_id", emp.id)
+              .gte("check_in", startDate)
+              .lte("check_in", endDate + "T23:59:59")
+
+            // Lấy danh sách phiếu forgot_checkin đã approved (để miễn phạt)
+            const { data: approvedForgotCheckin } = await supabase
+              .from("employee_requests")
+              .select(`
+                request_date,
+                request_type:request_types!request_type_id(code)
+              `)
+              .eq("employee_id", emp.id)
+              .eq("status", "approved")
+              .gte("request_date", startDate)
+              .lte("request_date", endDate)
+
+            const approvedForgotCheckinDates = new Set<string>()
+            for (const req of approvedForgotCheckin || []) {
+              const reqType = req.request_type as any
+              if (reqType?.code === "forgot_checkin") {
+                approvedForgotCheckinDates.add(req.request_date)
+              }
+            }
+
+            // Kiểm tra từng ngày có attendance log
+            for (const log of allLogs || []) {
+              if (!log.check_in) continue
+              const logDate = new Date(log.check_in).toISOString().split("T")[0]
+              
+              // Nếu có phiếu approved và cấu hình miễn phạt → bỏ qua
+              if (exemptWithRequest && approvedForgotCheckinDates.has(logDate)) {
+                console.log(`[Payroll] ${emp.full_name}: Miễn phạt quên chấm công đến ngày ${logDate} (có phiếu approved)`)
+                continue
+              }
+
+              // Nếu KHÔNG có phiếu approved → Phạt
+              // (Logic này cần được mở rộng để phát hiện thực sự quên chấm công)
+              // Hiện tại chỉ phạt nếu có phiếu pending/rejected
+              const { data: pendingRequests } = await supabase
+                .from("employee_requests")
+                .select(`
+                  request_date,
+                  status,
+                  request_type:request_types!request_type_id(code)
+                `)
+                .eq("employee_id", emp.id)
+                .eq("request_date", logDate)
+                .in("status", ["pending", "rejected"])
+
+              let hasForgotCheckinRequest = false
+              for (const req of pendingRequests || []) {
+                const reqType = req.request_type as any
+                if (reqType?.code === "forgot_checkin") {
+                  hasForgotCheckinRequest = true
+                  break
+                }
+              }
+
+              if (hasForgotCheckinRequest) {
+                let penaltyAmount = 0
+                if (rules.penalty_type === "half_day_salary") {
+                  penaltyAmount = dailySalary / 2
+                } else if (rules.penalty_type === "full_day_salary") {
+                  penaltyAmount = dailySalary
+                } else if (rules.penalty_type === "fixed_amount") {
+                  penaltyAmount = adjType.amount
+                }
+                console.log(`[Payroll] ${emp.full_name}: Phạt quên chấm công đến ngày ${logDate} (phiếu chưa duyệt) - ${penaltyAmount}đ`)
+                penaltyViolations.push({
+                  date: logDate,
+                  reason: "Quên chấm công đến",
+                  amount: penaltyAmount,
+                })
+              }
+            }
+          }
+
+          // 4. Quên chấm công về
+          if (penaltyConditions.includes("forgot_checkout")) {
+            console.log(`[Payroll] ${emp.full_name}: Kiểm tra phạt quên chấm công về...`)
+            
+            // Lấy tất cả attendance logs để kiểm tra ngày nào thiếu check_out
+            const { data: allLogs } = await supabase
+              .from("attendance_logs")
+              .select("check_in, check_out")
+              .eq("employee_id", emp.id)
+              .gte("check_in", startDate)
+              .lte("check_in", endDate + "T23:59:59")
+
+            console.log(`[Payroll] ${emp.full_name}: Tìm thấy ${allLogs?.length || 0} attendance logs`)
+
+            // Lấy danh sách phiếu forgot_checkout đã approved (để miễn phạt)
+            const { data: approvedForgotCheckout } = await supabase
+              .from("employee_requests")
+              .select(`
+                request_date,
+                request_type:request_types!request_type_id(code)
+              `)
+              .eq("employee_id", emp.id)
+              .eq("status", "approved")
+              .gte("request_date", startDate)
+              .lte("request_date", endDate)
+
+            const approvedForgotCheckoutDates = new Set<string>()
+            for (const req of approvedForgotCheckout || []) {
+              const reqType = req.request_type as any
+              if (reqType?.code === "forgot_checkout") {
+                approvedForgotCheckoutDates.add(req.request_date)
+                console.log(`[Payroll] ${emp.full_name}: Có phiếu forgot_checkout approved cho ngày ${req.request_date}`)
+              }
+            }
+
+            // Kiểm tra từng ngày có attendance log nhưng thiếu check_out
+            for (const log of allLogs || []) {
+              if (!log.check_in) continue
+              const logDate = new Date(log.check_in).toISOString().split("T")[0]
+              
+              console.log(`[Payroll] ${emp.full_name}: Ngày ${logDate} - check_in: ${log.check_in}, check_out: ${log.check_out || 'THIẾU'}`)
+              
+              // Nếu có check_out → không phạt
+              if (log.check_out) {
+                console.log(`[Payroll] ${emp.full_name}: Ngày ${logDate} có check_out → không phạt`)
+                continue
+              }
+              
+              // Nếu có phiếu approved và cấu hình miễn phạt → bỏ qua
+              if (exemptWithRequest && approvedForgotCheckoutDates.has(logDate)) {
+                console.log(`[Payroll] ${emp.full_name}: Miễn phạt quên chấm công về ngày ${logDate} (có phiếu approved)`)
+                continue
+              }
+
+              // Nếu KHÔNG có phiếu approved → Phạt
+              let penaltyAmount = 0
+              if (rules.penalty_type === "half_day_salary") {
+                penaltyAmount = dailySalary / 2
+              } else if (rules.penalty_type === "full_day_salary") {
+                penaltyAmount = dailySalary
+              } else if (rules.penalty_type === "fixed_amount") {
+                penaltyAmount = adjType.amount
+              }
+              console.log(`[Payroll] ${emp.full_name}: Phạt quên chấm công về ngày ${logDate} (thiếu check_out, không có phiếu approved) - ${penaltyAmount}đ`)
+              penaltyViolations.push({
+                date: logDate,
+                reason: "Quên chấm công về",
+                amount: penaltyAmount,
+              })
+            }
+          }
+
+          // Thêm tất cả các vi phạm vào adjustmentDetails
+          console.log(`[Payroll] ${emp.full_name}: Tổng số vi phạm phạt: ${penaltyViolations.length}`)
+          for (const pv of penaltyViolations) {
+            console.log(`[Payroll] ${emp.full_name}: Thêm phạt: ${pv.reason} - ${pv.amount}đ`)
+            totalPenalties += pv.amount
             adjustmentDetails.push({
               adjustment_type_id: adjType.id,
               category: "penalty",
-              base_amount: penaltyAmount,
+              base_amount: pv.amount,
               adjusted_amount: 0,
-              final_amount: penaltyAmount,
-              reason: `Đi muộn ${v.lateMinutes} phút ngày ${v.date}`,
+              final_amount: pv.amount,
+              reason: `${pv.reason} ngày ${pv.date}`,
               occurrence_count: 1,
             })
           }

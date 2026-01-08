@@ -183,8 +183,11 @@ export type AdjustmentCategory = "allowance" | "deduction" | "penalty"
 export type AdjustmentCalculationType = "fixed" | "daily" | "per_occurrence"
 export type ExemptRequestType = string // Lấy từ request_types.code trong database
 
+export type PenaltyCondition = "late_arrival" | "early_leave" | "forgot_checkin" | "forgot_checkout"
+
 export interface AdjustmentAutoRules {
   trigger?: "attendance" | "late" | "absent"
+  penalty_conditions?: PenaltyCondition[] // Điều kiện phạt: đi muộn, về sớm, quên chấm công
   deduct_on_absent?: boolean
   deduct_on_late?: boolean
   late_grace_count?: number

@@ -994,6 +994,119 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
   return { success: true }
 }
 
+export async function updateEmployeeRequest(
+  id: string,
+  input: {
+    from_date?: string
+    to_date?: string
+    request_date?: string
+    request_time?: string
+    from_time?: string
+    to_time?: string
+    reason?: string
+    attachment_url?: string
+    assigned_approver_ids?: string[]
+  }
+) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Not authenticated" }
+
+  // Lấy thông tin phiếu hiện tại
+  const { data: currentRequest } = await supabase
+    .from("employee_requests")
+    .select("employee_id, status")
+    .eq("id", id)
+    .single()
+
+  if (!currentRequest) {
+    return { success: false, error: "Phiếu không tồn tại" }
+  }
+
+  // Chỉ cho phép sửa phiếu pending
+  if (currentRequest.status !== "pending") {
+    return { success: false, error: "Chỉ có thể sửa phiếu đang chờ duyệt" }
+  }
+
+  // Kiểm tra quyền sở hữu
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .single()
+
+  if (!employee || employee.id !== currentRequest.employee_id) {
+    return { success: false, error: "Bạn không có quyền sửa phiếu này" }
+  }
+
+  // Validate date range
+  if (input.from_date && input.to_date && input.from_date > input.to_date) {
+    return { success: false, error: "Ngày bắt đầu phải trước ngày kết thúc" }
+  }
+
+  // Validate người duyệt bắt buộc khi update
+  if (input.assigned_approver_ids !== undefined && input.assigned_approver_ids.length === 0) {
+    return { success: false, error: "Vui lòng chọn ít nhất 1 người duyệt" }
+  }
+
+  // Cập nhật phiếu
+  const { error } = await supabase
+    .from("employee_requests")
+    .update({
+      from_date: input.from_date,
+      to_date: input.to_date,
+      request_date: input.request_date,
+      request_time: input.request_time,
+      from_time: input.from_time,
+      to_time: input.to_time,
+      reason: input.reason,
+      attachment_url: input.attachment_url,
+    })
+    .eq("id", id)
+
+  if (error) {
+    console.error("Error updating employee request:", error)
+    return { success: false, error: error.message }
+  }
+
+  // Cập nhật danh sách người duyệt nếu có
+  if (input.assigned_approver_ids && input.assigned_approver_ids.length > 0) {
+    // Bước 1: Xóa toàn bộ danh sách người duyệt cũ
+    const { error: deleteError } = await supabase
+      .from("request_assigned_approvers")
+      .delete()
+      .eq("request_id", id)
+
+    // Nếu có lỗi khi xóa (trừ lỗi không tìm thấy record)
+    if (deleteError && deleteError.code !== "PGRST116") {
+      console.error("Error deleting old approvers:", deleteError)
+      return { success: false, error: `Lỗi khi xóa người duyệt cũ: ${deleteError.message}` }
+    }
+
+    // Bước 2: Thêm danh sách người duyệt mới
+    const approverRecords = input.assigned_approver_ids.map((approverId, index) => ({
+      request_id: id,
+      approver_id: approverId,
+      display_order: index + 1,
+      status: "pending" as const,
+    }))
+
+    const { error: insertError } = await supabase
+      .from("request_assigned_approvers")
+      .insert(approverRecords)
+
+    if (insertError) {
+      console.error("Error inserting new approvers:", insertError)
+      return { success: false, error: `Lỗi khi thêm người duyệt mới: ${insertError.message}` }
+    }
+  }
+
+  revalidatePath("/dashboard/leave")
+  revalidatePath("/dashboard/leave-approval")
+  return { success: true }
+}
+
 export async function cancelEmployeeRequest(id: string) {
   const supabase = await createClient()
 

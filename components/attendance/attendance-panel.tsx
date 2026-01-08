@@ -511,9 +511,42 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                     // Kiểm tra xem có phải ngày nghỉ cuối tuần không
                     const dateObj = new Date(date)
                     const isWeekendDay = isWeekend(dateObj)
+                    
+                    // Kiểm tra nếu là làm nửa ngày (check in/out trong giờ nghỉ trưa)
+                    let isHalfDayWork = false
+                    if (log && log.check_in && log.check_out && shift) {
+                      const checkInDate = new Date(log.check_in)
+                      const checkOutDate = new Date(log.check_out)
+                      const checkInMinutes = checkInDate.getHours() * 60 + checkInDate.getMinutes()
+                      const checkOutMinutes = checkOutDate.getHours() * 60 + checkOutDate.getMinutes()
+                      
+                      const breakStart = shift.break_start?.slice(0, 5) || "12:00"
+                      const breakEnd = shift.break_end?.slice(0, 5) || "13:00"
+                      const [bsH, bsM] = breakStart.split(":").map(Number)
+                      const [beH, beM] = breakEnd.split(":").map(Number)
+                      const breakStartMinutes = bsH * 60 + bsM
+                      const breakEndMinutes = beH * 60 + beM
+                      
+                      // Check in trong giờ nghỉ trưa và check out cũng trong giờ nghỉ trưa
+                      // hoặc check in trước nghỉ trưa và check out trong/trước nghỉ trưa
+                      if ((checkInMinutes >= breakStartMinutes && checkInMinutes <= breakEndMinutes + 15 &&
+                           checkOutMinutes >= breakStartMinutes && checkOutMinutes <= breakEndMinutes + 15) ||
+                          (checkInMinutes < breakStartMinutes && checkOutMinutes <= breakEndMinutes)) {
+                        isHalfDayWork = true
+                      }
+                    }
 
                     return (
-                      <TableRow key={date} className={hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay) ? "bg-red-50" : ""}>
+                      <TableRow 
+                        key={date} 
+                        className={
+                          isHalfDayWork 
+                            ? "bg-yellow-50" 
+                            : hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay) 
+                            ? "bg-red-50" 
+                            : ""
+                        }
+                      >
                         <TableCell>{formatDateVN(date)}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="font-mono">
@@ -533,6 +566,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                               </TooltipTrigger>
                               <TooltipContent>Quên chấm công vào</TooltipContent>
                             </Tooltip>
+                          ) : isHalfDayWork ? (
+                            <span className="text-yellow-600 font-medium">{formatTimeVN(log.check_in)}</span>
                           ) : isLate ? (
                             <Tooltip>
                               <TooltipTrigger>
@@ -562,6 +597,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                               </TooltipTrigger>
                               <TooltipContent>Quên chấm công ra</TooltipContent>
                             </Tooltip>
+                          ) : isHalfDayWork ? (
+                            <span className="text-yellow-600 font-medium">{formatTimeVN(log.check_out)}</span>
                           ) : isEarlyLeave ? (
                             <Tooltip>
                               <TooltipTrigger>
@@ -602,6 +639,18 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                               <Badge variant="destructive" className="gap-1">
                                 <AlertTriangle className="h-3 w-3" />
                                 Nghỉ không phép
+                              </Badge>
+                            )
+                          ) : isHalfDayWork ? (
+                            hasApprovedLeave ? (
+                              <Badge className="bg-yellow-100 text-yellow-800 gap-1">
+                                <Calendar className="h-3 w-3" />
+                                Nghỉ nửa ngày phép năm
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-yellow-100 text-yellow-800 gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Nghỉ nửa ngày không phép
                               </Badge>
                             )
                           ) : hasViolation ? (
