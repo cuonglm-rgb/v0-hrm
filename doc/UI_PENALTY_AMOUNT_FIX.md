@@ -19,7 +19,7 @@ UI cũ có 2 field gây nhầm lẫn:
 
 ### 1. Ẩn field "Số tiền" ở đầu form khi category = "penalty"
 
-```tsx
+\`\`\`tsx
 {/* Chỉ hiển thị field Số tiền nếu KHÔNG phải penalty HOẶC penalty_type = fixed_amount */}
 {(formData.category !== "penalty" || formData.auto_rules.penalty_type === "fixed_amount") && (
   <div className="space-y-2">
@@ -27,13 +27,13 @@ UI cũ có 2 field gây nhầm lẫn:
     <Input ... />
   </div>
 )}
-```
+\`\`\`
 
 ### 2. Thêm field "Số tiền phạt" sau "Loại phạt"
 
 Chỉ hiển thị khi chọn "Số tiền cố định":
 
-```tsx
+\`\`\`tsx
 {/* Chỉ hiển thị field Số tiền khi chọn "Số tiền cố định" */}
 {formData.auto_rules.penalty_type === "fixed_amount" && (
   <div className="space-y-2 pl-4 border-l-2 border-blue-300">
@@ -47,13 +47,13 @@ Chỉ hiển thị khi chọn "Số tiền cố định":
     <p className="text-xs text-muted-foreground">Số tiền phạt cố định cho mỗi lần vi phạm</p>
   </div>
 )}
-```
+\`\`\`
 
 ## Luồng UI mới
 
 ### Khi tạo/sửa Phụ cấp hoặc Khấu trừ
 
-```
+\`\`\`
 ┌─────────────────────────────────┐
 │ Tên: Phụ cấp ăn trưa           │
 │ Mã: LUNCH                       │
@@ -61,11 +61,11 @@ Chỉ hiển thị khi chọn "Số tiền cố định":
 │ Số tiền (VND): 35,000          │ ← Hiển thị bình thường
 │ Cách tính: Theo ngày công       │
 └─────────────────────────────────┘
-```
+\`\`\`
 
 ### Khi tạo/sửa Phạt - Chọn "Nửa ngày lương"
 
-```
+\`\`\`
 ┌─────────────────────────────────┐
 │ Tên: Quên chấm công            │
 │ Mã: FORGOT_CHECKIN              │
@@ -79,11 +79,11 @@ Chỉ hiển thị khi chọn "Số tiền cố định":
 │ Loại phạt: Nửa ngày lương      │ ← Chọn này
 │ [KHÔNG hiển thị field Số tiền] │ ← Không cần nhập
 └─────────────────────────────────┘
-```
+\`\`\`
 
 ### Khi tạo/sửa Phạt - Chọn "Số tiền cố định"
 
-```
+\`\`\`
 ┌─────────────────────────────────┐
 │ Tên: Quên chấm công            │
 │ Mã: FORGOT_CHECKIN              │
@@ -99,7 +99,7 @@ Chỉ hiển thị khi chọn "Số tiền cố định":
 │   │ Số tiền phạt: 50,000 *   │ │ ← Hiển thị field mới
 │   └───────────────────────────┘ │
 └─────────────────────────────────┘
-```
+\`\`\`
 
 ## Lợi ích
 

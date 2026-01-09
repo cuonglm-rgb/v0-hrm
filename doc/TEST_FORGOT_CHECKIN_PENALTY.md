@@ -125,9 +125,9 @@
 1. Kiểm tra status của phiếu trong database
 2. Kiểm tra cấu hình loại phạt trong trang **Phụ cấp & Phạt**
 3. Chạy SQL script để cập nhật trigger:
-   ```bash
+   \`\`\`bash
    psql -d your_database -f scripts/026-fix-forgot-checkin-penalty-trigger.sql
-   ```
+   \`\`\`
 4. Tính lại lương (Refresh payroll)
 
 ### Vấn đề: Bị phạt 2 lần cho cùng 1 ngày

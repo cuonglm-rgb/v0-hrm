@@ -63,7 +63,7 @@ Tài liệu này mô tả logic xử lý trường hợp nhân viên làm việc
 ## Ví Dụ Cụ Thể
 
 ### Ví dụ 1: Làm ca chiều
-```
+\`\`\`
 Ca làm việc: 08:00 - 17:00 (nghỉ trưa 12:00 - 13:00)
 Check-in: 13:01
 Check-out: 17:00
@@ -73,10 +73,10 @@ Kết quả:
 - Trạng thái: "Nghỉ nửa ngày không phép" (nếu không có phiếu)
 - Ngày công: 0.5
 - Phạt: Không
-```
+\`\`\`
 
 ### Ví dụ 2: Làm ca sáng
-```
+\`\`\`
 Ca làm việc: 08:00 - 17:00 (nghỉ trưa 12:00 - 13:00)
 Check-in: 08:00
 Check-out: 12:30
@@ -86,10 +86,10 @@ Kết quả:
 - Trạng thái: "Nghỉ nửa ngày phép năm" (nếu có phiếu)
 - Ngày công: 0.5
 - Phạt: Không
-```
+\`\`\`
 
 ### Ví dụ 3: Đi muộn ca chiều
-```
+\`\`\`
 Ca làm việc: 08:00 - 17:00 (nghỉ trưa 12:00 - 13:00)
 Check-in: 14:00 (muộn hơn 13:15)
 Check-out: 17:00
@@ -99,7 +99,7 @@ Kết quả:
 - Trạng thái: "Vi phạm" (đi muộn 60 phút)
 - Ngày công: 0.5
 - Phạt: Có (nếu không có phiếu)
-```
+\`\`\`
 
 ## Files Đã Cập Nhật
 
