@@ -393,7 +393,7 @@ export async function generatePayroll(month: number, year: number) {
     .single()
 
   if (existingRun) {
-    if (existingRun.status !== "draft") {
+    if (existingRun.status !== "draft" && existingRun.status !== "review") {
       return { success: false, error: "Bảng lương tháng này đã khóa, không thể tạo lại" }
     }
     // Xóa payroll items và adjustment details cũ
@@ -1242,6 +1242,23 @@ export async function generatePayroll(month: number, year: number) {
     )
     const totalOTPay = otResult.totalOTPay
 
+    // Lưu chi tiết OT vào adjustmentDetails
+    // Tìm adjustment_type cho overtime (nếu có)
+    const otAdjustmentType = adjustmentTypes?.find((t: any) => t.code === 'overtime')
+    if (otAdjustmentType && otResult.details.length > 0) {
+      for (const otDetail of otResult.details) {
+        adjustmentDetails.push({
+          adjustment_type_id: otAdjustmentType.id,
+          category: 'allowance',
+          base_amount: otDetail.amount,
+          adjusted_amount: 0,
+          final_amount: otDetail.amount,
+          reason: `${otDetail.otType} (${otDetail.hours}h x ${otDetail.multiplier}) ngày ${otDetail.date}`,
+          occurrence_count: otDetail.hours,
+        })
+      }
+    }
+
     // =============================================
     // TÍNH LƯƠNG CUỐI CÙNG
     // =============================================
@@ -1285,6 +1302,7 @@ export async function generatePayroll(month: number, year: number) {
         total_income: grossSalary,
         total_deduction: totalDeduction,
         net_salary: netSalary,
+        standard_working_days: STANDARD_WORKING_DAYS, // Công chuẩn của tháng
         note: noteItems.join(", ") || null,
       })
       .select()
@@ -1301,7 +1319,15 @@ export async function generatePayroll(month: number, year: number) {
           ...d,
           payroll_item_id: payrollItem.id,
         }))
-        await supabase.from("payroll_adjustment_details").insert(detailsWithItemId)
+        console.log(`[Payroll] ${emp.full_name}: Inserting ${detailsWithItemId.length} adjustment details`)
+        const { error: detailsError } = await supabase.from("payroll_adjustment_details").insert(detailsWithItemId)
+        if (detailsError) {
+          console.error(`[Payroll] ${emp.full_name}: Error inserting adjustment details:`, detailsError)
+        } else {
+          console.log(`[Payroll] ${emp.full_name}: Successfully inserted ${detailsWithItemId.length} adjustment details`)
+        }
+      } else {
+        console.log(`[Payroll] ${emp.full_name}: No adjustment details to insert (length: ${adjustmentDetails.length})`)
       }
     }
   }
@@ -1314,6 +1340,24 @@ export async function generatePayroll(month: number, year: number) {
 // HR ACTIONS - LOCK/UNLOCK PAYROLL
 // =============================================
 
+export async function sendPayrollForReview(id: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("payroll_runs")
+    .update({ status: "review" })
+    .eq("id", id)
+    .eq("status", "draft")
+
+  if (error) {
+    console.error("Error sending payroll for review:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/payroll")
+  return { success: true }
+}
+
 export async function lockPayroll(id: string) {
   const supabase = await createClient()
 
@@ -1321,7 +1365,7 @@ export async function lockPayroll(id: string) {
     .from("payroll_runs")
     .update({ status: "locked" })
     .eq("id", id)
-    .eq("status", "draft")
+    .in("status", ["draft", "review"])
 
   if (error) {
     console.error("Error locking payroll:", error)
@@ -1353,12 +1397,12 @@ export async function markPayrollPaid(id: string) {
 export async function deletePayrollRun(id: string) {
   const supabase = await createClient()
 
-  // Chỉ xóa được draft
+  // Chỉ xóa được draft hoặc review
   const { error } = await supabase
     .from("payroll_runs")
     .delete()
     .eq("id", id)
-    .eq("status", "draft")
+    .in("status", ["draft", "review"])
 
   if (error) {
     console.error("Error deleting payroll run:", error)
@@ -1383,9 +1427,9 @@ export async function refreshPayroll(id: string) {
     return { success: false, error: "Không tìm thấy bảng lương" }
   }
 
-  // Chỉ refresh được draft
-  if (run.status !== "draft") {
-    return { success: false, error: "Chỉ có thể tính lại bảng lương ở trạng thái Nháp" }
+  // Chỉ refresh được draft hoặc review
+  if (run.status !== "draft" && run.status !== "review") {
+    return { success: false, error: "Chỉ có thể tính lại bảng lương ở trạng thái Nháp hoặc Đang xem xét" }
   }
 
   // Gọi lại generatePayroll với tháng/năm của bảng lương hiện tại

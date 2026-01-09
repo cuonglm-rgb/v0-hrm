@@ -139,6 +139,7 @@ export interface PayrollItem {
   total_income: number
   total_deduction: number
   net_salary: number
+  standard_working_days: number
   note: string | null
   created_at: string
 }

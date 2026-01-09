@@ -117,6 +117,8 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
         return <Badge className="bg-blue-100 text-blue-800">🔒 Đã khóa</Badge>
       case "paid":
         return <Badge className="bg-green-100 text-green-800">✅ Đã trả</Badge>
+      case "review":
+        return <Badge className="bg-amber-100 text-amber-800">👁️ Đang xem xét</Badge>
       default:
         return <Badge variant="secondary">📝 Nháp</Badge>
     }
@@ -124,13 +126,14 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
 
   // Stats
   const draftCount = payrollRuns.filter((r) => r.status === "draft").length
+  const reviewCount = payrollRuns.filter((r) => r.status === "review").length
   const lockedCount = payrollRuns.filter((r) => r.status === "locked").length
   const paidCount = payrollRuns.filter((r) => r.status === "paid").length
 
   return (
     <div className="space-y-6">
       {/* Thống kê */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -138,6 +141,15 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
               <span className="text-sm text-muted-foreground">Nháp</span>
             </div>
             <p className="text-2xl font-bold mt-1">{draftCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-amber-400" />
+              <span className="text-sm text-muted-foreground">Đang xem xét</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">{reviewCount}</p>
           </CardContent>
         </Card>
         <Card>
@@ -258,7 +270,7 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
                             Xem
                           </Link>
                         </Button>
-                        {run.status === "draft" && (
+                        {(run.status === "draft" || run.status === "review") && (
                           <>
                             <Button
                               size="sm"

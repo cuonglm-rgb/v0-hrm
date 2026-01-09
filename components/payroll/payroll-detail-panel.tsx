@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { lockPayroll, markPayrollPaid } from "@/lib/actions/payroll-actions"
+import { lockPayroll, markPayrollPaid, sendPayrollForReview } from "@/lib/actions/payroll-actions"
 import { PayrollBreakdownDialog } from "./payroll-breakdown-dialog"
 import type { PayrollRun, PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
@@ -33,9 +33,16 @@ export function PayrollDetailPanel({
   standardWorkingDays = 26,
   workingDaysInfo 
 }: PayrollDetailPanelProps) {
-  const [loading, setLoading] = useState<"lock" | "paid" | null>(null)
+  const [loading, setLoading] = useState<"review" | "lock" | "paid" | null>(null)
   const [selectedItem, setSelectedItem] = useState<PayrollItemWithRelations | null>(null)
   const [showBreakdown, setShowBreakdown] = useState(false)
+
+  const handleSendForReview = async () => {
+    if (!confirm("Gửi bảng lương cho nhân viên xem xét và kiến nghị?")) return
+    setLoading("review")
+    await sendPayrollForReview(payrollRun.id)
+    setLoading(null)
+  }
 
   const handleLock = async () => {
     if (!confirm("Sau khi khóa sẽ không thể chỉnh sửa. Bạn có chắc?")) return
@@ -57,6 +64,8 @@ export function PayrollDetailPanel({
         return <Badge className="bg-blue-100 text-blue-800">🔒 Đã khóa</Badge>
       case "paid":
         return <Badge className="bg-green-100 text-green-800">✅ Đã trả</Badge>
+      case "review":
+        return <Badge className="bg-amber-100 text-amber-800">👁️ Đang xem xét</Badge>
       default:
         return <Badge variant="secondary">📝 Nháp</Badge>
     }
@@ -80,6 +89,23 @@ export function PayrollDetailPanel({
         <div className="flex items-center gap-2">
           {getStatusBadge(payrollRun.status)}
           {payrollRun.status === "draft" && (
+            <>
+              <Button 
+                onClick={handleSendForReview} 
+                disabled={loading === "review"} 
+                variant="outline"
+                className="gap-2"
+              >
+                <Eye className="h-4 w-4" />
+                {loading === "review" ? "Đang gửi..." : "Gửi xem xét"}
+              </Button>
+              <Button onClick={handleLock} disabled={loading === "lock"} className="gap-2">
+                <Lock className="h-4 w-4" />
+                {loading === "lock" ? "Đang khóa..." : "Khóa ngay"}
+              </Button>
+            </>
+          )}
+          {payrollRun.status === "review" && (
             <Button onClick={handleLock} disabled={loading === "lock"} className="gap-2">
               <Lock className="h-4 w-4" />
               {loading === "lock" ? "Đang khóa..." : "Khóa bảng lương"}

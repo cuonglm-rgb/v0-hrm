@@ -3,16 +3,37 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import type { PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
 import { Wallet, Calendar, TrendingUp, TrendingDown } from "lucide-react"
+import { useState } from "react"
+import { getPayrollAdjustmentDetails } from "@/lib/actions/payroll-actions"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface PayslipPanelProps {
   payslips: PayrollItemWithRelations[]
 }
 
+interface AdjustmentDetail {
+  id: string
+  category: string
+  final_amount: number
+  reason: string
+  occurrence_count: number
+  adjustment_type: {
+    id: string
+    name: string
+    code: string
+    category: string
+  }
+}
+
 export function PayslipPanel({ payslips }: PayslipPanelProps) {
   const latestPayslip = payslips[0]
+  const [selectedPayslip, setSelectedPayslip] = useState<PayrollItemWithRelations | null>(null)
+  const [adjustmentDetails, setAdjustmentDetails] = useState<AdjustmentDetail[]>([])
+  const [isLoading, setIsLoading] = useState(false)
 
   const getStatusBadge = (status: string | undefined) => {
     switch (status) {
@@ -20,9 +41,30 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
         return <Badge className="bg-green-100 text-green-800">✅ Đã trả</Badge>
       case "locked":
         return <Badge className="bg-blue-100 text-blue-800">🔒 Đã khóa</Badge>
+      case "review":
+        return <Badge className="bg-amber-100 text-amber-800">👁️ Đang xem xét</Badge>
       default:
         return <Badge variant="secondary">Chờ xử lý</Badge>
     }
+  }
+
+  const loadAdjustmentDetails = async (payslipId: string) => {
+    setIsLoading(true)
+    console.log('[PayslipPanel] Loading adjustment details for:', payslipId)
+    try {
+      const details = await getPayrollAdjustmentDetails(payslipId)
+      console.log('[PayslipPanel] Loaded adjustment details:', details)
+      setAdjustmentDetails(details as AdjustmentDetail[])
+    } catch (error) {
+      console.error("[PayslipPanel] Error loading adjustment details:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleViewDetails = (payslip: PayrollItemWithRelations) => {
+    setSelectedPayslip(payslip)
+    loadAdjustmentDetails(payslip.id)
   }
 
   return (
@@ -98,6 +140,13 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                   {formatCurrency(latestPayslip.net_salary)}
                 </span>
               </div>
+              
+              <button
+                onClick={() => handleViewDetails(latestPayslip)}
+                className="w-full mt-4 py-2 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Xem chi tiết cơ cấu lương
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -122,12 +171,13 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                 <TableHead className="text-right">Khấu trừ</TableHead>
                 <TableHead className="text-right">Thực lĩnh</TableHead>
                 <TableHead>Trạng thái</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {payslips.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     Chưa có phiếu lương nào
                   </TableCell>
                 </TableRow>
@@ -148,6 +198,14 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                       {formatCurrency(payslip.net_salary)}
                     </TableCell>
                     <TableCell>{getStatusBadge(payslip.payroll_run?.status)}</TableCell>
+                    <TableCell>
+                      <button
+                        onClick={() => handleViewDetails(payslip)}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Chi tiết
+                      </button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -155,6 +213,270 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog chi tiết cơ cấu lương */}
+      <Dialog open={!!selectedPayslip} onOpenChange={(open) => !open && setSelectedPayslip(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Chi tiết cơ cấu lương</DialogTitle>
+            {selectedPayslip && (
+              <p className="text-sm text-muted-foreground">
+                {selectedPayslip.employee?.full_name} - NV{selectedPayslip.employee?.employee_code} - Tháng {selectedPayslip.payroll_run?.month}/{selectedPayslip.payroll_run?.year}
+              </p>
+            )}
+          </DialogHeader>
+
+          {selectedPayslip && (
+            <div className="space-y-6 mt-4">
+              {isLoading && (
+                <div className="text-center py-4">
+                  <p className="text-sm text-muted-foreground">Đang tải chi tiết...</p>
+                </div>
+              )}
+              
+              {/* Thông tin tổng quan */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="p-3 bg-muted/50 rounded-lg text-center">
+                  <p className="text-xs text-muted-foreground">Lương cơ bản</p>
+                  <p className="text-lg font-bold">{formatCurrency(selectedPayslip.base_salary)}</p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-lg text-center">
+                  <p className="text-xs text-muted-foreground">Lương ngày</p>
+                  <p className="text-lg font-bold">
+                    {formatCurrency(selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25))}
+                  </p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-lg text-center">
+                  <p className="text-xs text-muted-foreground">Công chuẩn</p>
+                  <p className="text-lg font-bold">{selectedPayslip.standard_working_days || 25} ngày</p>
+                </div>
+              </div>
+
+              {/* Thu nhập */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                  <h3 className="font-semibold text-green-600">Thu nhập</h3>
+                </div>
+                
+                <div className="space-y-2 pl-7">
+                  {/* Lương theo ngày công */}
+                  {selectedPayslip.working_days > 0 && (
+                    <div className="flex justify-between py-2">
+                      <span className="text-sm text-muted-foreground">
+                        Lương theo ngày công ({selectedPayslip.working_days} ngày)
+                      </span>
+                      <span className="text-sm font-medium text-green-600">
+                        +{formatCurrency((selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25)) * selectedPayslip.working_days)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Lương nghỉ phép có lương */}
+                  {selectedPayslip.leave_days > 0 && (
+                    <div className="flex justify-between py-2">
+                      <span className="text-sm text-muted-foreground">
+                        Lương nghỉ phép có lương ({selectedPayslip.leave_days} ngày)
+                      </span>
+                      <span className="text-sm font-medium text-green-600">
+                        +{formatCurrency((selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25)) * selectedPayslip.leave_days)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Phụ cấp */}
+                  {!isLoading && adjustmentDetails.filter((d) => d.category === "allowance" && d.adjustment_type?.code !== 'overtime').length > 0 && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Phụ cấp:</p>
+                      {adjustmentDetails
+                        .filter((d) => d.category === "allowance" && d.adjustment_type?.code !== 'overtime')
+                        .map((detail, idx) => (
+                          <div key={idx} className="flex justify-between py-1.5">
+                            <span className="text-sm text-muted-foreground">
+                              {detail.adjustment_type.name}
+                              {detail.reason && detail.reason !== detail.adjustment_type.name && (
+                                <span className="text-xs ml-1">({detail.reason})</span>
+                              )}
+                            </span>
+                            <span className="text-sm font-medium text-green-600">
+                              +{formatCurrency(detail.final_amount)}
+                            </span>
+                          </div>
+                        ))}
+                      {/* Tổng phụ cấp */}
+                      <div className="flex justify-between py-1.5 pt-2 border-t mt-1 font-medium">
+                        <span className="text-sm">Tổng phụ cấp</span>
+                        <span className="text-sm text-green-600">
+                          +{formatCurrency(adjustmentDetails
+                            .filter((d) => d.category === "allowance" && d.adjustment_type?.code !== 'overtime')
+                            .reduce((sum, d) => sum + d.final_amount, 0))}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tiền tăng ca */}
+                  {!isLoading && adjustmentDetails.filter(d => d.adjustment_type?.code === 'overtime').length > 0 && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Tiền tăng ca:</p>
+                      {adjustmentDetails
+                        .filter((d) => d.adjustment_type?.code === 'overtime')
+                        .map((detail, idx) => (
+                          <div key={idx} className="flex justify-between py-1.5">
+                            <span className="text-sm text-muted-foreground">
+                              {detail.reason}
+                            </span>
+                            <span className="text-sm font-medium text-green-600">
+                              +{formatCurrency(detail.final_amount)}
+                            </span>
+                          </div>
+                        ))}
+                      {/* Tổng tăng ca */}
+                      <div className="flex justify-between py-1.5 pt-2 border-t mt-1 font-medium">
+                        <span className="text-sm">
+                          Tổng tăng ca ({adjustmentDetails
+                            .filter((d) => d.adjustment_type?.code === 'overtime')
+                            .reduce((sum, d) => sum + (d.occurrence_count || 0), 0).toFixed(1)}h)
+                        </span>
+                        <span className="text-sm text-green-600">
+                          +{formatCurrency(adjustmentDetails
+                            .filter((d) => d.adjustment_type?.code === 'overtime')
+                            .reduce((sum, d) => sum + d.final_amount, 0))}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Fallback nếu không có chi tiết */}
+                  {!isLoading && adjustmentDetails.length === 0 && selectedPayslip.allowances > 0 && (
+                    <div className="pt-2 border-t">
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                        <p className="text-xs font-medium text-amber-800 mb-1">⚠️ Chi tiết chưa khả dụng</p>
+                        <p className="text-xs text-amber-700">
+                          Bảng lương này được tạo trước khi cập nhật hệ thống. Vui lòng yêu cầu HR tạo lại bảng lương để xem chi tiết phụ cấp và tăng ca.
+                        </p>
+                      </div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Phụ cấp và tăng ca:</p>
+                      <div className="flex justify-between py-1.5">
+                        <span className="text-sm text-muted-foreground">
+                          Tổng phụ cấp và tăng ca
+                        </span>
+                        <span className="text-sm font-medium text-green-600">
+                          +{formatCurrency(selectedPayslip.allowances)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tổng thu nhập */}
+                  <div className="flex justify-between py-2 pt-3 border-t font-semibold">
+                    <span>Tổng thu nhập</span>
+                    <span className="text-blue-600">
+                      {formatCurrency(selectedPayslip.total_income)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Khấu trừ */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingDown className="h-5 w-5 text-red-600" />
+                  <h3 className="font-semibold text-red-600">Khấu trừ</h3>
+                </div>
+                
+                <div className="space-y-2 pl-7">
+                  {/* Nghỉ không lương */}
+                  {selectedPayslip.unpaid_leave_days > 0 && (
+                    <div className="flex justify-between py-2">
+                      <span className="text-sm text-muted-foreground">
+                        Nghỉ không lương ({selectedPayslip.unpaid_leave_days} ngày)
+                      </span>
+                      <span className="text-sm font-medium text-red-600">
+                        -{formatCurrency((selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25)) * selectedPayslip.unpaid_leave_days)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Khấu trừ (BHXH, quỹ...) */}
+                  {!isLoading && adjustmentDetails.filter((d) => d.category === "deduction").length > 0 && (
+                    <>
+                      {adjustmentDetails
+                        .filter((d) => d.category === "deduction")
+                        .map((detail, idx) => (
+                          <div key={idx} className="flex justify-between py-2">
+                            <span className="text-sm text-muted-foreground">
+                              {detail.adjustment_type.name}
+                            </span>
+                            <span className="text-sm font-medium text-red-600">
+                              -{formatCurrency(detail.final_amount)}
+                            </span>
+                          </div>
+                        ))}
+                    </>
+                  )}
+
+                  {/* Phạt */}
+                  {!isLoading && adjustmentDetails.filter((d) => d.category === "penalty").length > 0 && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Phạt:</p>
+                      {adjustmentDetails
+                        .filter((d) => d.category === "penalty")
+                        .map((detail, idx) => (
+                          <div key={idx} className="flex justify-between py-1.5">
+                            <span className="text-sm text-muted-foreground">
+                              {detail.reason}
+                            </span>
+                            <span className="text-sm font-medium text-red-600">
+                              -{formatCurrency(detail.final_amount)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                  
+                  {/* Fallback nếu không có chi tiết nhưng có khấu trừ */}
+                  {!isLoading && adjustmentDetails.filter((d) => d.category === "deduction" || d.category === "penalty").length === 0 && selectedPayslip.total_deduction > 0 && (
+                    <div className="pt-2 border-t">
+                      <div className="flex justify-between py-2">
+                        <span className="text-sm text-muted-foreground">
+                          Các khoản khấu trừ và phạt
+                        </span>
+                        <span className="text-sm font-medium text-red-600">
+                          -{formatCurrency(selectedPayslip.total_deduction - (selectedPayslip.unpaid_leave_days * (selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25))))}
+                        </span>
+                      </div>
+
+                    </div>
+                  )}
+
+                  {/* Tổng khấu trừ */}
+                  <div className="flex justify-between py-2 pt-3 border-t font-semibold">
+                    <span>Tổng khấu trừ</span>
+                    <span className="text-red-600">
+                      {formatCurrency(selectedPayslip.total_deduction)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Thực lĩnh */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-semibold">Thực lĩnh</span>
+                  <span className="text-2xl font-bold text-green-600">
+                    {formatCurrency(selectedPayslip.net_salary)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
