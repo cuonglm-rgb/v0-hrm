@@ -303,7 +303,8 @@ async function getEmployeeViolations(
       let hasCheckOut = false
       if (log.check_out) {
         const checkOutDate = new Date(log.check_out)
-        checkOutMinutes = checkOutDate.getHours() * 60 + checkOutDate.getMinutes()
+        const { hours: checkOutHour, minutes: checkOutMin } = getTimePartsVN(checkOutDate)
+        checkOutMinutes = checkOutHour * 60 + checkOutMin
         hasCheckOut = true
       }
 
