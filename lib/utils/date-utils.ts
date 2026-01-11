@@ -4,7 +4,7 @@ export const VN_OFFSET_HOURS = 7
 
 /**
  * Chuyển đổi Date sang giờ Việt Nam và trả về các thành phần
- * Đây là hàm cơ sở để tính toán timezone chính xác trên server
+ * Sử dụng Intl.DateTimeFormat để đảm bảo chính xác trên mọi server
  */
 export function getVNDateParts(date: Date = new Date()): {
   year: number
@@ -14,17 +14,28 @@ export function getVNDateParts(date: Date = new Date()): {
   minutes: number
   seconds: number
 } {
-  // Tính offset UTC+7 bằng cách cộng 7 giờ vào UTC time
-  const utcTime = date.getTime() + date.getTimezoneOffset() * 60000
-  const vnTime = new Date(utcTime + VN_OFFSET_HOURS * 3600000)
+  // Sử dụng Intl.DateTimeFormat để lấy các thành phần theo timezone VN
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: VN_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+  
+  const parts = formatter.formatToParts(date)
+  const getPart = (type: string) => parseInt(parts.find(p => p.type === type)?.value || "0", 10)
   
   return {
-    year: vnTime.getFullYear(),
-    month: vnTime.getMonth() + 1, // 1-12
-    day: vnTime.getDate(),
-    hours: vnTime.getHours(),
-    minutes: vnTime.getMinutes(),
-    seconds: vnTime.getSeconds(),
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hours: getPart("hour"),
+    minutes: getPart("minute"),
+    seconds: getPart("second"),
   }
 }
 
