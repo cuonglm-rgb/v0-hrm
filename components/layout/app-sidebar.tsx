@@ -141,7 +141,7 @@ export function AppSidebar({ employee, userRoles, canApproveRequests }: AppSideb
             <Image src="/pamo.png" alt="Pamo Logo" width={40} height={40} className="rounded-xl" />
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold text-sidebar-foreground">Pamo HRM</span>
+            <span className="font-semibold text-sidebar-foreground">Pamo Team HRM</span>
           </div>
         </div>
       </SidebarHeader>

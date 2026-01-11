@@ -8,6 +8,7 @@ import type {
   AdjustmentCategory,
   EmployeeAdjustmentWithType,
 } from "@/lib/types/database"
+import { getNowVN } from "@/lib/utils/date-utils"
 
 // =============================================
 // ADJUSTMENT TYPE ACTIONS
@@ -263,7 +264,7 @@ export async function approveTimeRequest(id: string, status: "approved" | "rejec
     .update({
       status,
       approver_id: approver?.id,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
     })
     .eq("id", id)
 

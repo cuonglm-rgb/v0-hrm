@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover } from "@/lib/types/database"
+import { getNowVN } from "@/lib/utils/date-utils"
 
 // =============================================
 // REQUEST TYPES (Loại phiếu)
@@ -610,7 +611,7 @@ export async function approveEmployeeRequest(id: string) {
           .from("request_assigned_approvers")
           .update({ 
             status: "approved",
-            approved_at: new Date().toISOString()
+            approved_at: getNowVN()
           })
           .eq("request_id", id)
           .eq("approver_id", approverEmployee.id)
@@ -637,7 +638,7 @@ export async function approveEmployeeRequest(id: string) {
           .update({
             status: "rejected",
             approver_id: approverEmployee.id,
-            approved_at: new Date().toISOString(),
+            approved_at: getNowVN(),
           })
           .eq("id", id)
 
@@ -652,7 +653,7 @@ export async function approveEmployeeRequest(id: string) {
           .update({
             status: "approved",
             approver_id: approverEmployee.id,
-            approved_at: new Date().toISOString(),
+            approved_at: getNowVN(),
           })
           .eq("id", id)
 
@@ -682,7 +683,7 @@ export async function approveEmployeeRequest(id: string) {
         request_id: id,
         approver_id: approverEmployee.id,
         status: "approved",
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       }, { onConflict: "request_id,approver_id" })
 
     if (approvalError) {
@@ -695,7 +696,7 @@ export async function approveEmployeeRequest(id: string) {
           .update({
             status: "approved",
             approver_id: approverEmployee.id,
-            approved_at: new Date().toISOString(),
+            approved_at: getNowVN(),
           })
           .eq("id", id)
           .eq("status", "pending")
@@ -737,7 +738,7 @@ export async function approveEmployeeRequest(id: string) {
     .update({
       status: "approved",
       approver_id: approverEmployee.id,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
     })
     .eq("id", id)
     .eq("status", "pending")
@@ -775,7 +776,7 @@ async function checkAndFinalizeApproval(
       .update({
         status: "approved",
         approver_id: currentApproverId,
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       })
       .eq("id", requestId)
       .eq("status", "pending")
@@ -852,7 +853,7 @@ async function checkAndFinalizeApproval(
       .update({
         status: "approved",
         approver_id: currentApproverId,
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       })
       .eq("id", requestId)
       .eq("status", "pending")
@@ -1010,7 +1011,7 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
           .from("request_assigned_approvers")
           .update({ 
             status: "rejected",
-            approved_at: new Date().toISOString()
+            approved_at: getNowVN()
           })
           .eq("request_id", id)
           .eq("approver_id", approverEmployee.id)
@@ -1024,7 +1025,7 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
     .update({
       status: "rejected",
       approver_id: approverEmployee.id,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
       rejection_reason,
     })
     .eq("id", id)
@@ -1495,7 +1496,7 @@ export async function approveRequestByApprover(requestId: string, comment?: stri
       approver_id: approverEmployee.id,
       status: "approved",
       comment,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
     }, { onConflict: "request_id,approver_id" })
 
   if (approvalError) {
@@ -1576,7 +1577,7 @@ export async function rejectRequestByApprover(requestId: string, comment?: strin
       approver_id: approverEmployee.id,
       status: "rejected",
       comment,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
     }, { onConflict: "request_id,approver_id" })
 
   if (approvalError) {
@@ -1590,7 +1591,7 @@ export async function rejectRequestByApprover(requestId: string, comment?: strin
     .update({
       status: "rejected",
       approver_id: approverEmployee.id,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
       rejection_reason: comment,
     })
     .eq("id", requestId)
@@ -1637,7 +1638,7 @@ async function checkAndUpdateRequestStatus(requestId: string) {
       .update({
         status: "rejected",
         approver_id: rejector?.approver_id,
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       })
       .eq("id", requestId)
     return
@@ -1652,7 +1653,7 @@ async function checkAndUpdateRequestStatus(requestId: string) {
       .update({
         status: "approved",
         approver_id: approver?.approver_id,
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       })
       .eq("id", requestId)
   } else if (approvalMode === "all") {
@@ -1674,7 +1675,7 @@ async function checkAndUpdateRequestStatus(requestId: string) {
           .update({
             status: "approved",
             approver_id: approver?.approver_id,
-            approved_at: new Date().toISOString(),
+            approved_at: getNowVN(),
           })
           .eq("id", requestId)
       }
@@ -1743,7 +1744,7 @@ async function checkAndUpdateRequestStatus(requestId: string) {
         .update({
           status: "approved",
           approver_id: lastApprover?.approver_id,
-          approved_at: new Date().toISOString(),
+          approved_at: getNowVN(),
         })
         .eq("id", requestId)
     }

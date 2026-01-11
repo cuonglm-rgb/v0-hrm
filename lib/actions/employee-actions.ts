@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { Employee, EmployeeWithRelations, UserRoleWithRelations } from "@/lib/types/database"
+import { getTodayVN, getNowVN } from "@/lib/utils/date-utils"
 
 export async function getMyEmployee(): Promise<EmployeeWithRelations | null> {
   const supabase = await createClient()
@@ -106,7 +107,7 @@ export async function updateEmployee(
 
   const { error } = await supabase
     .from("employees")
-    .update({ ...data, updated_at: new Date().toISOString() })
+    .update({ ...data, updated_at: getNowVN() })
     .eq("id", id)
 
   if (error) {
@@ -129,7 +130,7 @@ export async function updateMyProfile(data: Partial<Pick<Employee, "full_name" |
 
   const { error } = await supabase
     .from("employees")
-    .update({ ...data, updated_at: new Date().toISOString() })
+    .update({ ...data, updated_at: getNowVN() })
     .eq("user_id", user.id)
 
   if (error) {
@@ -152,7 +153,7 @@ export async function createEmployee(data: {
   const supabase = await createClient()
 
   // Generate employee code
-  const code = `NV${new Date().toISOString().slice(0, 7).replace("-", "")}${Math.floor(Math.random() * 10000)
+  const code = `NV${getNowVN().slice(0, 7).replace("-", "")}${Math.floor(Math.random() * 10000)
     .toString()
     .padStart(4, "0")}`
 
@@ -193,7 +194,7 @@ export async function changeDepartment(
 
   if (!employee) return { success: false, error: "Employee not found" }
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = getTodayVN()
 
   // Đóng record lịch sử cũ
   await supabase
@@ -214,7 +215,7 @@ export async function changeDepartment(
   // Update employee
   const { error } = await supabase
     .from("employees")
-    .update({ department_id: newDepartmentId, updated_at: new Date().toISOString() })
+    .update({ department_id: newDepartmentId, updated_at: getNowVN() })
     .eq("id", employeeId)
 
   if (error) {
@@ -244,7 +245,7 @@ export async function changePosition(
 
   if (!employee) return { success: false, error: "Employee not found" }
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = getTodayVN()
 
   // Đóng record lịch sử cũ
   await supabase
@@ -265,7 +266,7 @@ export async function changePosition(
   // Update employee
   const { error } = await supabase
     .from("employees")
-    .update({ position_id: newPositionId, updated_at: new Date().toISOString() })
+    .update({ position_id: newPositionId, updated_at: getNowVN() })
     .eq("id", employeeId)
 
   if (error) {

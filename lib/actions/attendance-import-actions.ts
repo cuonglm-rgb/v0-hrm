@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import * as XLSX from "xlsx"
+import { createVNTimestamp } from "@/lib/utils/date-utils"
 
 interface ImportResult {
   success: boolean
@@ -134,8 +135,8 @@ export async function importAttendanceFromExcel(
       const checkOutTime = parseTimeValue(checkOutValue)
 
       // Tạo timestamp với múi giờ VN (+07:00)
-      const checkInTimestamp = `${dateStr}T${checkInTime}:00+07:00`
-      const checkOutTimestamp = checkOutTime ? `${dateStr}T${checkOutTime}:00+07:00` : null
+      const checkInTimestamp = createVNTimestamp(dateStr, checkInTime)
+      const checkOutTimestamp = checkOutTime ? createVNTimestamp(dateStr, checkOutTime) : null
 
       // Kiểm tra đã có record cho ngày này chưa
       const { data: existing } = await supabase

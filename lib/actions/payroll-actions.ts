@@ -9,6 +9,7 @@ import type {
   PayrollAdjustmentType,
 } from "@/lib/types/database"
 import { calculateOvertimePay, listHolidays } from "./overtime-actions"
+import { toDateStringVN, getTimePartsVN, getLastDayOfMonthVN } from "@/lib/utils/date-utils"
 
 // =============================================
 // TÍNH CÔNG CHUẨN ĐỘNG THEO THÁNG
@@ -286,9 +287,8 @@ async function getEmployeeViolations(
       if (!log.check_in) continue
 
       const checkInDate = new Date(log.check_in)
-      const dateStr = checkInDate.toISOString().split("T")[0]
-      const checkInHour = checkInDate.getHours()
-      const checkInMin = checkInDate.getMinutes()
+      const dateStr = toDateStringVN(checkInDate)
+      const { hours: checkInHour, minutes: checkInMin } = getTimePartsVN(checkInDate)
       const checkInMinutes = checkInHour * 60 + checkInMin
 
       const approvedRequestTypes = approvedByDate.get(dateStr) || []
@@ -558,7 +558,7 @@ export async function generatePayroll(month: number, year: number) {
     let workingDaysCount = 0
     if (allAttendanceLogs) {
       for (const log of allAttendanceLogs) {
-        const logDate = new Date(log.check_in).toISOString().split("T")[0]
+        const logDate = toDateStringVN(log.check_in)
         // Chỉ loại trừ nếu là OT thay thế ca làm (không phải OT ngoài giờ)
         if (!overtimeDates.has(logDate)) {
           workingDaysCount++
@@ -1016,7 +1016,7 @@ export async function generatePayroll(month: number, year: number) {
             // Kiểm tra từng ngày có attendance log
             for (const log of allLogs || []) {
               if (!log.check_in) continue
-              const logDate = new Date(log.check_in).toISOString().split("T")[0]
+              const logDate = toDateStringVN(log.check_in)
               
               // Nếu có phiếu approved và cấu hình miễn phạt → bỏ qua
               if (exemptWithRequest && approvedForgotCheckinDates.has(logDate)) {
@@ -1104,7 +1104,7 @@ export async function generatePayroll(month: number, year: number) {
             // Kiểm tra từng ngày có attendance log nhưng thiếu check_out
             for (const log of allLogs || []) {
               if (!log.check_in) continue
-              const logDate = new Date(log.check_in).toISOString().split("T")[0]
+              const logDate = toDateStringVN(log.check_in)
               
               console.log(`[Payroll] ${emp.full_name}: Ngày ${logDate} - check_in: ${log.check_in}, check_out: ${log.check_out || 'THIẾU'}`)
               
