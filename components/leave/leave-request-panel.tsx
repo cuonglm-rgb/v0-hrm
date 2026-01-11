@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers } from "@/lib/actions/request-type-actions"
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
-import type { RequestType, EmployeeRequestWithRelations, EligibleApprover } from "@/lib/types/database"
+import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users, Edit } from "lucide-react"
 
@@ -206,6 +206,22 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
 
     const formData = new FormData(e.currentTarget)
     
+    // Thu thập custom_data từ custom fields
+    let customData: Record<string, string> | undefined = undefined
+    if (selectedType.custom_fields && selectedType.custom_fields.length > 0) {
+      customData = {}
+      for (const field of selectedType.custom_fields) {
+        const value = formData.get(`custom_${field.id}`) as string
+        if (value) {
+          customData[field.id] = value
+        }
+      }
+      // Chỉ gửi nếu có dữ liệu
+      if (Object.keys(customData).length === 0) {
+        customData = undefined
+      }
+    }
+    
     const requestData = {
       from_date: selectedType.requires_date_range ? formData.get("from_date") as string : undefined,
       to_date: selectedType.requires_date_range ? formData.get("to_date") as string : undefined,
@@ -216,6 +232,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       reason: formData.get("reason") as string,
       attachment_url: attachmentUrl || undefined,
       assigned_approver_ids: selectedApprovers.length > 0 ? selectedApprovers : undefined,
+      custom_data: customData,
     }
     
     let result
@@ -503,6 +520,64 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     <p className="text-sm text-destructive">Vui lòng chọn ít nhất 1 người duyệt</p>
                   )}
                 </div>
+
+                {/* Custom fields */}
+                {selectedType.custom_fields && selectedType.custom_fields.length > 0 && (
+                  <div className="space-y-4 border-t pt-4">
+                    <Label className="text-sm font-medium">Thông tin bổ sung</Label>
+                    {selectedType.custom_fields.map((field) => (
+                      <div key={field.id} className="grid gap-2">
+                        <Label>
+                          {field.label} {field.required && "*"}
+                        </Label>
+                        {field.type === "text" && (
+                          <Input
+                            name={`custom_${field.id}`}
+                            placeholder={field.placeholder}
+                            required={field.required}
+                            defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
+                          />
+                        )}
+                        {field.type === "textarea" && (
+                          <Textarea
+                            name={`custom_${field.id}`}
+                            placeholder={field.placeholder}
+                            required={field.required}
+                            rows={3}
+                            defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
+                          />
+                        )}
+                        {field.type === "number" && (
+                          <Input
+                            type="number"
+                            name={`custom_${field.id}`}
+                            placeholder={field.placeholder}
+                            required={field.required}
+                            defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
+                          />
+                        )}
+                        {field.type === "select" && field.options && (
+                          <Select
+                            name={`custom_${field.id}`}
+                            required={field.required}
+                            defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={field.placeholder || "Chọn..."} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {field.options.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>

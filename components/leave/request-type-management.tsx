@@ -12,8 +12,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createRequestType, updateRequestType, deleteRequestType } from "@/lib/actions/request-type-actions"
-import type { RequestType, Position } from "@/lib/types/database"
-import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip, Users } from "lucide-react"
+import type { RequestType, Position, CustomField, CustomFieldType } from "@/lib/types/database"
+import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip, Users, GripVertical } from "lucide-react"
 import { toast } from "sonner"
 
 interface RequestTypeManagementProps {
@@ -42,6 +42,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
     approval_mode: "any" as "any" | "all",
     min_approver_level: null as number | null,
     max_approver_level: null as number | null,
+    custom_fields: [] as CustomField[],
   })
 
   const resetForm = () => {
@@ -61,13 +62,48 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       approval_mode: "any",
       min_approver_level: null,
       max_approver_level: null,
+      custom_fields: [],
     })
+  }
+
+  // Custom fields handlers
+  const addCustomField = () => {
+    const newField: CustomField = {
+      id: crypto.randomUUID(),
+      label: "",
+      type: "text",
+      required: false,
+      placeholder: "",
+    }
+    setFormData((prev) => ({
+      ...prev,
+      custom_fields: [...prev.custom_fields, newField],
+    }))
+  }
+
+  const updateCustomField = (id: string, updates: Partial<CustomField>) => {
+    setFormData((prev) => ({
+      ...prev,
+      custom_fields: prev.custom_fields.map((field) =>
+        field.id === id ? { ...field, ...updates } : field
+      ),
+    }))
+  }
+
+  const removeCustomField = (id: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      custom_fields: prev.custom_fields.filter((field) => field.id !== id),
+    }))
   }
 
   const handleCreate = async () => {
     if (!formData.name || !formData.code) return
     setLoading(true)
-    const result = await createRequestType(formData)
+    const result = await createRequestType({
+      ...formData,
+      custom_fields: formData.custom_fields.length > 0 ? formData.custom_fields : null,
+    })
     setLoading(false)
     if (result.success) {
       toast.success("Đã tạo loại phiếu mới")
@@ -96,6 +132,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       approval_mode: type.approval_mode || "any",
       min_approver_level: type.min_approver_level,
       max_approver_level: type.max_approver_level,
+      custom_fields: type.custom_fields || [],
     })
   }
 
@@ -103,7 +140,10 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
     if (!editingType) return
     setLoading(true)
     const { code, ...updateData } = formData
-    const result = await updateRequestType(editingType.id, updateData)
+    const result = await updateRequestType(editingType.id, {
+      ...updateData,
+      custom_fields: updateData.custom_fields.length > 0 ? updateData.custom_fields : null,
+    })
     setLoading(false)
     if (result.success) {
       toast.success("Đã cập nhật loại phiếu")
@@ -336,6 +376,107 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
           </p>
         </div>
       </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h4 className="font-medium flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Trường tùy chỉnh
+          </h4>
+          <Button type="button" variant="outline" size="sm" onClick={addCustomField}>
+            <Plus className="h-4 w-4 mr-1" />
+            Thêm trường
+          </Button>
+        </div>
+        
+        {formData.custom_fields.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            Chưa có trường tùy chỉnh. Nhấn "Thêm trường" để bổ sung.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {formData.custom_fields.map((field, index) => (
+              <div key={field.id} className="border rounded-lg p-3 space-y-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Trường {index + 1}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 h-8 w-8 p-0"
+                    onClick={() => removeCustomField(field.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tên trường *</Label>
+                    <Input
+                      value={field.label}
+                      onChange={(e) => updateCustomField(field.id, { label: e.target.value })}
+                      placeholder="VD: Mô tả chi tiết"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Loại trường</Label>
+                    <Select
+                      value={field.type}
+                      onValueChange={(value: CustomFieldType) => updateCustomField(field.id, { type: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text">Ô nhập text</SelectItem>
+                        <SelectItem value="textarea">Ô nhập text nhiều dòng</SelectItem>
+                        <SelectItem value="number">Ô nhập số</SelectItem>
+                        <SelectItem value="select">Dropdown chọn</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Placeholder</Label>
+                    <Input
+                      value={field.placeholder || ""}
+                      onChange={(e) => updateCustomField(field.id, { placeholder: e.target.value })}
+                      placeholder="VD: Nhập mô tả..."
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-5">
+                    <Label className="text-xs">Bắt buộc nhập</Label>
+                    <Switch
+                      checked={field.required}
+                      onCheckedChange={(checked) => updateCustomField(field.id, { required: checked })}
+                    />
+                  </div>
+                </div>
+
+                {field.type === "select" && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Các lựa chọn (mỗi dòng 1 lựa chọn)</Label>
+                    <Textarea
+                      value={field.options?.join("\n") || ""}
+                      onChange={(e) => updateCustomField(field.id, { 
+                        options: e.target.value.split("\n").filter(Boolean) 
+                      })}
+                      placeholder="Lựa chọn 1&#10;Lựa chọn 2&#10;Lựa chọn 3"
+                      rows={3}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 
@@ -443,6 +584,12 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                         <Badge variant="outline" className="gap-1">
                           <Paperclip className="h-3 w-3" />
                           File
+                        </Badge>
+                      )}
+                      {type.custom_fields && type.custom_fields.length > 0 && (
+                        <Badge variant="secondary" className="gap-1">
+                          <Plus className="h-3 w-3" />
+                          {type.custom_fields.length} trường tùy chỉnh
                         </Badge>
                       )}
                     </div>

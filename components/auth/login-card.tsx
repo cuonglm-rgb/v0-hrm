@@ -28,7 +28,7 @@ export function LoginCard() {
           <Image src="/pamo.png" alt="Pamo Logo" width={64} height={64} className="rounded-2xl" />
         </div>
         <div className="space-y-2">
-          <CardTitle className="text-2xl font-bold text-slate-900">Pamo Team HRM</CardTitle>
+          <CardTitle className="text-2xl font-bold text-slate-900">Pamo HRM</CardTitle>
           <CardDescription className="text-slate-600">Manage your people smarter</CardDescription>
         </div>
       </CardHeader>

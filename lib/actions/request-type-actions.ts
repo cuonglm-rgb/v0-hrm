@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { RequestType, EmployeeRequestWithRelations, EligibleApprover } from "@/lib/types/database"
+import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { getNowVN } from "@/lib/utils/date-utils"
 
 // =============================================
@@ -64,6 +64,7 @@ export async function createRequestType(input: {
   approval_mode?: "any" | "all"
   min_approver_level?: number | null
   max_approver_level?: number | null
+  custom_fields?: CustomField[] | null
   display_order?: number
 }) {
   const supabase = await createClient()
@@ -84,6 +85,7 @@ export async function createRequestType(input: {
     approval_mode: input.approval_mode ?? "any",
     min_approver_level: input.min_approver_level,
     max_approver_level: input.max_approver_level,
+    custom_fields: input.custom_fields || null,
     display_order: input.display_order ?? 0,
   })
 
@@ -113,6 +115,7 @@ export async function updateRequestType(
     approval_mode: "any" | "all"
     min_approver_level: number | null
     max_approver_level: number | null
+    custom_fields: CustomField[] | null
     is_active: boolean
     display_order: number
   }>
@@ -450,6 +453,7 @@ export async function createEmployeeRequest(input: {
   reason?: string
   attachment_url?: string
   assigned_approver_ids?: string[] // Danh sách người duyệt được chỉ định
+  custom_data?: Record<string, string> // Dữ liệu từ custom fields
 }) {
   const supabase = await createClient()
 
@@ -486,6 +490,7 @@ export async function createEmployeeRequest(input: {
     to_time: input.to_time,
     reason: input.reason,
     attachment_url: input.attachment_url,
+    custom_data: input.custom_data || null,
     status: "pending",
   }).select("id").single()
 
@@ -1053,6 +1058,7 @@ export async function updateEmployeeRequest(
     reason?: string
     attachment_url?: string
     assigned_approver_ids?: string[]
+    custom_data?: Record<string, string>
   }
 ) {
   const supabase = await createClient()
@@ -1109,6 +1115,7 @@ export async function updateEmployeeRequest(
       to_time: input.to_time,
       reason: input.reason,
       attachment_url: input.attachment_url,
+      custom_data: input.custom_data || null,
     })
     .eq("id", id)
 
