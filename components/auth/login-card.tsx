@@ -3,8 +3,8 @@
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users } from "lucide-react"
 import { useState } from "react"
+import Image from "next/image"
 
 export function LoginCard() {
   const [isLoading, setIsLoading] = useState(false)
@@ -24,8 +24,8 @@ export function LoginCard() {
   return (
     <Card className="w-full max-w-md shadow-lg border-0">
       <CardHeader className="text-center space-y-4 pb-2">
-        <div className="mx-auto w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center">
-          <Users className="w-8 h-8 text-white" />
+        <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center">
+          <Image src="/pamo.png" alt="Pamo Logo" width={64} height={64} className="rounded-2xl" />
         </div>
         <div className="space-y-2">
           <CardTitle className="text-2xl font-bold text-slate-900">Pamo Team HRM</CardTitle>

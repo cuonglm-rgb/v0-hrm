@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut, Clock, CalendarDays, CheckSquare, Wallet, Receipt, FileSpreadsheet, Coins } from "lucide-react"
 import {
   Sidebar,
@@ -136,8 +137,8 @@ export function AppSidebar({ employee, userRoles, canApproveRequests }: AppSideb
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-3 px-2 py-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
-            <Users className="h-5 w-5 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl">
+            <Image src="/pamo.png" alt="Pamo Logo" width={40} height={40} className="rounded-xl" />
           </div>
           <div className="flex flex-col">
             <span className="font-semibold text-sidebar-foreground">Pamo HRM</span>
