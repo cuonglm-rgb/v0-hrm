@@ -28,7 +28,7 @@ export function LoginCard() {
           <Users className="w-8 h-8 text-white" />
         </div>
         <div className="space-y-2">
-          <CardTitle className="text-2xl font-bold text-slate-900">HR Management System</CardTitle>
+          <CardTitle className="text-2xl font-bold text-slate-900">Pamo Team HRM</CardTitle>
           <CardDescription className="text-slate-600">Manage your people smarter</CardDescription>
         </div>
       </CardHeader>

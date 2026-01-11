@@ -163,21 +163,21 @@ export function PayrollBreakdownDialog({
               </h4>
               <div className="space-y-2 pl-6">
                 {workingDaysDetail.attendance > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span>Lương theo ngày công ({workingDaysDetail.attendance} ngày)</span>
-                    <span className="font-medium text-green-600">+{formatCurrency(attendanceSalary)}</span>
+                  <div className="flex justify-between items-center text-sm gap-4">
+                    <span className="flex-1 min-w-0">Lương theo ngày công ({workingDaysDetail.attendance} ngày)</span>
+                    <span className="font-medium text-green-600 whitespace-nowrap">+{formatCurrency(attendanceSalary)}</span>
                   </div>
                 )}
                 {workingDaysDetail.wfh > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span>Làm việc từ xa ({workingDaysDetail.wfh} ngày)</span>
-                    <span className="font-medium text-green-600">+{formatCurrency(wfhSalary)}</span>
+                  <div className="flex justify-between items-center text-sm gap-4">
+                    <span className="flex-1 min-w-0">Làm việc từ xa ({workingDaysDetail.wfh} ngày)</span>
+                    <span className="font-medium text-green-600 whitespace-nowrap">+{formatCurrency(wfhSalary)}</span>
                   </div>
                 )}
                 {workingDaysDetail.paidLeave > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span>Lương nghỉ phép có lương ({workingDaysDetail.paidLeave} ngày)</span>
-                    <span className="font-medium text-green-600">+{formatCurrency(paidLeaveSalary)}</span>
+                  <div className="flex justify-between items-center text-sm gap-4">
+                    <span className="flex-1 min-w-0">Lương nghỉ phép có lương ({workingDaysDetail.paidLeave} ngày)</span>
+                    <span className="font-medium text-green-600 whitespace-nowrap">+{formatCurrency(paidLeaveSalary)}</span>
                   </div>
                 )}
 
@@ -187,14 +187,14 @@ export function PayrollBreakdownDialog({
                     <Separator className="my-2" />
                     <p className="text-xs text-muted-foreground font-medium">Phụ cấp:</p>
                     {allowances.map((item) => (
-                      <div key={item.id} className="flex justify-between text-sm">
-                        <span className="flex items-center gap-2">
+                      <div key={item.id} className="flex justify-between items-center text-sm gap-4">
+                        <span className="flex items-center gap-2 flex-1 min-w-0">
                           {item.adjustment_type?.name || "Phụ cấp"}
                           {item.reason && (
                             <span className="text-xs text-muted-foreground">({item.reason})</span>
                           )}
                         </span>
-                        <span className="font-medium text-green-600">
+                        <span className="font-medium text-green-600 whitespace-nowrap">
                           +{formatCurrency(item.final_amount)}
                         </span>
                       </div>
@@ -210,30 +210,64 @@ export function PayrollBreakdownDialog({
                       <Timer className="h-3 w-3" />
                       Tiền tăng ca:
                     </p>
-                    {otItems.map((item) => (
-                      <div key={item.id} className="flex justify-between text-sm">
-                        <span className="flex items-center gap-2">
-                          {item.otType}
-                          <span className="text-xs text-muted-foreground">
-                            ({item.hours.toFixed(1)}h x{item.multiplier} - {item.date})
-                          </span>
-                        </span>
-                        <span className="font-medium text-green-600">
-                          +{formatCurrency(item.amount)}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between text-sm font-medium text-amber-600 pl-4">
+                    
+                    {(() => {
+                      // Group OT items by type
+                      const otByType = new Map<string, OTBreakdownItem[]>()
+                      
+                      const typeNames: Record<string, string> = {
+                        'OT_NORMAL': 'Tăng ca ngày thường',
+                        'OT_WEEKEND': 'Tăng ca ngày nghỉ',
+                        'OT_HOLIDAY': 'Tăng ca ngày lễ',
+                      }
+                      
+                      for (const item of otItems) {
+                        if (!otByType.has(item.otType)) {
+                          otByType.set(item.otType, [])
+                        }
+                        otByType.get(item.otType)!.push(item)
+                      }
+                      
+                      // Format date from YYYY-MM-DD to DD/MM/YYYY
+                      const formatDate = (dateStr: string) => {
+                        const [year, month, day] = dateStr.split('-')
+                        return `${day}/${month}/${year}`
+                      }
+                      
+                      return (
+                        <>
+                          {Array.from(otByType.entries()).map(([type, items]) => (
+                            <div key={type} className="mb-2">
+                              <p className="text-xs font-medium text-green-700 mb-1.5">
+                                {typeNames[type] || type}:
+                              </p>
+                              {items.map((item) => (
+                                <div key={item.id} className="flex justify-between items-center text-sm py-1 gap-4 ml-3">
+                                  <span className="text-muted-foreground">
+                                    {formatDate(item.date)} ({item.hours.toFixed(1)}h x {item.multiplier})
+                                  </span>
+                                  <span className="font-medium text-green-600 whitespace-nowrap">
+                                    +{formatCurrency(item.amount)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </>
+                      )
+                    })()}
+                    
+                    <div className="flex justify-between items-center text-sm font-medium text-amber-600 pl-4 pt-1 border-t gap-4">
                       <span>Tổng OT ({totalOTHours.toFixed(1)}h)</span>
-                      <span>+{formatCurrency(totalOTPay)}</span>
+                      <span className="whitespace-nowrap">+{formatCurrency(totalOTPay)}</span>
                     </div>
                   </>
                 )}
 
                 <Separator className="my-2" />
-                <div className="flex justify-between font-medium">
-                  <span>Tổng thu nhập</span>
-                  <span className="text-blue-600">{formatCurrency(payrollItem.total_income)}</span>
+                <div className="flex justify-between items-center font-medium gap-4">
+                  <span className="flex-1 min-w-0">Tổng thu nhập</span>
+                  <span className="text-blue-600 whitespace-nowrap">{formatCurrency(payrollItem.total_income)}</span>
                 </div>
               </div>
             </div>
@@ -246,17 +280,17 @@ export function PayrollBreakdownDialog({
               </h4>
               <div className="space-y-2 pl-6">
                 {(payrollItem.unpaid_leave_days || 0) > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span>Nghỉ không lương ({payrollItem.unpaid_leave_days} ngày)</span>
-                    <span className="font-medium text-red-600">-{formatCurrency(unpaidDeduction)}</span>
+                  <div className="flex justify-between items-center text-sm gap-4">
+                    <span className="flex-1 min-w-0">Nghỉ không lương ({payrollItem.unpaid_leave_days} ngày)</span>
+                    <span className="font-medium text-red-600 whitespace-nowrap">-{formatCurrency(unpaidDeduction)}</span>
                   </div>
                 )}
 
                 {/* Khấu trừ từ adjustment */}
                 {deductions.map((item) => (
-                  <div key={item.id} className="flex justify-between text-sm">
-                    <span>{item.adjustment_type?.name || "Khấu trừ"}</span>
-                    <span className="font-medium text-red-600">
+                  <div key={item.id} className="flex justify-between items-center text-sm gap-4">
+                    <span className="flex-1 min-w-0">{item.adjustment_type?.name || "Khấu trừ"}</span>
+                    <span className="font-medium text-red-600 whitespace-nowrap">
                       -{formatCurrency(item.final_amount)}
                     </span>
                   </div>
@@ -271,14 +305,14 @@ export function PayrollBreakdownDialog({
                       Tiền phạt:
                     </p>
                     {penalties.map((item) => (
-                      <div key={item.id} className="flex justify-between text-sm">
-                        <span className="flex items-center gap-2">
+                      <div key={item.id} className="flex justify-between items-center text-sm gap-4">
+                        <span className="flex items-center gap-2 flex-1 min-w-0">
                           {item.adjustment_type?.name || "Phạt"}
                           {item.reason && (
                             <span className="text-xs text-muted-foreground">({item.reason})</span>
                           )}
                         </span>
-                        <span className="font-medium text-red-600">
+                        <span className="font-medium text-red-600 whitespace-nowrap">
                           -{formatCurrency(item.final_amount)}
                         </span>
                       </div>
@@ -287,9 +321,9 @@ export function PayrollBreakdownDialog({
                 )}
 
                 <Separator className="my-2" />
-                <div className="flex justify-between font-medium">
-                  <span>Tổng khấu trừ</span>
-                  <span className="text-red-600">{formatCurrency(payrollItem.total_deduction)}</span>
+                <div className="flex justify-between items-center font-medium gap-4">
+                  <span className="flex-1 min-w-0">Tổng khấu trừ</span>
+                  <span className="text-red-600 whitespace-nowrap">{formatCurrency(payrollItem.total_deduction)}</span>
                 </div>
               </div>
             </div>
