@@ -117,7 +117,7 @@ Sau khi generate payroll, kiểm tra:
    - `note` hiển thị số lần phạt
 
 ## SQL Query để kiểm tra
-```sql
+\`\`\`sql
 -- Xem chi tiết phạt của một nhân viên trong tháng
 SELECT 
   e.full_name,
@@ -135,4 +135,4 @@ WHERE pad.category = 'penalty'
   AND pi.year = 2025
   AND e.employee_code = 'EMP001'
 ORDER BY pad.created_at;
-```
+\`\`\`

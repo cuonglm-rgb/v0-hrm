@@ -9,9 +9,9 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "HR Management System",
+  title: "Pamo HRM",
   description: "Manage your people smarter - Modern HR SaaS Platform",
-  generator: "v0.app",
+  // generator: "v0.app",
   icons: {
     icon: [
       {
@@ -29,6 +29,7 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-icon.png",
   },
+    generator: 'v0.app'
 }
 
 export default function RootLayout({

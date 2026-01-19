@@ -17,47 +17,47 @@ Khi chạy tính lương, hệ thống sẽ in ra các log sau:
 
 ### 1. Log bắt đầu xử lý phạt
 
-```
+\`\`\`
 [Payroll] NV2025125342: Xử lý phạt "Quên chấm công" (trigger: attendance)
 [Payroll] NV2025125342: Penalty conditions: ["forgot_checkin","forgot_checkout"]
 [Payroll] NV2025125342: Penalty type: half_day_salary, Daily salary: 400000
-```
+\`\`\`
 
 → Kiểm tra xem có log này không. Nếu không có → Phạt không được xử lý.
 
 ### 2. Log kiểm tra quên chấm công về
 
-```
+\`\`\`
 [Payroll] NV2025125342: Kiểm tra phạt quên chấm công về...
 [Payroll] NV2025125342: Tìm thấy X attendance logs
-```
+\`\`\`
 
 → Kiểm tra số lượng attendance logs. Nếu = 0 → Không có dữ liệu chấm công.
 
 ### 3. Log chi tiết từng ngày
 
-```
+\`\`\`
 [Payroll] NV2025125342: Ngày 2025-12-09 - check_in: 2025-12-09T07:56:00, check_out: THIẾU
-```
+\`\`\`
 
 → Kiểm tra xem ngày 09/12 có thiếu check_out không.
 
 ### 4. Log kiểm tra phiếu approved
 
-```
+\`\`\`
 [Payroll] NV2025125342: Có phiếu forgot_checkout approved cho ngày 2025-12-09
 [Payroll] NV2025125342: Miễn phạt quên chấm công về ngày 2025-12-09 (có phiếu approved)
-```
+\`\`\`
 
 → Nếu có log này → Phiếu đã được duyệt nên miễn phạt.
 
 ### 5. Log phạt
 
-```
+\`\`\`
 [Payroll] NV2025125342: Phạt quên chấm công về ngày 2025-12-09 (thiếu check_out, không có phiếu approved) - 200000đ
 [Payroll] NV2025125342: Tổng số vi phạm phạt: 1
 [Payroll] NV2025125342: Thêm phạt: Quên chấm công về - 200000đ
-```
+\`\`\`
 
 → Nếu có log này → Phạt đã được tính đúng.
 
@@ -71,7 +71,7 @@ Khi chạy tính lương, hệ thống sẽ in ra các log sau:
 - Trigger không đúng (không phải "attendance")
 
 **Giải pháp:**
-```sql
+\`\`\`sql
 -- Kiểm tra cấu hình
 SELECT id, name, is_active, is_auto_applied, auto_rules->>'trigger' as trigger
 FROM payroll_adjustment_types
@@ -81,7 +81,7 @@ WHERE code = 'FORGOT_CHECKIN';
 UPDATE payroll_adjustment_types
 SET is_active = true, is_auto_applied = true
 WHERE code = 'FORGOT_CHECKIN';
-```
+\`\`\`
 
 ### Trường hợp 2: Không có attendance logs
 
@@ -90,7 +90,7 @@ WHERE code = 'FORGOT_CHECKIN';
 - Dữ liệu chấm công bị xóa
 
 **Giải pháp:**
-```sql
+\`\`\`sql
 -- Kiểm tra attendance logs
 SELECT check_in, check_out
 FROM attendance_logs
@@ -98,7 +98,7 @@ WHERE employee_id = (SELECT id FROM employees WHERE employee_code = 'NV202512534
   AND check_in >= '2025-12-01'
   AND check_in <= '2025-12-31T23:59:59'
 ORDER BY check_in;
-```
+\`\`\`
 
 ### Trường hợp 3: Có check_out đầy đủ
 
@@ -107,9 +107,9 @@ ORDER BY check_in;
 - Không thực sự quên chấm công
 
 **Log:**
-```
+\`\`\`
 [Payroll] NV2025125342: Ngày 2025-12-09 có check_out → không phạt
-```
+\`\`\`
 
 **Giải pháp:**
 - Kiểm tra lại dữ liệu attendance_logs
@@ -122,16 +122,16 @@ ORDER BY check_in;
 - Cấu hình `exempt_with_request: true` nên miễn phạt
 
 **Log:**
-```
+\`\`\`
 [Payroll] NV2025125342: Có phiếu forgot_checkout approved cho ngày 2025-12-09
 [Payroll] NV2025125342: Miễn phạt quên chấm công về ngày 2025-12-09 (có phiếu approved)
-```
+\`\`\`
 
 **Giải pháp:**
 - Nếu muốn phạt dù có phiếu → Set `exempt_with_request: false`
 - Nếu muốn test phạt → Đổi status phiếu thành "pending" hoặc "rejected"
 
-```sql
+\`\`\`sql
 -- Kiểm tra phiếu
 SELECT er.request_date, er.status, rt.code, rt.name
 FROM employee_requests er
@@ -146,7 +146,7 @@ SET status = 'pending'
 WHERE employee_id = (SELECT id FROM employees WHERE employee_code = 'NV2025125342')
   AND request_date = '2025-12-09'
   AND request_type_id = (SELECT id FROM request_types WHERE code = 'forgot_checkout');
-```
+\`\`\`
 
 ### Trường hợp 5: penalty_type không đúng
 
@@ -155,7 +155,7 @@ WHERE employee_id = (SELECT id FROM employees WHERE employee_code = 'NV202512534
 - Hoặc bị null
 
 **Giải pháp:**
-```sql
+\`\`\`sql
 -- Kiểm tra penalty_type
 SELECT auto_rules->>'penalty_type' as penalty_type
 FROM payroll_adjustment_types
@@ -169,13 +169,13 @@ SET auto_rules = jsonb_set(
   '"half_day_salary"'::jsonb
 )
 WHERE code = 'FORGOT_CHECKIN';
-```
+\`\`\`
 
 ## Cách kiểm tra từng bước
 
 ### Bước 1: Kiểm tra cấu hình phạt
 
-```sql
+\`\`\`sql
 SELECT 
   id,
   name,
@@ -189,7 +189,7 @@ SELECT
   auto_rules->>'exempt_with_request' as exempt_with_request
 FROM payroll_adjustment_types
 WHERE code = 'FORGOT_CHECKIN';
-```
+\`\`\`
 
 **Kết quả mong đợi:**
 - `is_active = true`
@@ -200,7 +200,7 @@ WHERE code = 'FORGOT_CHECKIN';
 
 ### Bước 2: Kiểm tra attendance logs
 
-```sql
+\`\`\`sql
 SELECT 
   check_in,
   check_out,
@@ -210,14 +210,14 @@ WHERE employee_id = (SELECT id FROM employees WHERE employee_code = 'NV202512534
   AND check_in >= '2025-12-01'
   AND check_in <= '2025-12-31T23:59:59'
 ORDER BY check_in;
-```
+\`\`\`
 
 **Kết quả mong đợi:**
 - Ngày 09/12: `check_out = NULL` (thiếu)
 
 ### Bước 3: Kiểm tra phiếu xin phép
 
-```sql
+\`\`\`sql
 SELECT 
   er.request_date,
   er.status,
@@ -230,7 +230,7 @@ WHERE er.employee_id = (SELECT id FROM employees WHERE employee_code = 'NV202512
   AND er.request_date >= '2025-12-01'
   AND er.request_date <= '2025-12-31'
 ORDER BY er.request_date;
-```
+\`\`\`
 
 **Kết quả mong đợi:**
 - Ngày 09/12: `status = "pending"` hoặc không có phiếu
@@ -243,7 +243,7 @@ ORDER BY er.request_date;
 
 ### Bước 5: Kiểm tra kết quả
 
-```sql
+\`\`\`sql
 -- Kiểm tra payroll item
 SELECT 
   pi.working_days,
@@ -278,7 +278,7 @@ WHERE e.employee_code = 'NV2025125342'
     ORDER BY created_at DESC LIMIT 1
   )
   AND pad.category = 'penalty';
-```
+\`\`\`
 
 ## Tóm tắt
 

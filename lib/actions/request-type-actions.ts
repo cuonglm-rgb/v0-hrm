@@ -2,8 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { RequestType, EmployeeRequestWithRelations, EligibleApprover } from "@/lib/types/database"
-import { calculateLeaveDays } from "@/lib/utils/date-utils"
+import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
+import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
 
 // =============================================
@@ -65,6 +65,7 @@ export async function createRequestType(input: {
   approval_mode?: "any" | "all"
   min_approver_level?: number | null
   max_approver_level?: number | null
+  custom_fields?: CustomField[] | null
   display_order?: number
 }) {
   const supabase = await createClient()
@@ -85,6 +86,7 @@ export async function createRequestType(input: {
     approval_mode: input.approval_mode ?? "any",
     min_approver_level: input.min_approver_level,
     max_approver_level: input.max_approver_level,
+    custom_fields: input.custom_fields || null,
     display_order: input.display_order ?? 0,
   })
 
@@ -114,6 +116,7 @@ export async function updateRequestType(
     approval_mode: "any" | "all"
     min_approver_level: number | null
     max_approver_level: number | null
+    custom_fields: CustomField[] | null
     is_active: boolean
     display_order: number
   }>
@@ -205,12 +208,24 @@ export async function getCurrentApproverInfo() {
   }
 }
 
-// Kiểm tra xem user có quyền duyệt phiếu không (dựa trên level chức vụ)
+// Kiểm tra xem user có quyền duyệt phiếu không (dựa trên level chức vụ hoặc role HR/Admin)
 export async function checkCanApproveRequests(): Promise<boolean> {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
+
+  // Kiểm tra xem user có phải HR/Admin không - họ luôn có quyền duyệt
+  const { data: userRoles } = await supabase
+    .from("user_roles")
+    .select(`role:roles!role_id(code)`)
+    .eq("user_id", user.id)
+
+  const isHrOrAdmin = userRoles?.some((ur: any) =>
+    ur.role?.code === 'admin' || ur.role?.code === 'hr'
+  )
+
+  if (isHrOrAdmin) return true
 
   // Lấy level chức vụ của user
   const { data: employee } = await supabase
@@ -439,6 +454,7 @@ export async function createEmployeeRequest(input: {
   reason?: string
   attachment_url?: string
   assigned_approver_ids?: string[] // Danh sách người duyệt được chỉ định
+  custom_data?: Record<string, string> // Dữ liệu từ custom fields
 }) {
   const supabase = await createClient()
 
@@ -517,6 +533,7 @@ export async function createEmployeeRequest(input: {
     to_time: input.to_time,
     reason: input.reason,
     attachment_url: input.attachment_url,
+    custom_data: input.custom_data || null,
     status: "pending",
   }).select("id").single()
 
@@ -610,6 +627,16 @@ export async function approveEmployeeRequest(id: string) {
 
   const approvalMode = requestType?.approval_mode || "any"
 
+  // Kiểm tra xem người duyệt có phải HR/Admin không
+  const { data: approverRoles } = await supabase
+    .from("user_roles")
+    .select(`role:roles!role_id(code)`)
+    .eq("user_id", user.id)
+
+  const isHrOrAdmin = approverRoles?.some((ur: any) =>
+    ur.role?.code === 'admin' || ur.role?.code === 'hr'
+  )
+
   // Nếu approval_mode = "all", cần kiểm tra người duyệt được chỉ định khi tạo phiếu
   if (approvalMode === "all") {
     // Lấy danh sách người duyệt được chỉ định khi tạo phiếu
@@ -620,25 +647,27 @@ export async function approveEmployeeRequest(id: string) {
 
     // Nếu có danh sách người duyệt được chỉ định khi tạo phiếu
     if (assignedApprovers && assignedApprovers.length > 0) {
-      // Kiểm tra người duyệt hiện tại có trong danh sách không
+      // Kiểm tra người duyệt hiện tại có trong danh sách không (HR/Admin được bypass)
       const isAssigned = assignedApprovers.some(a => a.approver_id === approverEmployee.id)
-      if (!isAssigned) {
+      if (!isAssigned && !isHrOrAdmin) {
         return { success: false, error: "Bạn không nằm trong danh sách người duyệt được chỉ định cho phiếu này" }
       }
 
-      // Cập nhật trạng thái duyệt của người này
-      const { error: updateApproverError } = await supabase
-        .from("request_assigned_approvers")
-        .update({
-          status: "approved",
-          approved_at: new Date().toISOString()
-        })
-        .eq("request_id", id)
-        .eq("approver_id", approverEmployee.id)
+      // Nếu người duyệt nằm trong danh sách, cập nhật trạng thái duyệt của họ
+      if (isAssigned) {
+        const { error: updateApproverError } = await supabase
+          .from("request_assigned_approvers")
+          .update({
+            status: "approved",
+            approved_at: getNowVN()
+          })
+          .eq("request_id", id)
+          .eq("approver_id", approverEmployee.id)
 
-      if (updateApproverError) {
-        console.error("Error updating approver status:", updateApproverError)
-        return { success: false, error: updateApproverError.message }
+        if (updateApproverError) {
+          console.error("Error updating approver status:", updateApproverError)
+          return { success: false, error: updateApproverError.message }
+        }
       }
 
       // Kiểm tra xem tất cả người duyệt đã duyệt chưa
@@ -657,7 +686,7 @@ export async function approveEmployeeRequest(id: string) {
           .update({
             status: "rejected",
             approver_id: approverEmployee.id,
-            approved_at: new Date().toISOString(),
+            approved_at: getNowVN(),
           })
           .eq("id", id)
 
@@ -672,7 +701,7 @@ export async function approveEmployeeRequest(id: string) {
           .update({
             status: "approved",
             approver_id: approverEmployee.id,
-            approved_at: new Date().toISOString(),
+            approved_at: getNowVN(),
           })
           .eq("id", id)
 
@@ -702,7 +731,7 @@ export async function approveEmployeeRequest(id: string) {
         request_id: id,
         approver_id: approverEmployee.id,
         status: "approved",
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       }, { onConflict: "request_id,approver_id" })
 
     if (approvalError) {
@@ -715,7 +744,7 @@ export async function approveEmployeeRequest(id: string) {
           .update({
             status: "approved",
             approver_id: approverEmployee.id,
-            approved_at: new Date().toISOString(),
+            approved_at: getNowVN(),
           })
           .eq("id", id)
           .eq("status", "pending")
@@ -757,7 +786,7 @@ export async function approveEmployeeRequest(id: string) {
     .update({
       status: "approved",
       approver_id: approverEmployee.id,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
     })
     .eq("id", id)
     .eq("status", "pending")
@@ -795,7 +824,7 @@ async function checkAndFinalizeApproval(
       .update({
         status: "approved",
         approver_id: currentApproverId,
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       })
       .eq("id", requestId)
       .eq("status", "pending")
@@ -873,7 +902,7 @@ async function checkAndFinalizeApproval(
       .update({
         status: "approved",
         approver_id: currentApproverId,
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       })
       .eq("id", requestId)
       .eq("status", "pending")
@@ -887,6 +916,23 @@ async function checkApproverPermission(
   approverId: string,
   approverPositionId: string | null
 ): Promise<{ allowed: boolean; reason?: string }> {
+  // Kiểm tra xem người duyệt có phải HR/Admin không - họ có quyền duyệt mọi phiếu
+  const { data: userRolesCheck } = await supabase
+    .from("user_roles")
+    .select(`
+      role:roles!role_id(code)
+    `)
+    .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
+
+  const isHrOrAdmin = userRolesCheck?.some((ur: any) =>
+    ur.role?.code === 'admin' || ur.role?.code === 'hr'
+  )
+
+  // HR/Admin có quyền duyệt mọi phiếu
+  if (isHrOrAdmin) {
+    return { allowed: true }
+  }
+
   // Lấy danh sách người duyệt được chỉ định cho loại phiếu này
   const { data: approvers } = await supabase
     .from("request_type_approvers")
@@ -912,14 +958,7 @@ async function checkApproverPermission(
 
     // Chỉ định theo role (cần check thêm user_roles)
     if (approver.approver_role_code) {
-      const { data: userRoles } = await supabase
-        .from("user_roles")
-        .select(`
-          role:roles!role_id(code)
-        `)
-        .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
-
-      const hasRole = userRoles?.some((ur: any) => ur.role?.code === approver.approver_role_code)
+      const hasRole = userRolesCheck?.some((ur: any) => ur.role?.code === approver.approver_role_code)
       if (hasRole) {
         return { allowed: true }
       }
@@ -991,6 +1030,16 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
 
   const approvalMode = requestType?.approval_mode || "any"
 
+  // Kiểm tra xem người duyệt có phải HR/Admin không
+  const { data: approverRoles } = await supabase
+    .from("user_roles")
+    .select(`role:roles!role_id(code)`)
+    .eq("user_id", user.id)
+
+  const isHrOrAdmin = approverRoles?.some((ur: any) =>
+    ur.role?.code === 'admin' || ur.role?.code === 'hr'
+  )
+
   // Nếu approval_mode = "all", cập nhật trạng thái người duyệt trước
   if (approvalMode === "all") {
     const { data: assignedApprovers } = await supabase
@@ -999,21 +1048,23 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
       .eq("request_id", id)
 
     if (assignedApprovers && assignedApprovers.length > 0) {
-      // Kiểm tra người duyệt hiện tại có trong danh sách không
+      // Kiểm tra người duyệt hiện tại có trong danh sách không (HR/Admin được bypass)
       const isAssigned = assignedApprovers.some(a => a.approver_id === approverEmployee.id)
-      if (!isAssigned) {
+      if (!isAssigned && !isHrOrAdmin) {
         return { success: false, error: "Bạn không nằm trong danh sách người duyệt được chỉ định cho phiếu này" }
       }
 
-      // Cập nhật trạng thái từ chối của người này
-      await supabase
-        .from("request_assigned_approvers")
-        .update({
-          status: "rejected",
-          approved_at: new Date().toISOString()
-        })
-        .eq("request_id", id)
-        .eq("approver_id", approverEmployee.id)
+      // Nếu người duyệt nằm trong danh sách, cập nhật trạng thái từ chối của họ
+      if (isAssigned) {
+        await supabase
+          .from("request_assigned_approvers")
+          .update({
+            status: "rejected",
+            approved_at: getNowVN()
+          })
+          .eq("request_id", id)
+          .eq("approver_id", approverEmployee.id)
+      }
     }
   }
 
@@ -1023,7 +1074,7 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
     .update({
       status: "rejected",
       approver_id: approverEmployee.id,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
       rejection_reason,
     })
     .eq("id", id)
@@ -1051,6 +1102,7 @@ export async function updateEmployeeRequest(
     reason?: string
     attachment_url?: string
     assigned_approver_ids?: string[]
+    custom_data?: Record<string, string>
   }
 ) {
   const supabase = await createClient()
@@ -1107,6 +1159,7 @@ export async function updateEmployeeRequest(
       to_time: input.to_time,
       reason: input.reason,
       attachment_url: input.attachment_url,
+      custom_data: input.custom_data || null,
     })
     .eq("id", id)
 
@@ -1261,7 +1314,6 @@ export async function getEligibleApprovers(requestTypeId: string): Promise<Eligi
     .from("request_type_approvers")
     .select(`
       *,
-      employee:employees!approver_employee_id(id, full_name, employee_code, position_id, department_id),
       position:positions!approver_position_id(id, name, level)
     `)
     .eq("request_type_id", requestTypeId)
@@ -1269,49 +1321,73 @@ export async function getEligibleApprovers(requestTypeId: string): Promise<Eligi
   const eligibleApprovers: EligibleApprover[] = []
   const addedIds = new Set<string>()
 
+  // Luôn thêm Admin và HR vào danh sách người duyệt (họ có quyền duyệt mọi phiếu)
+  const { data: adminHrApprovers } = await supabase
+    .rpc('get_approvers_by_role', { p_role_code: 'admin' })
+
+  if (adminHrApprovers) {
+    for (const emp of adminHrApprovers) {
+      if (!addedIds.has(emp.id)) {
+        eligibleApprovers.push({
+          id: emp.id,
+          full_name: emp.full_name,
+          employee_code: emp.employee_code,
+          position_name: emp.position_name,
+          position_level: emp.position_level || 0,
+          department_name: emp.department_name,
+        })
+        addedIds.add(emp.id)
+      }
+    }
+  }
+
+  const { data: hrApprovers } = await supabase
+    .rpc('get_approvers_by_role', { p_role_code: 'hr' })
+
+  if (hrApprovers) {
+    for (const emp of hrApprovers) {
+      if (!addedIds.has(emp.id)) {
+        eligibleApprovers.push({
+          id: emp.id,
+          full_name: emp.full_name,
+          employee_code: emp.employee_code,
+          position_name: emp.position_name,
+          position_level: emp.position_level || 0,
+          department_name: emp.department_name,
+        })
+        addedIds.add(emp.id)
+      }
+    }
+  }
+
   // Nếu có danh sách người duyệt được chỉ định
   if (designatedApprovers && designatedApprovers.length > 0) {
     for (const approver of designatedApprovers) {
-      // Chỉ định theo employee cụ thể
-      if (approver.approver_employee_id && approver.employee) {
-        const emp = approver.employee as any
-        if (!addedIds.has(emp.id)) {
-          // Lấy thêm thông tin position và department
-          const { data: empDetails } = await supabase
-            .from("employees")
-            .select(`
-              id, full_name, employee_code,
-              position:positions!position_id(name, level),
-              department:departments!department_id(name)
-            `)
-            .eq("id", emp.id)
-            .single()
+      // Chỉ định theo employee cụ thể - sử dụng RPC function (bypass RLS)
+      if (approver.approver_employee_id) {
+        const { data: empData } = await supabase
+          .rpc('get_employee_as_approver', { p_employee_id: approver.approver_employee_id })
 
-          if (empDetails) {
+        if (empData && empData.length > 0) {
+          const emp = empData[0]
+          if (!addedIds.has(emp.id)) {
             eligibleApprovers.push({
-              id: empDetails.id,
-              full_name: empDetails.full_name,
-              employee_code: empDetails.employee_code,
-              position_name: (empDetails.position as any)?.name || null,
-              position_level: (empDetails.position as any)?.level || 0,
-              department_name: (empDetails.department as any)?.name || null,
+              id: emp.id,
+              full_name: emp.full_name,
+              employee_code: emp.employee_code,
+              position_name: emp.position_name,
+              position_level: emp.position_level || 0,
+              department_name: emp.department_name,
             })
             addedIds.add(emp.id)
           }
         }
       }
 
-      // Chỉ định theo position
+      // Chỉ định theo position - sử dụng RPC function (bypass RLS)
       if (approver.approver_position_id) {
         const { data: positionEmployees } = await supabase
-          .from("employees")
-          .select(`
-            id, full_name, employee_code,
-            position:positions!position_id(name, level),
-            department:departments!department_id(name)
-          `)
-          .eq("position_id", approver.approver_position_id)
-          .eq("status", "active")
+          .rpc('get_approvers_by_position', { p_position_id: approver.approver_position_id })
 
         if (positionEmployees) {
           for (const emp of positionEmployees) {
@@ -1320,9 +1396,9 @@ export async function getEligibleApprovers(requestTypeId: string): Promise<Eligi
                 id: emp.id,
                 full_name: emp.full_name,
                 employee_code: emp.employee_code,
-                position_name: (emp.position as any)?.name || null,
-                position_level: (emp.position as any)?.level || 0,
-                department_name: (emp.department as any)?.name || null,
+                position_name: emp.position_name,
+                position_level: emp.position_level || 0,
+                department_name: emp.department_name,
               })
               addedIds.add(emp.id)
             }
@@ -1330,75 +1406,47 @@ export async function getEligibleApprovers(requestTypeId: string): Promise<Eligi
         }
       }
 
-      // Chỉ định theo role
+      // Chỉ định theo role - sử dụng RPC function (bypass RLS)
       if (approver.approver_role_code) {
-        const { data: roleUsers } = await supabase
-          .from("user_roles")
-          .select(`
-            user_id,
-            role:roles!role_id(code)
-          `)
-          .eq("role_id", (await supabase.from("roles").select("id").eq("code", approver.approver_role_code).single()).data?.id)
+        const { data: roleEmployees } = await supabase
+          .rpc('get_approvers_by_role', { p_role_code: approver.approver_role_code })
 
-        if (roleUsers) {
-          const userIds = roleUsers.map(r => r.user_id)
-          const { data: roleEmployees } = await supabase
-            .from("employees")
-            .select(`
-              id, full_name, employee_code,
-              position:positions!position_id(name, level),
-              department:departments!department_id(name)
-            `)
-            .in("user_id", userIds)
-            .eq("status", "active")
-
-          if (roleEmployees) {
-            for (const emp of roleEmployees) {
-              if (!addedIds.has(emp.id)) {
-                eligibleApprovers.push({
-                  id: emp.id,
-                  full_name: emp.full_name,
-                  employee_code: emp.employee_code,
-                  position_name: (emp.position as any)?.name || null,
-                  position_level: (emp.position as any)?.level || 0,
-                  department_name: (emp.department as any)?.name || null,
-                })
-                addedIds.add(emp.id)
-              }
+        if (roleEmployees) {
+          for (const emp of roleEmployees) {
+            if (!addedIds.has(emp.id)) {
+              eligibleApprovers.push({
+                id: emp.id,
+                full_name: emp.full_name,
+                employee_code: emp.employee_code,
+                position_name: emp.position_name,
+                position_level: emp.position_level || 0,
+                department_name: emp.department_name,
+              })
+              addedIds.add(emp.id)
             }
           }
         }
       }
     }
   } else {
-    // Nếu không có danh sách chỉ định -> lấy theo level
-    let query = supabase
-      .from("employees")
-      .select(`
-        id, full_name, employee_code,
-        position:positions!position_id(name, level),
-        department:departments!department_id(name)
-      `)
-      .eq("status", "active")
-
-    const { data: employees } = await query
+    // Nếu không có danh sách chỉ định -> lấy theo level (đã bao gồm Admin/HR trong function)
+    // Sử dụng RPC function (bypass RLS)
+    const { data: employees } = await supabase
+      .rpc('get_eligible_approvers_by_level', {
+        p_min_level: requestType.min_approver_level,
+        p_max_level: requestType.max_approver_level
+      })
 
     if (employees) {
       for (const emp of employees) {
-        const level = (emp.position as any)?.level || 0
-
-        // Kiểm tra level
-        if (requestType.min_approver_level && level < requestType.min_approver_level) continue
-        if (requestType.max_approver_level && level > requestType.max_approver_level) continue
-
         if (!addedIds.has(emp.id)) {
           eligibleApprovers.push({
             id: emp.id,
             full_name: emp.full_name,
             employee_code: emp.employee_code,
-            position_name: (emp.position as any)?.name || null,
-            position_level: level,
-            department_name: (emp.department as any)?.name || null,
+            position_name: emp.position_name,
+            position_level: emp.position_level || 0,
+            department_name: emp.department_name,
           })
           addedIds.add(emp.id)
         }
@@ -1499,7 +1547,7 @@ export async function approveRequestByApprover(requestId: string, comment?: stri
       approver_id: approverEmployee.id,
       status: "approved",
       comment,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
     }, { onConflict: "request_id,approver_id" })
 
   if (approvalError) {
@@ -1580,7 +1628,7 @@ export async function rejectRequestByApprover(requestId: string, comment?: strin
       approver_id: approverEmployee.id,
       status: "rejected",
       comment,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
     }, { onConflict: "request_id,approver_id" })
 
   if (approvalError) {
@@ -1594,7 +1642,7 @@ export async function rejectRequestByApprover(requestId: string, comment?: strin
     .update({
       status: "rejected",
       approver_id: approverEmployee.id,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
       rejection_reason: comment,
     })
     .eq("id", requestId)
@@ -1641,7 +1689,7 @@ async function checkAndUpdateRequestStatus(requestId: string) {
       .update({
         status: "rejected",
         approver_id: rejector?.approver_id,
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       })
       .eq("id", requestId)
     return
@@ -1656,7 +1704,7 @@ async function checkAndUpdateRequestStatus(requestId: string) {
       .update({
         status: "approved",
         approver_id: approver?.approver_id,
-        approved_at: new Date().toISOString(),
+        approved_at: getNowVN(),
       })
       .eq("id", requestId)
   } else if (approvalMode === "all") {
@@ -1678,7 +1726,7 @@ async function checkAndUpdateRequestStatus(requestId: string) {
           .update({
             status: "approved",
             approver_id: approver?.approver_id,
-            approved_at: new Date().toISOString(),
+            approved_at: getNowVN(),
           })
           .eq("id", requestId)
       }
@@ -1747,7 +1795,7 @@ async function checkAndUpdateRequestStatus(requestId: string) {
         .update({
           status: "approved",
           approver_id: lastApprover?.approver_id,
-          approved_at: new Date().toISOString(),
+          approved_at: getNowVN(),
         })
         .eq("id", requestId)
     }

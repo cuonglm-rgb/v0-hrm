@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { OTSetting, OvertimeRecordWithRelations, EmployeeOTRateWithRelations, Holiday } from "@/lib/types/database"
+import { getLastDayOfMonthVN, getNowVN } from "@/lib/utils/date-utils"
 
 // =============================================
 // OT SETTINGS ACTIONS
@@ -363,7 +364,7 @@ export async function listOvertimeRecords(filters?: {
 
   if (filters?.month && filters?.year) {
     const startDate = `${filters.year}-${String(filters.month).padStart(2, "0")}-01`
-    const endDate = new Date(filters.year, filters.month, 0).toISOString().split("T")[0]
+    const endDate = getLastDayOfMonthVN(filters.year, filters.month)
     query = query.gte("ot_date", startDate).lte("ot_date", endDate)
   }
 
@@ -486,7 +487,7 @@ export async function approveOvertimeRecord(id: string, status: "approved" | "re
     .update({
       status,
       approver_id: approver?.id,
-      approved_at: new Date().toISOString(),
+      approved_at: getNowVN(),
       note: note || null,
     })
     .eq("id", id)
@@ -691,7 +692,7 @@ export async function getOTBreakdownForPayroll(
   const supabase = await createClient()
   
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`
-  const endDate = new Date(year, month, 0).toISOString().split("T")[0]
+  const endDate = getLastDayOfMonthVN(year, month)
   const hourlyRate = baseSalary / standardWorkingDays / 8
 
   const items: OTBreakdownItem[] = []

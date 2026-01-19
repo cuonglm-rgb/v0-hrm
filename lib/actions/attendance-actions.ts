@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { AttendanceLog, AttendanceLogWithRelations } from "@/lib/types/database"
+import { getTodayVN, getNowVN } from "@/lib/utils/date-utils"
 
 export async function getMyAttendance(from?: string, to?: string): Promise<AttendanceLog[]> {
   const supabase = await createClient()
@@ -96,14 +97,14 @@ export async function checkIn() {
 
   if (!employee) return { success: false, error: "Employee not found" }
 
-  // Kiểm tra đã check-in hôm nay chưa
-  const today = new Date().toISOString().split("T")[0]
+  // Kiểm tra đã check-in hôm nay chưa (theo giờ VN)
+  const today = getTodayVN()
   const { data: existing } = await supabase
     .from("attendance_logs")
     .select("id")
     .eq("employee_id", employee.id)
-    .gte("check_in", today)
-    .lt("check_in", today + "T23:59:59")
+    .gte("check_in", today + "T00:00:00+07:00")
+    .lt("check_in", today + "T23:59:59+07:00")
     .single()
 
   if (existing) {
@@ -112,7 +113,7 @@ export async function checkIn() {
 
   const { error } = await supabase.from("attendance_logs").insert({
     employee_id: employee.id,
-    check_in: new Date().toISOString(),
+    check_in: getNowVN(),
     source: "manual",
   })
 
@@ -139,14 +140,14 @@ export async function checkOut() {
 
   if (!employee) return { success: false, error: "Employee not found" }
 
-  // Tìm record check-in hôm nay
-  const today = new Date().toISOString().split("T")[0]
+  // Tìm record check-in hôm nay (theo giờ VN)
+  const today = getTodayVN()
   const { data: attendance } = await supabase
     .from("attendance_logs")
     .select("id, check_out")
     .eq("employee_id", employee.id)
-    .gte("check_in", today)
-    .lt("check_in", today + "T23:59:59")
+    .gte("check_in", today + "T00:00:00+07:00")
+    .lt("check_in", today + "T23:59:59+07:00")
     .single()
 
   if (!attendance) {
@@ -159,7 +160,7 @@ export async function checkOut() {
 
   const { error } = await supabase
     .from("attendance_logs")
-    .update({ check_out: new Date().toISOString() })
+    .update({ check_out: getNowVN() })
     .eq("id", attendance.id)
 
   if (error) {

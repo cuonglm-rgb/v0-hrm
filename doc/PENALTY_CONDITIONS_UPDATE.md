@@ -45,21 +45,21 @@
 ### Ví dụ cấu hình
 
 **Phạt đi muộn/về sớm:**
-```
+\`\`\`
 Tên: Phạt đi muộn hoặc về sớm
 Điều kiện: ☑ Đi làm muộn, ☑ Đi về sớm
 Muộn từ: 30 phút
 Loại phạt: Nửa ngày lương
 Miễn phép: Bật (chọn late_arrival, early_leave)
-```
+\`\`\`
 
 **Phạt quên chấm công:**
-```
+\`\`\`
 Tên: Phạt quên chấm công
 Điều kiện: ☑ Quên chấm công đến, ☑ Quên chấm công về
 Loại phạt: Số tiền cố định (50,000đ)
 Miễn phép: Tắt
-```
+\`\`\`
 
 ## Lưu ý
 - Các điều kiện phạt có thể kết hợp (chọn nhiều cùng lúc)

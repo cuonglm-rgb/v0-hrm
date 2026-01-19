@@ -16,18 +16,18 @@ Nhưng **KHÔNG được áp dụng vào lương** vì:
 
 Trong file `lib/actions/payroll-actions.ts`, logic phạt tự động chỉ kiểm tra:
 
-```typescript
+\`\`\`typescript
 if (adjType.category === "penalty" && rules?.trigger === "late") {
   // Xử lý phạt
 }
-```
+\`\`\`
 
 → Phạt có `trigger: "attendance"` bị bỏ qua!
 
 ### Vấn đề 2: Logic phạt ngược
 
 Logic cũ:
-```typescript
+\`\`\`typescript
 // Lấy phiếu đã approved
 const { data: forgotCheckoutRequests } = await supabase
   .from("employee_requests")
@@ -38,7 +38,7 @@ const { data: forgotCheckoutRequests } = await supabase
 for (const req of forgotCheckoutRequests) {
   penaltyViolations.push(...) // ❌ SAI: Phạt khi có phiếu approved
 }
-```
+\`\`\`
 
 Logic đúng phải là:
 - **Phạt khi KHÔNG có phiếu approved** (phiếu pending/rejected hoặc không có phiếu)
@@ -50,17 +50,17 @@ Logic đúng phải là:
 
 Sửa điều kiện để hỗ trợ cả 2 loại trigger:
 
-```typescript
+\`\`\`typescript
 if (adjType.category === "penalty" && (rules?.trigger === "late" || rules?.trigger === "attendance")) {
   // Xử lý phạt
 }
-```
+\`\`\`
 
 ### 2. Sửa logic phạt quên chấm công
 
 #### Logic mới cho "Quên chấm công về":
 
-```typescript
+\`\`\`typescript
 // 1. Lấy tất cả attendance logs
 const { data: allLogs } = await supabase
   .from("attendance_logs")
@@ -96,7 +96,7 @@ for (const log of allLogs) {
     amount: penaltyAmount,
   })
 }
-```
+\`\`\`
 
 ### 3. Thêm console.log để debug
 
@@ -124,7 +124,7 @@ Tất cả các bước quan trọng đều có log:
 
 ## Ví dụ cấu hình
 
-```json
+\`\`\`json
 {
   "name": "Quên chấm công",
   "code": "FORGOT_CHECKIN",
@@ -139,7 +139,7 @@ Tất cả các bước quan trọng đều có log:
     "exempt_with_request": true
   }
 }
-```
+\`\`\`
 
 ## Kịch bản kiểm tra
 
@@ -188,9 +188,9 @@ Tất cả các bước quan trọng đều có log:
 2. **KHÔNG duyệt phiếu** (để status = "pending")
 3. Chạy tính lương tháng 12/2025
 4. Kiểm tra console log:
-   ```
+   \`\`\`
    [Payroll] NV2025125342: Phạt quên chấm công về ngày 2025-12-09 (thiếu check_out, không có phiếu approved) - 192308đ
-   ```
+   \`\`\`
 5. Kiểm tra phiếu lương → Phải có phạt "Quên chấm công về ngày 2025-12-09"
 
 ## Lưu ý

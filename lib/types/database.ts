@@ -277,6 +277,18 @@ export interface TimeAdjustmentRequestWithRelations extends TimeAdjustmentReques
 export type RequestStatus = "pending" | "approved" | "rejected"
 export type ApprovalMode = "any" | "all"
 
+// Custom field types cho request type
+export type CustomFieldType = "text" | "textarea" | "number" | "select"
+
+export interface CustomField {
+  id: string
+  label: string
+  type: CustomFieldType
+  required: boolean
+  placeholder?: string
+  options?: string[] // Cho select type
+}
+
 export interface RequestType {
   id: string
   name: string
@@ -294,6 +306,7 @@ export interface RequestType {
   approval_mode: ApprovalMode
   min_approver_level: number | null
   max_approver_level: number | null
+  custom_fields: CustomField[] | null
   is_active: boolean
   display_order: number
   created_at: string
@@ -312,6 +325,7 @@ export interface EmployeeRequest {
   to_time: string | null
   reason: string | null
   attachment_url: string | null
+  custom_data: Record<string, string> | null
   status: RequestStatus
   approver_id: string | null
   approved_at: string | null
