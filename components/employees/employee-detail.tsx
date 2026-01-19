@@ -20,6 +20,8 @@ import { EmployeeSalaryTab } from "./employee-salary-tab"
 import { EmployeeOTRatesTab } from "./employee-ot-rates-tab"
 import type { EmployeeWithRelations, Department, Position, Role, RoleCode, EmployeeJobHistoryWithRelations, SalaryStructure, WorkShift } from "@/lib/types/database"
 import Link from "next/link"
+import { useMemo } from "react"
+import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
 
 interface EmployeeDetailProps {
   employee: EmployeeWithRelations
@@ -55,7 +57,8 @@ export function EmployeeDetail({
   isHROrAdmin,
   jobHistory = [],
   salaryHistory = [],
-}: EmployeeDetailProps) {
+  leaveUsage = 0,
+}: EmployeeDetailProps & { leaveUsage?: number }) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
 
@@ -67,7 +70,31 @@ export function EmployeeDetail({
     shift_id: employee.shift_id || "",
     status: employee.status,
     join_date: employee.join_date || "",
+    official_date: employee.official_date || "",
   })
+
+  // Calculate Leave Fund
+  const currentYear = new Date().getFullYear()
+  const { totalEntitlement, availableToUse, remaining, isRestricted } = useMemo(() => {
+    // Note: leaveUsage passed from server is total used. 
+    // We need to calculate available balance.
+    // If official_date is not set, we can't calculate properly, assume 0.
+
+    // Import dynamically or assume it's available? 
+    // I need to import it at the top. But I can't add imports with replace_file_content easily without context.
+    // I will add the import in a separate step or assume I can do it here if I replace the top.
+
+    // Actually, I should use the utility. 
+    // Let's rely on adding the import later or now.
+    // For now, let's implement the UI logic assuming the function is available or logic is inline (but logic is complex).
+    // I'll add the import in the next step.
+
+    return calculateAvailableBalance(
+      employee.official_date,
+      leaveUsage,
+      new Date()
+    )
+  }, [employee.official_date, leaveUsage])
 
   const initials = employee.full_name
     ?.split(" ")
@@ -87,6 +114,7 @@ export function EmployeeDetail({
         position_id: formData.position_id || null,
         shift_id: formData.shift_id || null,
         join_date: formData.join_date || null,
+        official_date: formData.official_date || null,
       })
 
       if (result.success) {
@@ -329,6 +357,49 @@ export function EmployeeDetail({
                       disabled={!isHROrAdmin}
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="official_date">Ngày chính thức</Label>
+                    <Input
+                      id="official_date"
+                      type="date"
+                      value={formData.official_date}
+                      onChange={(e) => setFormData({ ...formData, official_date: e.target.value })}
+                      disabled={!isHROrAdmin}
+                    />
+                    {!formData.official_date && formData.status === "active" && (
+                      <p className="text-xs text-muted-foreground">Sẽ tự động cập nhật khi lưu trạng thái "Đang làm việc" nếu để trống</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quỹ phép năm */}
+                <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                  <h4 className="font-medium text-orange-800 flex items-center gap-2 mb-2">
+                    <Briefcase className="h-4 w-4" />
+                    Quỹ phép năm {currentYear}
+                  </h4>
+                  <div className="grid grid-cols-3 gap-4 text-sm mt-3">
+                    <div className="bg-white p-3 rounded border border-orange-100">
+                      <span className="text-gray-500 block text-xs uppercase mb-1">Tổng quỹ phép</span>
+                      <span className="text-xl font-bold text-orange-600">{totalEntitlement}</span>
+                      <span className="text-xs text-gray-400 ml-1">ngày</span>
+                    </div>
+                    <div className="bg-white p-3 rounded border border-orange-100">
+                      <span className="text-gray-500 block text-xs uppercase mb-1">Đã sử dụng</span>
+                      <span className="text-xl font-bold text-gray-700">{leaveUsage}</span>
+                      <span className="text-xs text-gray-400 ml-1">ngày</span>
+                    </div>
+                    <div className="bg-white p-3 rounded border border-orange-100">
+                      <span className="text-gray-500 block text-xs uppercase mb-1">Còn lại</span>
+                      <span className="text-xl font-bold text-green-600">{remaining}</span>
+                      <span className="text-xs text-gray-400 ml-1">ngày</span>
+                    </div>
+                  </div>
+                  {isRestricted && (
+                    <div className="mt-2 text-xs text-amber-700 bg-amber-100 p-2 rounded">
+                      * Nhân viên đang trong thời gian thử việc/mới chính thức (dưới 5 tháng), quỹ phép được giới hạn 1 ngày/tháng.
+                    </div>
+                  )}
                 </div>
 
                 {/* Hiển thị thông tin ca làm hiện tại */}
@@ -427,9 +498,8 @@ export function EmployeeDetail({
                         return (
                           <div
                             key={role.id}
-                            className={`flex items-center justify-between p-3 rounded-lg border ${
-                              hasRole ? "bg-indigo-50 border-indigo-200" : "bg-muted/50"
-                            }`}
+                            className={`flex items-center justify-between p-3 rounded-lg border ${hasRole ? "bg-indigo-50 border-indigo-200" : "bg-muted/50"
+                              }`}
                           >
                             <div>
                               <p className="font-medium">{role.name}</p>

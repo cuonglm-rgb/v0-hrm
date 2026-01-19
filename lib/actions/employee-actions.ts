@@ -100,13 +100,33 @@ export async function getEmployee(id: string): Promise<EmployeeWithRelations | n
 
 export async function updateEmployee(
   id: string,
-  data: Partial<Pick<Employee, "full_name" | "phone" | "department_id" | "position_id" | "shift_id" | "status" | "join_date">>,
+  data: Partial<Pick<Employee, "full_name" | "phone" | "department_id" | "position_id" | "shift_id" | "status" | "join_date" | "official_date">>,
 ) {
   const supabase = await createClient()
 
+  // 1. Fetch current employee to check status transition
+  const { data: currentEmp } = await supabase
+    .from("employees")
+    .select("status, official_date")
+    .eq("id", id)
+    .single()
+
+  const updateData: any = { ...data, updated_at: new Date().toISOString() }
+
+  // Sanitize potentially empty strings for date fields
+  if (updateData.join_date === "") updateData.join_date = null
+  // official_date often leaks in from formData as "" but shouldn't be updated unless we mean it.
+  // Ideally we ignore it if it's "" unless we set it below.
+  if (updateData.official_date === "") updateData.official_date = null
+
+  // If transitioning to Active and official_date is not set, set it to today
+  if (currentEmp && data.status === "active" && currentEmp.status !== "active" && !currentEmp.official_date) {
+    updateData.official_date = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+  }
+
   const { error } = await supabase
     .from("employees")
-    .update({ ...data, updated_at: new Date().toISOString() })
+    .update(updateData)
     .eq("id", id)
 
   if (error) {

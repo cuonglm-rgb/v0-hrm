@@ -38,6 +38,7 @@ export interface Employee {
   manager_id: string | null
   shift_id: string | null
   join_date: string | null
+  official_date: string | null
   status: EmployeeStatus
   created_at: string
   updated_at: string

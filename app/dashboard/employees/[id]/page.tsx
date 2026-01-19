@@ -7,7 +7,7 @@ import { listWorkShifts } from "@/lib/actions/shift-actions"
 import { getUserRoles, listRoles } from "@/lib/actions/role-actions"
 import { getEmployeeJobHistory } from "@/lib/actions/job-history-actions"
 import { listSalaryStructure } from "@/lib/actions/payroll-actions"
-import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
+import { checkCanApproveRequests, getAnnualLeaveUsage } from "@/lib/actions/request-type-actions"
 import { EmployeeDetail } from "@/components/employees/employee-detail"
 
 interface EmployeeDetailPageProps {
@@ -38,6 +38,7 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
       listRoles(),
       getEmployeeJobHistory(id),
       checkCanApproveRequests(),
+      getAnnualLeaveUsage(id, new Date().getFullYear()),
     ])
 
   if (!targetEmployee) {

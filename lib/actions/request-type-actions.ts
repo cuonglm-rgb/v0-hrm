@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover } from "@/lib/types/database"
+import { calculateLeaveDays } from "@/lib/utils/date-utils"
+import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
 
 // =============================================
 // REQUEST TYPES (Loại phiếu)
@@ -344,7 +346,7 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
       .in("request_id", requestIds)
 
     const approvalMap = new Map(myApprovals?.map(a => [a.request_id, a.status]) || [])
-    
+
     return (data || []).map(r => ({
       ...r,
       my_approval_status: approvalMap.get(r.id) || undefined
@@ -461,6 +463,48 @@ export async function createEmployeeRequest(input: {
     return { success: false, error: "Vui lòng chọn ít nhất 1 người duyệt" }
   }
 
+  // Validate số dư phép (đối với phép năm hoặc loại phiếu trừ phép)
+  const { data: requestType } = await supabase
+    .from("request_types")
+    .select("code, deduct_leave_balance")
+    .eq("id", input.request_type_id)
+    .single()
+
+  if (requestType && (requestType.deduct_leave_balance || requestType.code.includes("annual"))) {
+    const { data: empData } = await supabase.from("employees").select("official_date").eq("id", employee.id).single()
+
+    // Calculate requested days
+    // Note: If requires_time is true, logic might differ, but calculateLeaveDays handles it if we pass times.
+    const requestedDays = calculateLeaveDays(
+      input.from_date || null,
+      input.to_date || null,
+      input.from_time,
+      input.to_time
+    )
+
+    const currentYear = new Date().getFullYear()
+
+    // We need getAnnualLeaveUsage. It is defined in this file.
+    // However, it is an async function.
+    const usedDays = await getAnnualLeaveUsage(employee.id, currentYear)
+
+    // Calculate balance
+    // Note: calculateAvailableBalance expects usedDays to subtract from total to give remaining.
+    // But here we want the entitlement data to check logic.
+    const { availableToUse } = calculateAvailableBalance(
+      empData?.official_date || null,
+      0, // Pass 0 as usedDays to get the full accrued amount so far
+      new Date()
+    )
+
+    // Real remaining = (Accrued Limit) - (Actually Used)
+    const remaining = availableToUse - usedDays
+
+    if (requestedDays > remaining) {
+      return { success: false, error: `Số dư phép không đủ. Bạn có ${remaining} ngày, yêu cầu ${requestedDays} ngày.` }
+    }
+  }
+
   // Tạo phiếu
   const { data: newRequest, error } = await supabase.from("employee_requests").insert({
     employee_id: employee.id,
@@ -543,18 +587,18 @@ export async function approveEmployeeRequest(id: string) {
 
   // Kiểm tra quyền duyệt dựa trên level chức vụ
   const approverLevel = (approverEmployee.position as any)?.level || 0
-  
+
   if (requestType?.min_approver_level && approverLevel < requestType.min_approver_level) {
-    return { 
-      success: false, 
-      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để duyệt loại phiếu này` 
+    return {
+      success: false,
+      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để duyệt loại phiếu này`
     }
   }
-  
+
   if (requestType?.max_approver_level && approverLevel > requestType.max_approver_level) {
-    return { 
-      success: false, 
-      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này` 
+    return {
+      success: false,
+      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này`
     }
   }
 
@@ -585,7 +629,7 @@ export async function approveEmployeeRequest(id: string) {
       // Cập nhật trạng thái duyệt của người này
       const { error: updateApproverError } = await supabase
         .from("request_assigned_approvers")
-        .update({ 
+        .update({
           status: "approved",
           approved_at: new Date().toISOString()
         })
@@ -641,14 +685,14 @@ export async function approveEmployeeRequest(id: string) {
 
       revalidatePath("/dashboard/leave")
       revalidatePath("/dashboard/leave-approval")
-      
+
       const pendingCount = updatedApprovers?.filter(a => a.status === "pending").length || 0
       if (pendingCount > 0) {
         return { success: true, message: `Đã duyệt. Còn ${pendingCount} người cần duyệt nữa.` }
       }
       return { success: true }
     }
-    
+
     // Nếu không có người duyệt được chỉ định khi tạo phiếu
     // -> Sử dụng bảng request_approvals để track
     // Cập nhật trạng thái duyệt của người này vào request_approvals
@@ -693,14 +737,14 @@ export async function approveEmployeeRequest(id: string) {
 
     revalidatePath("/dashboard/leave")
     revalidatePath("/dashboard/leave-approval")
-    
+
     // Kiểm tra lại trạng thái phiếu
     const { data: updatedRequest } = await supabase
       .from("employee_requests")
       .select("status")
       .eq("id", id)
       .single()
-    
+
     if (updatedRequest?.status === "pending") {
       return { success: true, message: "Đã duyệt. Cần thêm người duyệt khác." }
     }
@@ -768,13 +812,13 @@ async function checkAndFinalizeApproval(
 
   // Kiểm tra từng required approver
   let allApproved = true
-  
+
   for (const required of requiredApprovers) {
     let found = false
-    
+
     if (required.approver_employee_id) {
       // Kiểm tra employee cụ thể đã duyệt chưa
-      found = approvals.some((a: any) => 
+      found = approvals.some((a: any) =>
         a.approver_id === required.approver_employee_id && a.status === "approved"
       )
     } else if (required.approver_position_id) {
@@ -783,9 +827,9 @@ async function checkAndFinalizeApproval(
         .from("employees")
         .select("id")
         .eq("position_id", required.approver_position_id)
-      
+
       const positionEmployeeIds = positionEmployees?.map((e: any) => e.id) || []
-      found = approvals.some((a: any) => 
+      found = approvals.some((a: any) =>
         positionEmployeeIds.includes(a.approver_id) && a.status === "approved"
       )
     } else if (required.approver_role_code) {
@@ -795,33 +839,34 @@ async function checkAndFinalizeApproval(
         .select("id")
         .eq("code", required.approver_role_code)
         .single()
-      
+
       if (role) {
         const { data: roleUsers } = await supabase
           .from("user_roles")
           .select("user_id")
           .eq("role_id", role.id)
-        
-        if (roleUsers) {
-          const { data: roleEmployees } = await supabase
-            .from("employees")
-            .select("id")
-            .in("user_id", roleUsers.map((r: any) => r.user_id))
-          
-          const roleEmployeeIds = roleEmployees?.map((e: any) => e.id) || []
-          found = approvals.some((a: any) => 
-            roleEmployeeIds.includes(a.approver_id) && a.status === "approved"
-          )
-        }
+
+        const roleUserIds = roleUsers?.map((u: any) => u.user_id) || []
+
+        // Find employees for these users
+        const { data: roleEmployees } = await supabase
+          .from("employees")
+          .select("id")
+          .in("user_id", roleUserIds)
+
+        const roleEmployeeIds = roleEmployees?.map((e: any) => e.id) || []
+        found = approvals.some((a: any) =>
+          roleEmployeeIds.includes(a.approver_id) && a.status === "approved"
+        )
       }
     }
-    
+
     if (!found) {
       allApproved = false
       break
     }
   }
-  
+
   if (allApproved) {
     await supabase
       .from("employee_requests")
@@ -837,9 +882,9 @@ async function checkAndFinalizeApproval(
 
 // Helper function để kiểm tra quyền duyệt
 async function checkApproverPermission(
-  supabase: any, 
-  requestTypeId: string, 
-  approverId: string, 
+  supabase: any,
+  requestTypeId: string,
+  approverId: string,
   approverPositionId: string | null
 ): Promise<{ allowed: boolean; reason?: string }> {
   // Lấy danh sách người duyệt được chỉ định cho loại phiếu này
@@ -859,12 +904,12 @@ async function checkApproverPermission(
     if (approver.approver_employee_id && approver.approver_employee_id === approverId) {
       return { allowed: true }
     }
-    
+
     // Chỉ định theo position
     if (approver.approver_position_id && approverPositionId && approver.approver_position_id === approverPositionId) {
       return { allowed: true }
     }
-    
+
     // Chỉ định theo role (cần check thêm user_roles)
     if (approver.approver_role_code) {
       const { data: userRoles } = await supabase
@@ -873,7 +918,7 @@ async function checkApproverPermission(
           role:roles!role_id(code)
         `)
         .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
-      
+
       const hasRole = userRoles?.some((ur: any) => ur.role?.code === approver.approver_role_code)
       if (hasRole) {
         return { allowed: true }
@@ -881,9 +926,9 @@ async function checkApproverPermission(
     }
   }
 
-  return { 
-    allowed: false, 
-    reason: "Bạn không nằm trong danh sách người duyệt được chỉ định cho loại phiếu này" 
+  return {
+    allowed: false,
+    reason: "Bạn không nằm trong danh sách người duyệt được chỉ định cho loại phiếu này"
   }
 }
 
@@ -923,18 +968,18 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
 
   // Kiểm tra quyền duyệt dựa trên level chức vụ
   const approverLevel = (approverEmployee.position as any)?.level || 0
-  
+
   if (requestType?.min_approver_level && approverLevel < requestType.min_approver_level) {
-    return { 
-      success: false, 
-      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để từ chối loại phiếu này` 
+    return {
+      success: false,
+      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để từ chối loại phiếu này`
     }
   }
-  
+
   if (requestType?.max_approver_level && approverLevel > requestType.max_approver_level) {
-    return { 
-      success: false, 
-      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này` 
+    return {
+      success: false,
+      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này`
     }
   }
 
@@ -963,7 +1008,7 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
       // Cập nhật trạng thái từ chối của người này
       await supabase
         .from("request_assigned_approvers")
-        .update({ 
+        .update({
           status: "rejected",
           approved_at: new Date().toISOString()
         })
@@ -1425,18 +1470,18 @@ export async function approveRequestByApprover(requestId: string, comment?: stri
 
   // Kiểm tra quyền duyệt dựa trên level chức vụ
   const approverLevel = (approverEmployee.position as any)?.level || 0
-  
+
   if (requestType?.min_approver_level && approverLevel < requestType.min_approver_level) {
-    return { 
-      success: false, 
-      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để duyệt loại phiếu này` 
+    return {
+      success: false,
+      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để duyệt loại phiếu này`
     }
   }
-  
+
   if (requestType?.max_approver_level && approverLevel > requestType.max_approver_level) {
-    return { 
-      success: false, 
-      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này` 
+    return {
+      success: false,
+      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này`
     }
   }
 
@@ -1506,18 +1551,18 @@ export async function rejectRequestByApprover(requestId: string, comment?: strin
 
   // Kiểm tra quyền duyệt dựa trên level chức vụ
   const approverLevel = (approverEmployee.position as any)?.level || 0
-  
+
   if (requestType?.min_approver_level && approverLevel < requestType.min_approver_level) {
-    return { 
-      success: false, 
-      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để từ chối loại phiếu này` 
+    return {
+      success: false,
+      error: `Bạn cần có chức vụ level ${requestType.min_approver_level} trở lên để từ chối loại phiếu này`
     }
   }
-  
+
   if (requestType?.max_approver_level && approverLevel > requestType.max_approver_level) {
-    return { 
-      success: false, 
-      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này` 
+    return {
+      success: false,
+      error: `Chức vụ của bạn (level ${approverLevel}) vượt quá level tối đa (${requestType.max_approver_level}) cho loại phiếu này`
     }
   }
 
@@ -1644,15 +1689,15 @@ async function checkAndUpdateRequestStatus(requestId: string) {
     // Với approver_employee_id: cần đúng người đó
     // Với approver_position_id: cần 1 người có position đó
     // Với approver_role_code: cần 1 người có role đó
-    
+
     let allApproved = true
-    
+
     for (const required of requiredApprovers) {
       let found = false
-      
+
       if (required.approver_employee_id) {
         // Kiểm tra employee cụ thể đã duyệt chưa
-        found = approvals.some(a => 
+        found = approvals.some(a =>
           a.approver_id === required.approver_employee_id && a.status === "approved"
         )
       } else if (required.approver_position_id) {
@@ -1661,9 +1706,9 @@ async function checkAndUpdateRequestStatus(requestId: string) {
           .from("employees")
           .select("id")
           .eq("position_id", required.approver_position_id)
-        
+
         const positionEmployeeIds = positionEmployees?.map(e => e.id) || []
-        found = approvals.some(a => 
+        found = approvals.some(a =>
           positionEmployeeIds.includes(a.approver_id) && a.status === "approved"
         )
       } else if (required.approver_role_code) {
@@ -1675,26 +1720,26 @@ async function checkAndUpdateRequestStatus(requestId: string) {
             role:roles!role_id(code)
           `)
           .eq("roles.code", required.approver_role_code)
-        
+
         if (roleUsers) {
           const { data: roleEmployees } = await supabase
             .from("employees")
             .select("id")
             .in("user_id", roleUsers.map(r => r.user_id))
-          
+
           const roleEmployeeIds = roleEmployees?.map(e => e.id) || []
-          found = approvals.some(a => 
+          found = approvals.some(a =>
             roleEmployeeIds.includes(a.approver_id) && a.status === "approved"
           )
         }
       }
-      
+
       if (!found) {
         allApproved = false
         break
       }
     }
-    
+
     if (allApproved) {
       const lastApprover = approvals.filter(a => a.status === "approved").pop()
       await supabase
@@ -1731,4 +1776,50 @@ export async function getRequestAssignedApprovers(requestId: string) {
   }
 
   return data || []
+}
+
+
+
+export async function getAnnualLeaveUsage(employeeId: string, year: number) {
+  const supabase = await createClient()
+
+  const { data: typeData } = await supabase
+    .from("request_types")
+    .select("id")
+    .ilike("code", "%annual%")
+    .limit(1)
+    .single()
+
+  if (!typeData) return 0
+
+  const requestTypeId = typeData.id
+
+  const startDate = `${year}-01-01`
+  const endDate = `${year}-12-31`
+
+  const { data: requests } = await supabase
+    .from("employee_requests")
+    .select("*")
+    .eq("employee_id", employeeId)
+    .eq("request_type_id", requestTypeId)
+    .eq("status", "approved")
+    .gte("from_date", startDate)
+    .lte("from_date", endDate)
+
+  if (!requests) return 0
+
+  let totalDays = 0
+  for (const req of requests) {
+    if (req.from_date) {
+      const days = calculateLeaveDays(
+        req.from_date,
+        req.to_date || req.from_date,
+        req.from_time,
+        req.to_time
+      )
+      totalDays += days
+    }
+  }
+
+  return totalDays
 }
