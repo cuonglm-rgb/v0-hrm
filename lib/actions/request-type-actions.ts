@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
+import { differenceInDays, parseISO, startOfDay } from "date-fns"
 
 // =============================================
 // REQUEST TYPES (Loại phiếu)
@@ -65,6 +66,7 @@ export async function createRequestType(input: {
   approval_mode?: "any" | "all"
   min_approver_level?: number | null
   max_approver_level?: number | null
+  submission_deadline?: number | null
   custom_fields?: CustomField[] | null
   display_order?: number
 }) {
@@ -86,6 +88,7 @@ export async function createRequestType(input: {
     approval_mode: input.approval_mode ?? "any",
     min_approver_level: input.min_approver_level,
     max_approver_level: input.max_approver_level,
+    submission_deadline: input.submission_deadline,
     custom_fields: input.custom_fields || null,
     display_order: input.display_order ?? 0,
   })
@@ -116,6 +119,7 @@ export async function updateRequestType(
     approval_mode: "any" | "all"
     min_approver_level: number | null
     max_approver_level: number | null
+    submission_deadline: number | null
     custom_fields: CustomField[] | null
     is_active: boolean
     display_order: number
@@ -479,12 +483,33 @@ export async function createEmployeeRequest(input: {
     return { success: false, error: "Vui lòng chọn ít nhất 1 người duyệt" }
   }
 
-  // Validate số dư phép (đối với phép năm hoặc loại phiếu trừ phép)
+  // Validate số dư phép và thời hạn tạo phiếu
   const { data: requestType } = await supabase
     .from("request_types")
-    .select("code, deduct_leave_balance")
+    .select("code, deduct_leave_balance, submission_deadline")
     .eq("id", input.request_type_id)
     .single()
+
+  // Validate deadline (Giới hạn thời gian tạo phiếu)
+  if (requestType?.submission_deadline && requestType.submission_deadline > 0) {
+    const eventDateStr = input.from_date || input.request_date
+    // Nếu eventDateStr < today -> là phiếu bổ sung cho quá khứ
+    if (eventDateStr) {
+      const eventDate = startOfDay(parseISO(eventDateStr))
+      const today = startOfDay(new Date())
+
+      // Nếu ngày sự việc là quá khứ, kiểm tra deadline
+      // differenceInDays(later, earlier) returns positive integer
+      const dayDiff = differenceInDays(today, eventDate)
+
+      if (dayDiff > requestType.submission_deadline) {
+        return {
+          success: false,
+          error: `Quá hạn tạo phiếu. Quy định yêu cầu tạo trong vòng ${requestType.submission_deadline} ngày sau khi sự việc xảy ra (bạn đang tạo trễ ${dayDiff} ngày).`
+        }
+      }
+    }
+  }
 
   if (requestType && (requestType.deduct_leave_balance || requestType.code.includes("annual"))) {
     const { data: empData } = await supabase.from("employees").select("official_date").eq("id", employee.id).single()

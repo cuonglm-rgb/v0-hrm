@@ -42,6 +42,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
     approval_mode: "any" as "any" | "all",
     min_approver_level: null as number | null,
     max_approver_level: null as number | null,
+    submission_deadline: null as number | null,
     custom_fields: [] as CustomField[],
   })
 
@@ -62,6 +63,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       approval_mode: "any",
       min_approver_level: null,
       max_approver_level: null,
+      submission_deadline: null,
       custom_fields: [],
     })
   }
@@ -132,6 +134,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       approval_mode: type.approval_mode || "any",
       min_approver_level: type.min_approver_level,
       max_approver_level: type.max_approver_level,
+      submission_deadline: type.submission_deadline,
       custom_fields: type.custom_fields || [],
     })
   }
@@ -181,7 +184,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
     acc[p.level].push(p.name)
     return acc
   }, {} as Record<number, string[]>)
-  
+
   const positionLevels = Object.keys(levelPositions).map(Number).sort((a, b) => a - b)
 
   const formFieldsContent = (
@@ -273,6 +276,33 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       </div>
 
       <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-medium">Cấu hình quy định</h4>
+        <div className="grid grid-cols-1 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="submission_deadline">Giới hạn thời gian tạo phiếu (ngày)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="submission_deadline"
+                type="number"
+                min="0"
+                value={formData.submission_deadline || ""}
+                onChange={(e) => setFormData((prev) => ({
+                  ...prev,
+                  submission_deadline: e.target.value ? parseInt(e.target.value) : null
+                }))}
+                placeholder="VD: 3 (phải tạo trong vòng 3 ngày sau khi sự việc xảy ra)"
+                className="max-w-[200px]"
+              />
+              <span className="text-sm text-muted-foreground">Để trống là không giới hạn</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Ví dụ: Đi muộn ngày 1/1, nếu giới hạn là 3 ngày thì phải tạo phiếu trước ngày 4/1.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
         <h4 className="font-medium">Ảnh hưởng</h4>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex items-center justify-between">
@@ -328,9 +358,9 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
               <Label>Level chức vụ tối thiểu</Label>
               <Select
                 value={formData.min_approver_level?.toString() || "none"}
-                onValueChange={(value) => setFormData((prev) => ({ 
-                  ...prev, 
-                  min_approver_level: value === "none" ? null : parseInt(value) 
+                onValueChange={(value) => setFormData((prev) => ({
+                  ...prev,
+                  min_approver_level: value === "none" ? null : parseInt(value)
                 }))}
               >
                 <SelectTrigger>
@@ -350,9 +380,9 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
               <Label>Level chức vụ tối đa</Label>
               <Select
                 value={formData.max_approver_level?.toString() || "none"}
-                onValueChange={(value) => setFormData((prev) => ({ 
-                  ...prev, 
-                  max_approver_level: value === "none" ? null : parseInt(value) 
+                onValueChange={(value) => setFormData((prev) => ({
+                  ...prev,
+                  max_approver_level: value === "none" ? null : parseInt(value)
                 }))}
               >
                 <SelectTrigger>
@@ -370,7 +400,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            {formData.approval_mode === "any" 
+            {formData.approval_mode === "any"
               ? "Phiếu sẽ được duyệt khi có ít nhất 1 người trong danh sách đồng ý"
               : "Phiếu chỉ được duyệt khi tất cả người trong danh sách đều đồng ý"}
           </p>
@@ -388,7 +418,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
             Thêm trường
           </Button>
         </div>
-        
+
         {formData.custom_fields.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
             Chưa có trường tùy chỉnh. Nhấn "Thêm trường" để bổ sung.
@@ -412,7 +442,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Tên trường *</Label>
@@ -440,7 +470,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                     </Select>
                   </div>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Placeholder</Label>
@@ -464,8 +494,8 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                     <Label className="text-xs">Các lựa chọn (mỗi dòng 1 lựa chọn)</Label>
                     <Textarea
                       value={field.options?.join("\n") || ""}
-                      onChange={(e) => updateCustomField(field.id, { 
-                        options: e.target.value.split("\n").filter(Boolean) 
+                      onChange={(e) => updateCustomField(field.id, {
+                        options: e.target.value.split("\n").filter(Boolean)
                       })}
                       placeholder="Lựa chọn 1&#10;Lựa chọn 2&#10;Lựa chọn 3"
                       rows={3}
