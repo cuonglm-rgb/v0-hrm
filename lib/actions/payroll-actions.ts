@@ -9,6 +9,7 @@ import type {
   PayrollAdjustmentType,
 } from "@/lib/types/database"
 import { calculateOvertimePay, listHolidays } from "./overtime-actions"
+import { getEmployeeKPI } from "./kpi-actions"
 import { toDateStringVN, getTimePartsVN, getLastDayOfMonthVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { calculateLeaveEntitlement } from "@/lib/utils/leave-utils"
 
@@ -1366,13 +1367,45 @@ export async function generatePayroll(month: number, year: number) {
     }
 
     // =============================================
+    // TÍNH THƯỞNG KPI
+    // =============================================
+    let kpiBonus = 0
+    const kpiEvaluation = await getEmployeeKPI(emp.id, month, year)
+    if (kpiEvaluation && kpiEvaluation.status === "achieved" && kpiEvaluation.final_bonus > 0) {
+      kpiBonus = kpiEvaluation.final_bonus
+      console.log(`[Payroll] ${emp.full_name}: KPI bonus = ${kpiBonus}đ`)
+      
+      // Tìm adjustment_type cho KPI_BONUS
+      const kpiAdjustmentType = (adjustmentTypes as PayrollAdjustmentType[] | null)?.find(
+        (t) => t.code === "KPI_BONUS"
+      )
+      
+      // Chỉ thêm vào adjustmentDetails nếu có adjustment_type
+      if (kpiAdjustmentType) {
+        adjustmentDetails.push({
+          adjustment_type_id: kpiAdjustmentType.id,
+          category: 'allowance',
+          base_amount: kpiBonus,
+          adjusted_amount: 0,
+          final_amount: kpiBonus,
+          reason: kpiEvaluation.bonus_type === 'percentage' 
+            ? `Thưởng KPI (${kpiEvaluation.bonus_percentage}% lương)`
+            : 'Thưởng KPI',
+          occurrence_count: 1,
+        })
+      } else {
+        console.warn(`[Payroll] ${emp.full_name}: KPI_BONUS adjustment type not found, skipping detail record`)
+      }
+    }
+
+    // =============================================
     // TÍNH LƯƠNG CUỐI CÙNG
     // =============================================
     // Ngày công thực tế = ngày đi làm + WFH (không bao gồm nghỉ phép)
     const actualWorkingDays = actualAttendanceDays + workFromHomeDays
 
-    // Lương theo ngày công = lương ngày đi làm + WFH + nghỉ phép có lương
-    const grossSalary = dailySalary * (actualWorkingDays + paidLeaveDays) + totalAllowances + totalOTPay
+    // Lương theo ngày công = lương ngày đi làm + WFH + nghỉ phép có lương + phụ cấp + OT + KPI
+    const grossSalary = dailySalary * (actualWorkingDays + paidLeaveDays) + totalAllowances + totalOTPay + kpiBonus
     const totalDeduction = dailySalary * unpaidLeaveDays + totalDeductions + totalPenalties
     const netSalary = grossSalary - totalDeduction
 
@@ -1393,6 +1426,7 @@ export async function generatePayroll(month: number, year: number) {
     const penaltyCount = adjustmentDetails.filter(d => d.category === 'penalty').length
     if (penaltyCount > 0) noteItems.push(`Phạt: ${penaltyCount} lần`)
     if (otResult.totalOTHours > 0) noteItems.push(`OT: ${otResult.totalOTHours}h`)
+    if (kpiBonus > 0) noteItems.push(`KPI: ${kpiBonus.toLocaleString()}đ`)
 
     // Insert payroll item
     const { data: payrollItem, error: insertError } = await supabase
@@ -1404,7 +1438,7 @@ export async function generatePayroll(month: number, year: number) {
         leave_days: paidLeaveDays, // Ngày nghỉ phép có lương (tách riêng)
         unpaid_leave_days: unpaidLeaveDays + absentDays, // Cộng thêm ngày không tính công
         base_salary: baseSalary,
-        allowances: totalAllowances + totalOTPay, // Bao gồm cả tiền OT
+        allowances: totalAllowances + totalOTPay + kpiBonus, // Bao gồm cả tiền OT và KPI
         total_income: grossSalary,
         total_deduction: totalDeduction,
         net_salary: netSalary,

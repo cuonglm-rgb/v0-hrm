@@ -463,3 +463,33 @@ export interface OvertimeRecordWithRelations extends OvertimeRecord {
   approver?: Employee | null
   ot_setting?: OTSetting | null
 }
+
+
+// =============================================
+// KPI EVALUATION (Đánh giá KPI)
+// =============================================
+
+export type KPIStatus = "achieved" | "not_achieved"
+export type KPIBonusType = "percentage" | "fixed"
+
+export interface KPIEvaluation {
+  id: string
+  employee_id: string
+  month: number
+  year: number
+  status: KPIStatus
+  bonus_type: KPIBonusType
+  bonus_percentage: number | null // % lương tháng (VD: 10 = 10%)
+  bonus_amount: number | null // Số tiền cố định
+  final_bonus: number // Số tiền thưởng cuối cùng (tính từ % hoặc fixed)
+  note: string | null
+  evaluated_by: string | null
+  evaluated_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface KPIEvaluationWithRelations extends KPIEvaluation {
+  employee?: Employee | null
+  evaluator?: Employee | null
+}

@@ -396,6 +396,25 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                       </div>
                     </div>
                   )}
+
+                  {/* Thưởng KPI */}
+                  {!isLoading && adjustmentDetails.filter(d => d.category === "allowance" && !d.adjustment_type && d.reason?.includes('KPI')).length > 0 && (
+                    <div className="pt-2 border-t">
+                      <p className="text-sm text-muted-foreground mb-1.5">Thưởng KPI:</p>
+                      {adjustmentDetails
+                        .filter(d => d.category === "allowance" && !d.adjustment_type && d.reason?.includes('KPI'))
+                        .map((detail, idx) => (
+                          <div key={idx} className="flex justify-between items-center py-0.5 gap-4">
+                            <span className="text-sm text-muted-foreground flex-1 min-w-0">
+                              {detail.reason}
+                            </span>
+                            <span className="text-sm text-green-600 whitespace-nowrap tabular-nums">
+                              +{formatCurrency(detail.final_amount)}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                   
                   {/* Fallback nếu không có chi tiết */}
                   {!isLoading && adjustmentDetails.length === 0 && selectedPayslip.allowances > 0 && (

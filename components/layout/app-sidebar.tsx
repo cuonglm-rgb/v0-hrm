@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut, Clock, CalendarDays, CheckSquare, Wallet, Receipt, FileSpreadsheet, Coins } from "lucide-react"
+import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut, Clock, CalendarDays, CheckSquare, Wallet, Receipt, FileSpreadsheet, Coins, Target } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -73,6 +73,12 @@ const mainNavItems: NavItem[] = [
     title: "Phụ cấp",
     url: "/dashboard/allowances",
     icon: Coins,
+    roles: ["hr", "admin"],
+  },
+  {
+    title: "Đánh giá KPI",
+    url: "/dashboard/kpi",
+    icon: Target,
     roles: ["hr", "admin"],
   },
   {
