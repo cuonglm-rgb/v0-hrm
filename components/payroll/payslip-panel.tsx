@@ -293,10 +293,16 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                         .map((detail, idx) => (
                           <div key={idx} className="flex justify-between items-center py-0.5 gap-4">
                             <span className="text-sm text-muted-foreground flex-1 min-w-0">
-                              {detail.adjustment_type.name}
-                              {detail.reason && detail.reason !== detail.adjustment_type.name && (
-                                <span className="text-xs ml-1">({detail.reason})</span>
-                              )}
+                              {detail.adjustment_type?.code?.startsWith("MANUAL") 
+                                ? detail.reason 
+                                : (
+                                  <>
+                                    {detail.adjustment_type?.name || detail.reason}
+                                    {detail.reason && detail.reason !== detail.adjustment_type?.name && !detail.adjustment_type?.code?.startsWith("MANUAL") && (
+                                      <span className="text-xs ml-1">({detail.reason})</span>
+                                    )}
+                                  </>
+                                )}
                             </span>
                             <span className="text-sm text-green-600 whitespace-nowrap tabular-nums">
                               +{formatCurrency(detail.final_amount)}
@@ -477,7 +483,9 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                         .map((detail, idx) => (
                           <div key={idx} className="flex justify-between items-center py-1 gap-4">
                             <span className="text-sm text-muted-foreground flex-1 min-w-0">
-                              {detail.adjustment_type.name}
+                              {detail.adjustment_type?.code?.startsWith("MANUAL") 
+                                ? detail.reason 
+                                : detail.adjustment_type?.name || detail.reason}
                             </span>
                             <span className="text-sm text-red-600 whitespace-nowrap tabular-nums">
                               -{formatCurrency(detail.final_amount)}

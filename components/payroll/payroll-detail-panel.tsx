@@ -7,11 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { lockPayroll, markPayrollPaid, sendPayrollForReview, getPayrollAdjustmentDetails } from "@/lib/actions/payroll-actions"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { lockPayroll, markPayrollPaid, sendPayrollForReview, getPayrollAdjustmentDetails, addManualAdjustment, deleteAdjustmentDetail, recalculateSingleEmployee } from "@/lib/actions/payroll-actions"
 import type { PayrollRun, PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
-import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar, TrendingUp, TrendingDown } from "lucide-react"
+import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar, TrendingUp, TrendingDown, RefreshCw, Pencil, Plus, Trash2 } from "lucide-react"
 
 interface WorkingDaysInfo {
   totalDays: number
@@ -39,7 +42,7 @@ interface AdjustmentDetail {
     name: string
     code: string
     category: string
-  }
+  } | null
 }
 
 export function PayrollDetailPanel({ 
@@ -52,6 +55,14 @@ export function PayrollDetailPanel({
   const [selectedItem, setSelectedItem] = useState<PayrollItemWithRelations | null>(null)
   const [adjustmentDetails, setAdjustmentDetails] = useState<AdjustmentDetail[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [reloadingId, setReloadingId] = useState<string | null>(null)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [showAddDialog, setShowAddDialog] = useState(false)
+  const [addCategory, setAddCategory] = useState<"allowance" | "deduction">("allowance")
+  const [addAmount, setAddAmount] = useState("")
+  const [addReason, setAddReason] = useState("")
+  const [isAdding, setIsAdding] = useState(false)
+  const [localPayrollItems, setLocalPayrollItems] = useState(payrollItems)
 
   const loadAdjustmentDetails = async (payrollItemId: string) => {
     setIsLoading(true)
@@ -69,7 +80,77 @@ export function PayrollDetailPanel({
 
   const handleViewDetails = (item: PayrollItemWithRelations) => {
     setSelectedItem(item)
+    setIsEditMode(false)
     loadAdjustmentDetails(item.id)
+  }
+
+  const handleReloadEmployee = async (item: PayrollItemWithRelations, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`Tính lại lương cho ${item.employee?.full_name}?`)) return
+    
+    setReloadingId(item.id)
+    try {
+      const result = await recalculateSingleEmployee(item.id)
+      if (result.success) {
+        // Reload the page to get fresh data
+        window.location.reload()
+      } else {
+        alert(result.error || "Có lỗi xảy ra")
+      }
+    } catch (error) {
+      console.error("Error reloading employee:", error)
+      alert("Có lỗi xảy ra khi tính lại lương")
+    } finally {
+      setReloadingId(null)
+    }
+  }
+
+  const handleAddAdjustment = async () => {
+    if (!selectedItem || !addAmount || !addReason) return
+    
+    setIsAdding(true)
+    try {
+      const result = await addManualAdjustment({
+        payroll_item_id: selectedItem.id,
+        category: addCategory,
+        amount: parseFloat(addAmount),
+        reason: addReason
+      })
+      
+      if (result.success) {
+        // Reload adjustment details
+        await loadAdjustmentDetails(selectedItem.id)
+        setShowAddDialog(false)
+        setAddAmount("")
+        setAddReason("")
+        // Reload page to update totals
+        window.location.reload()
+      } else {
+        alert(result.error || "Có lỗi xảy ra")
+      }
+    } catch (error) {
+      console.error("Error adding adjustment:", error)
+      alert("Có lỗi xảy ra")
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  const handleDeleteAdjustment = async (detailId: string) => {
+    if (!confirm("Xóa khoản điều chỉnh này?")) return
+    
+    try {
+      const result = await deleteAdjustmentDetail(detailId)
+      if (result.success) {
+        await loadAdjustmentDetails(selectedItem!.id)
+        window.location.reload()
+      } else {
+        alert(result.error || "Có lỗi xảy ra")
+      }
+    } catch (error) {
+      console.error("Error deleting adjustment:", error)
+      alert("Có lỗi xảy ra")
+    }
   }
 
   const handleSendForReview = async () => {
@@ -238,17 +319,20 @@ export function PayrollDetailPanel({
                 <TableHead className="text-right">Khấu trừ</TableHead>
                 <TableHead className="text-right">Thực lĩnh</TableHead>
                 <TableHead className="text-center">Chi tiết</TableHead>
+                {(payrollRun.status === "draft" || payrollRun.status === "review") && (
+                  <TableHead className="text-center">Thao tác</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payrollItems.length === 0 ? (
+              {localPayrollItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground">
                     Chưa có dữ liệu
                   </TableCell>
                 </TableRow>
               ) : (
-                payrollItems.map((item) => (
+                localPayrollItems.map((item) => (
                   <TableRow 
                     key={item.id} 
                     className="cursor-pointer hover:bg-muted/50"
@@ -288,6 +372,34 @@ export function PayrollDetailPanel({
                         <Eye className="h-4 w-4" />
                       </Button>
                     </TableCell>
+                    {(payrollRun.status === "draft" || payrollRun.status === "review") && (
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedItem(item)
+                              setIsEditMode(true)
+                              loadAdjustmentDetails(item.id)
+                            }}
+                            title="Sửa điều chỉnh"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => handleReloadEmployee(item, e)}
+                            disabled={reloadingId === item.id}
+                            title="Tính lại lương"
+                          >
+                            <RefreshCw className={`h-4 w-4 ${reloadingId === item.id ? 'animate-spin' : ''}`} />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}
@@ -297,10 +409,18 @@ export function PayrollDetailPanel({
       </Card>
 
       {/* Dialog chi tiết cơ cấu lương */}
-      <Dialog open={!!selectedItem} onOpenChange={(open) => !open && setSelectedItem(null)}>
+      <Dialog open={!!selectedItem} onOpenChange={(open) => { if (!open) { setSelectedItem(null); setIsEditMode(false); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Chi tiết cơ cấu lương</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>{isEditMode ? "Chỉnh sửa điều chỉnh lương" : "Chi tiết cơ cấu lương"}</DialogTitle>
+              {(payrollRun.status === "draft" || payrollRun.status === "review") && !isEditMode && (
+                <Button variant="outline" size="sm" onClick={() => setIsEditMode(true)}>
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Sửa
+                </Button>
+              )}
+            </div>
             {selectedItem && (
               <p className="text-sm text-muted-foreground">
                 {selectedItem.employee?.full_name} - NV{selectedItem.employee?.employee_code} - Tháng {payrollRun.month}/{payrollRun.year}
@@ -375,10 +495,16 @@ export function PayrollDetailPanel({
                         .map((detail, idx) => (
                           <div key={idx} className="flex justify-between items-center py-0.5 gap-4">
                             <span className="text-sm text-muted-foreground flex-1 min-w-0">
-                              {detail.adjustment_type.name}
-                              {detail.reason && detail.reason !== detail.adjustment_type.name && (
-                                <span className="text-xs ml-1">({detail.reason})</span>
-                              )}
+                              {detail.adjustment_type?.code?.startsWith("MANUAL") 
+                                ? detail.reason 
+                                : (
+                                  <>
+                                    {detail.adjustment_type?.name || detail.reason}
+                                    {detail.reason && detail.reason !== detail.adjustment_type?.name && !detail.adjustment_type?.code?.startsWith("MANUAL") && (
+                                      <span className="text-xs ml-1">({detail.reason})</span>
+                                    )}
+                                  </>
+                                )}
                             </span>
                             <span className="text-sm text-green-600 whitespace-nowrap tabular-nums">
                               +{formatCurrency(detail.final_amount)}
@@ -540,7 +666,9 @@ export function PayrollDetailPanel({
                         .map((detail, idx) => (
                           <div key={idx} className="flex justify-between items-center py-1 gap-4">
                             <span className="text-sm text-muted-foreground flex-1 min-w-0">
-                              {detail.adjustment_type.name}
+                              {detail.adjustment_type?.code?.startsWith("MANUAL") 
+                                ? detail.reason 
+                                : detail.adjustment_type?.name || detail.reason}
                             </span>
                             <span className="text-sm text-red-600 whitespace-nowrap tabular-nums">
                               -{formatCurrency(detail.final_amount)}
@@ -605,8 +733,131 @@ export function PayrollDetailPanel({
                   </span>
                 </div>
               </div>
+
+              {/* Edit Mode - Thêm/Xóa điều chỉnh */}
+              {isEditMode && (payrollRun.status === "draft" || payrollRun.status === "review") && (
+                <>
+                  <Separator />
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Điều chỉnh thủ công</h3>
+                      <Button size="sm" onClick={() => setShowAddDialog(true)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Thêm điều chỉnh
+                      </Button>
+                    </div>
+
+                    {/* Danh sách điều chỉnh có thể xóa */}
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">Các khoản cộng lương (có thể thêm: phụ cấp khác, thưởng khác, chênh lệch khác):</p>
+                      {adjustmentDetails
+                        .filter((d) => d.category === "allowance")
+                        .map((detail) => (
+                          <div key={detail.id} className="flex items-center justify-between py-2 px-3 bg-green-50 rounded-lg">
+                            <div className="flex-1">
+                              <span className="text-sm">{detail.adjustment_type?.name || detail.reason}</span>
+                              {detail.reason && detail.reason !== detail.adjustment_type?.name && (
+                                <span className="text-xs text-muted-foreground ml-2">({detail.reason})</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-green-600 font-medium">+{formatCurrency(detail.final_amount)}</span>
+                              {detail.adjustment_type?.code?.startsWith("MANUAL") && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                  onClick={() => handleDeleteAdjustment(detail.id)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                      <p className="text-sm text-muted-foreground mt-4">Các khoản trừ lương (có thể thêm: vi phạm khác, ứng lương, chênh lệch khác):</p>
+                      {adjustmentDetails
+                        .filter((d) => d.category === "deduction" || d.category === "penalty")
+                        .map((detail) => (
+                          <div key={detail.id} className="flex items-center justify-between py-2 px-3 bg-red-50 rounded-lg">
+                            <div className="flex-1">
+                              <span className="text-sm">{detail.adjustment_type?.name || detail.reason}</span>
+                              {detail.reason && detail.reason !== detail.adjustment_type?.name && (
+                                <span className="text-xs text-muted-foreground ml-2">({detail.reason})</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-red-600 font-medium">-{formatCurrency(detail.final_amount)}</span>
+                              {detail.adjustment_type?.code?.startsWith("MANUAL") && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                  onClick={() => handleDeleteAdjustment(detail.id)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog thêm điều chỉnh */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Thêm điều chỉnh lương</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Loại điều chỉnh</Label>
+              <Select value={addCategory} onValueChange={(v) => setAddCategory(v as "allowance" | "deduction")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="allowance">Cộng lương (phụ cấp khác, thưởng khác, chênh lệch...)</SelectItem>
+                  <SelectItem value="deduction">Trừ lương (vi phạm khác, ứng lương, chênh lệch...)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Số tiền (VNĐ)</Label>
+              <Input
+                type="text"
+                placeholder="Nhập số tiền (VD: 900.000)"
+                value={addAmount ? Number(addAmount.replace(/\./g, '')).toLocaleString('vi-VN') : ''}
+                onChange={(e) => {
+                  // Chỉ giữ lại số
+                  const rawValue = e.target.value.replace(/\D/g, '')
+                  setAddAmount(rawValue)
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Lý do / Ghi chú</Label>
+              <Input
+                placeholder="VD: Thưởng dự án, Ứng lương, Chênh lệch tháng trước..."
+                value={addReason}
+                onChange={(e) => setAddReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Hủy</Button>
+            <Button onClick={handleAddAdjustment} disabled={isAdding || !addAmount || !addReason}>
+              {isAdding ? "Đang thêm..." : "Thêm"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

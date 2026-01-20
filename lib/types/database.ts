@@ -70,7 +70,7 @@ export interface UserRoleWithRelations extends UserRole {
 
 export type LeaveStatus = "pending" | "approved" | "rejected"
 export type LeaveType = "annual" | "sick" | "unpaid" | "maternity" | "other"
-export type PayrollStatus = "draft" | "locked" | "paid"
+export type PayrollStatus = "draft" | "review" | "locked" | "paid"
 
 // Work Shift
 export interface WorkShift {
