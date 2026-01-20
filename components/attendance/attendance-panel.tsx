@@ -26,7 +26,9 @@ import {
   formatCurrentTimeVN,
   getTodayVN,
   formatSourceVN,
+  calculateLeaveDays,
 } from "@/lib/utils/date-utils"
+import { calculateLeaveEntitlement } from "@/lib/utils/leave-utils"
 import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter, Calendar } from "lucide-react"
 
 interface AttendanceViolation {
@@ -129,10 +131,10 @@ function getISOWeekNumber(date: Date): number {
 function isSaturdayOff(date: Date): boolean {
   const refWeek = getISOWeekNumber(REFERENCE_DATE)
   const currentWeek = getISOWeekNumber(date)
-  
+
   const refIsOdd = refWeek % 2 === 1
   const currentIsOdd = currentWeek % 2 === 1
-  
+
   if (REFERENCE_WEEK_IS_OFF) {
     return refIsOdd === currentIsOdd
   } else {
@@ -154,7 +156,7 @@ function generateWorkingDays(fromDate: Date, toDate: Date): string[] {
   const days: string[] = []
   const current = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate())
   const end = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate())
-  
+
   while (current <= end) {
     // Format ngày theo YYYY-MM-DD
     const year = current.getFullYear()
@@ -163,7 +165,7 @@ function generateWorkingDays(fromDate: Date, toDate: Date): string[] {
     days.push(`${year}-${month}-${day}`)
     current.setDate(current.getDate() + 1)
   }
-  
+
   return days
 }
 
@@ -179,16 +181,17 @@ interface AttendancePanelProps {
   attendanceLogs: AttendanceLog[]
   shift?: WorkShift | null
   leaveRequests?: EmployeeRequestWithRelations[]
+  officialDate?: string | null
 }
 
 // Tạm ẩn phần chấm công hôm nay - có thể bật lại sau
 const SHOW_TODAY_CHECKIN = false
 
-export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: AttendancePanelProps) {
+export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null }: AttendancePanelProps) {
   const [loading, setLoading] = useState<"checkin" | "checkout" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
-  
+
   // Bộ lọc lịch sử chấm công
   const currentDate = new Date()
   const [filterMonth, setFilterMonth] = useState<string>((currentDate.getMonth() + 1).toString())
@@ -211,28 +214,112 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
   const filteredLogs = useMemo(() => {
     return attendanceLogs.filter((log) => {
       if (!log.check_in) return false
-      
+
       const logDate = new Date(log.check_in)
       const logMonth = logDate.getMonth() + 1
       const logYear = logDate.getFullYear()
-      
+
       // Lọc theo tháng/năm
       if (filterMonth !== "all" && logMonth !== parseInt(filterMonth)) return false
       if (filterYear !== "all" && logYear !== parseInt(filterYear)) return false
-      
+
       // Lọc theo trạng thái
       if (filterStatus !== "all") {
         const violations = checkViolations(log.check_in, log.check_out, shift)
         const hasViolation = violations.length > 0
-        
+
         if (filterStatus === "violation" && !hasViolation) return false
         if (filterStatus === "complete" && (hasViolation || !log.check_out)) return false
         if (filterStatus === "incomplete" && log.check_out) return false
       }
-      
+
       return true
     })
   }, [attendanceLogs, filterMonth, filterYear, filterStatus, shift])
+
+  // Tính toán trạng thái quỹ phép cho từng ngày
+  const leaveUsageMap = useMemo(() => {
+    const map = new Map<string, "ok" | "exceeded">()
+    if (!officialDate) return map
+
+    // Nhóm annual leave requests theo năm
+    const requestsByYear = new Map<number, typeof leaveRequests>()
+
+    leaveRequests.forEach(req => {
+      // Chỉ xét annual leave và đã duyệt
+      // Note: logic cũ check code annual_leave hoặc deduct_leave_balance. Assuming "annual_leave" code mostly.
+      // Hoặc check req.request_type.deduct_leave_balance
+      if (req.status !== 'approved') return
+      if (req.request_type?.code !== 'annual_leave' && !req.request_type?.deduct_leave_balance) return
+
+      const year = new Date(req.from_date || req.request_date || "").getFullYear()
+      if (!year) return
+
+      const list = requestsByYear.get(year) || []
+      list.push(req)
+      requestsByYear.set(year, list)
+    })
+
+    // Xử lý từng năm
+    requestsByYear.forEach((requests, year) => {
+      const entitlement = calculateLeaveEntitlement(officialDate, year)
+      let used = 0
+
+      // Sort requests by date
+      requests.sort((a, b) => (a.from_date || "").localeCompare(b.from_date || ""))
+
+      requests.forEach(req => {
+        const from = req.from_date || req.request_date
+        const to = req.to_date || req.request_date
+        if (!from) return
+
+        // Calculate days for this request
+        // We need simpler logic to just assign status to DATES.
+        // If a request spans multiple days, we iterate them.
+
+        const days = calculateLeaveDays(
+          req.from_date,
+          req.to_date,
+          req.from_time,
+          req.to_time,
+          {
+            requires_date_range: req.request_type?.requires_date_range,
+            requires_single_date: req.request_type?.requires_single_date
+          }
+        )
+
+        // Check current usage BEFORE adding (or AFTER? usually consecutive days matter)
+        // If current used < entitlement, but used + days > entitlement => some days ok, some exceeded.
+
+        // Let's iterate day by day for this request to be precise
+        const current = new Date(from)
+        const end = new Date(to || from)
+
+        // Is this a partial day request?
+        const isPartial = days < 1
+        const dailyCost = isPartial ? days : 1
+        // Note: If multi-day request has times (partial start/end), it's complex.
+        // Simplified: Multi-day usually full days. Single day can be partial.
+
+        while (current <= end) {
+          const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+
+          // Add cost
+          used += dailyCost
+
+          if (used > entitlement) {
+            map.set(dateStr, "exceeded")
+          } else {
+            map.set(dateStr, "ok")
+          }
+
+          current.setDate(current.getDate() + 1)
+        }
+      })
+    })
+
+    return map
+  }, [leaveRequests, officialDate])
 
   // Tạo danh sách ngày làm việc kết hợp với attendance logs
   const workingDaysWithAttendance = useMemo(() => {
@@ -240,7 +327,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
     const now = new Date()
     let startDate: Date
     let endDate: Date = now
-    
+
     if (filterMonth !== "all" && filterYear !== "all") {
       const year = parseInt(filterYear)
       const month = parseInt(filterMonth)
@@ -255,22 +342,22 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
       startDate = new Date(now)
       startDate.setDate(startDate.getDate() - 30)
     }
-    
+
     // Tạo danh sách ngày làm việc
     const workingDays = generateWorkingDays(startDate, endDate)
-    
+
     // Kết hợp với attendance logs
     const combined = workingDays.map((date) => {
       const log = filteredLogs.find((l) => l.check_in?.startsWith(date))
       const leaveRequest = getLeaveRequestForDate(date, leaveRequests)
-      
+
       return {
         date,
         log,
         leaveRequest,
       }
     })
-    
+
     // Sắp xếp theo ngày giảm dần
     return combined.reverse()
   }, [filteredLogs, filterMonth, filterYear, leaveRequests])
@@ -334,84 +421,84 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
     <div className="space-y-6">
       {/* Card chấm công hôm nay - Tạm ẩn */}
       {SHOW_TODAY_CHECKIN && (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Chấm công hôm nay
-          </CardTitle>
-          <CardDescription>
-            {formatDateVN(new Date().toISOString())}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Giờ hiện tại & Ca làm */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center p-4 bg-muted/50 rounded-lg">
-            <div>
-              <p className="text-sm text-muted-foreground">Giờ hiện tại (Việt Nam)</p>
-              <p className="text-2xl font-bold">
-                {formatCurrentTimeVN(currentTime)}
-              </p>
-            </div>
-            {shift && (
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Ca làm việc</p>
-                <p className="font-medium">{shift.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {shift.start_time.slice(0, 5)} - {shift.end_time.slice(0, 5)}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Chấm công hôm nay
+            </CardTitle>
+            <CardDescription>
+              {formatDateVN(new Date().toISOString())}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Giờ hiện tại & Ca làm */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center p-4 bg-muted/50 rounded-lg">
+              <div>
+                <p className="text-sm text-muted-foreground">Giờ hiện tại (Việt Nam)</p>
+                <p className="text-2xl font-bold">
+                  {formatCurrentTimeVN(currentTime)}
                 </p>
               </div>
-            )}
-          </div>
-
-          {/* Trạng thái */}
-          <div className={`flex items-center gap-2 ${status.color}`}>
-            {status.icon}
-            <span className="font-medium">{status.text}</span>
-          </div>
-
-          {/* Nút chấm công */}
-          <div className="flex gap-4">
-            <Button
-              onClick={handleCheckIn}
-              disabled={hasCheckedIn || loading === "checkin"}
-              className="gap-2"
-              size="lg"
-            >
-              <LogIn className="h-4 w-4" />
-              {loading === "checkin" ? "Đang xử lý..." : "Vào làm"}
-            </Button>
-            <Button
-              onClick={handleCheckOut}
-              disabled={!hasCheckedIn || hasCheckedOut || loading === "checkout"}
-              variant="outline"
-              className="gap-2"
-              size="lg"
-            >
-              <LogOut className="h-4 w-4" />
-              {loading === "checkout" ? "Đang xử lý..." : "Ra về"}
-            </Button>
-          </div>
-
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
-
-          {/* Tóm tắt hôm nay */}
-          {todayLog && (
-            <div className="flex gap-6 pt-2 border-t">
-              <div>
-                <p className="text-sm text-muted-foreground">Giờ vào</p>
-                <p className="font-medium">{formatTimeVN(todayLog.check_in)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Giờ ra</p>
-                <p className="font-medium">{formatTimeVN(todayLog.check_out)}</p>
-              </div>
+              {shift && (
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Ca làm việc</p>
+                  <p className="font-medium">{shift.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {shift.start_time.slice(0, 5)} - {shift.end_time.slice(0, 5)}
+                  </p>
+                </div>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {/* Trạng thái */}
+            <div className={`flex items-center gap-2 ${status.color}`}>
+              {status.icon}
+              <span className="font-medium">{status.text}</span>
+            </div>
+
+            {/* Nút chấm công */}
+            <div className="flex gap-4">
+              <Button
+                onClick={handleCheckIn}
+                disabled={hasCheckedIn || loading === "checkin"}
+                className="gap-2"
+                size="lg"
+              >
+                <LogIn className="h-4 w-4" />
+                {loading === "checkin" ? "Đang xử lý..." : "Vào làm"}
+              </Button>
+              <Button
+                onClick={handleCheckOut}
+                disabled={!hasCheckedIn || hasCheckedOut || loading === "checkout"}
+                variant="outline"
+                className="gap-2"
+                size="lg"
+              >
+                <LogOut className="h-4 w-4" />
+                {loading === "checkout" ? "Đang xử lý..." : "Ra về"}
+              </Button>
+            </div>
+
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
+
+            {/* Tóm tắt hôm nay */}
+            {todayLog && (
+              <div className="flex gap-6 pt-2 border-t">
+                <div>
+                  <p className="text-sm text-muted-foreground">Giờ vào</p>
+                  <p className="font-medium">{formatTimeVN(todayLog.check_in)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Giờ ra</p>
+                  <p className="font-medium">{formatTimeVN(todayLog.check_out)}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Lịch sử chấm công */}
@@ -502,16 +589,16 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                     const isEarlyLeave = violations.some((v) => v.type === "early_leave")
                     const noCheckIn = violations.some((v) => v.type === "no_checkin")
                     const noCheckOut = violations.some((v) => v.type === "no_checkout")
-                    
+
                     // Nếu không có log chấm công
                     const hasNoAttendance = !log
                     const hasApprovedLeave = !!leaveRequest
                     const leaveTypeName = leaveRequest?.request_type?.name || "Nghỉ phép"
-                    
+
                     // Kiểm tra xem có phải ngày nghỉ cuối tuần không
                     const dateObj = new Date(date)
                     const isWeekendDay = isWeekend(dateObj)
-                    
+
                     // Kiểm tra nếu là làm nửa ngày (check in/out trong giờ nghỉ trưa)
                     let isHalfDayWork = false
                     if (log && log.check_in && log.check_out && shift) {
@@ -519,32 +606,32 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                       const checkOutDate = new Date(log.check_out)
                       const checkInMinutes = checkInDate.getHours() * 60 + checkInDate.getMinutes()
                       const checkOutMinutes = checkOutDate.getHours() * 60 + checkOutDate.getMinutes()
-                      
+
                       const breakStart = shift.break_start?.slice(0, 5) || "12:00"
                       const breakEnd = shift.break_end?.slice(0, 5) || "13:00"
                       const [bsH, bsM] = breakStart.split(":").map(Number)
                       const [beH, beM] = breakEnd.split(":").map(Number)
                       const breakStartMinutes = bsH * 60 + bsM
                       const breakEndMinutes = beH * 60 + beM
-                      
+
                       // Check in trong giờ nghỉ trưa và check out cũng trong giờ nghỉ trưa
                       // hoặc check in trước nghỉ trưa và check out trong/trước nghỉ trưa
                       if ((checkInMinutes >= breakStartMinutes && checkInMinutes <= breakEndMinutes + 15 &&
-                           checkOutMinutes >= breakStartMinutes && checkOutMinutes <= breakEndMinutes + 15) ||
-                          (checkInMinutes < breakStartMinutes && checkOutMinutes <= breakEndMinutes)) {
+                        checkOutMinutes >= breakStartMinutes && checkOutMinutes <= breakEndMinutes + 15) ||
+                        (checkInMinutes < breakStartMinutes && checkOutMinutes <= breakEndMinutes)) {
                         isHalfDayWork = true
                       }
                     }
 
                     return (
-                      <TableRow 
-                        key={date} 
+                      <TableRow
+                        key={date}
                         className={
-                          isHalfDayWork 
-                            ? "bg-yellow-50" 
-                            : hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay) 
-                            ? "bg-red-50" 
-                            : ""
+                          isHalfDayWork
+                            ? "bg-yellow-50"
+                            : hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay)
+                              ? "bg-red-50"
+                              : ""
                         }
                       >
                         <TableCell>{formatDateVN(date)}</TableCell>
@@ -631,9 +718,13 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                                 Ngày nghỉ
                               </Badge>
                             ) : hasApprovedLeave ? (
-                              <Badge className="bg-blue-100 text-blue-800 gap-1">
+                              <Badge className={
+                                leaveUsageMap.get(date) === "exceeded"
+                                  ? "bg-red-100 text-red-800 gap-1"
+                                  : "bg-blue-100 text-blue-800 gap-1"
+                              }>
                                 <Calendar className="h-3 w-3" />
-                                {leaveTypeName}
+                                {leaveUsageMap.get(date) === "exceeded" ? "Quỹ phép hết" : leaveTypeName}
                               </Badge>
                             ) : (
                               <Badge variant="destructive" className="gap-1">
@@ -643,9 +734,13 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [] }: A
                             )
                           ) : isHalfDayWork ? (
                             hasApprovedLeave ? (
-                              <Badge className="bg-yellow-100 text-yellow-800 gap-1">
+                              <Badge className={
+                                leaveUsageMap.get(date) === "exceeded"
+                                  ? "bg-red-100 text-red-800 gap-1"
+                                  : "bg-yellow-100 text-yellow-800 gap-1"
+                              }>
                                 <Calendar className="h-3 w-3" />
-                                Nghỉ nửa ngày phép năm
+                                {leaveUsageMap.get(date) === "exceeded" ? "Quỹ phép hết" : "Nghỉ nửa ngày phép năm"}
                               </Badge>
                             ) : (
                               <Badge className="bg-yellow-100 text-yellow-800 gap-1">

@@ -31,7 +31,12 @@ export default async function AttendancePage() {
           <h1 className="text-2xl font-bold">Chấm công</h1>
           <p className="text-muted-foreground">Check in/out và xem lịch sử chấm công</p>
         </div>
-        <AttendancePanel attendanceLogs={attendanceLogs} shift={shift} leaveRequests={leaveRequests} />
+        <AttendancePanel
+          attendanceLogs={attendanceLogs}
+          shift={shift}
+          leaveRequests={leaveRequests}
+          officialDate={employee?.official_date || null}
+        />
       </div>
     </DashboardLayout>
   )
