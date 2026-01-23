@@ -278,7 +278,7 @@ export type RequestStatus = "pending" | "approved" | "rejected"
 export type ApprovalMode = "any" | "all"
 
 // Custom field types cho request type
-export type CustomFieldType = "text" | "textarea" | "number" | "select"
+export type CustomFieldType = "text" | "textarea" | "number" | "select" | "image"
 
 export interface CustomField {
   id: string

@@ -204,6 +204,38 @@ export async function removeEmployeeAdjustment(id: string) {
   return { success: true }
 }
 
+export async function updateEmployeeAdjustment(
+  id: string,
+  input: {
+    custom_amount?: number | null
+    custom_percentage?: number | null
+    effective_date?: string
+    end_date?: string | null
+    note?: string | null
+  }
+) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("employee_adjustments")
+    .update({
+      custom_amount: input.custom_amount,
+      custom_percentage: input.custom_percentage,
+      effective_date: input.effective_date,
+      end_date: input.end_date,
+      note: input.note,
+    })
+    .eq("id", id)
+
+  if (error) {
+    console.error("Error updating employee adjustment:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/employees")
+  return { success: true }
+}
+
 // =============================================
 // TIME ADJUSTMENT REQUEST ACTIONS
 // =============================================

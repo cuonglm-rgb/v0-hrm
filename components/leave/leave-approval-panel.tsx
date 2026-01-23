@@ -11,7 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/request-type-actions"
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
-import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip, ShieldCheck, CheckCircle2 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { getRequestAssignedApprovers } from "@/lib/actions/request-type-actions"
+import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip, ShieldCheck, CheckCircle2, Calendar, User, XCircle, AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 interface ApproverInfo {
@@ -51,6 +60,18 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
+
+  // Detail view mode
+  const [viewingRequest, setViewingRequest] = useState<UnifiedApprovalRequest | null>(null)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [assignedApprovers, setAssignedApprovers] = useState<Array<{
+    id: string
+    approver_id: string
+    status: string
+    display_order: number
+    approver?: { id: string; full_name: string; employee_code: string } | null
+  }>>([])
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   // Filter states - mặc định hiển thị phiếu chờ duyệt
   const [filterStatus, setFilterStatus] = useState<string>("pending")
@@ -180,6 +201,44 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       toast.success("Đã từ chối phiếu")
     } else {
       toast.error(result.error || "Có lỗi xảy ra khi từ chối phiếu")
+    }
+  }
+
+  const handleViewDetail = async (request: UnifiedApprovalRequest) => {
+    setViewingRequest(request)
+    setViewDialogOpen(true)
+    setLoadingDetail(true)
+    
+    try {
+      const approvers = await getRequestAssignedApprovers(request.id)
+      setAssignedApprovers(approvers)
+    } catch (error) {
+      console.error("Error loading approvers:", error)
+      setAssignedApprovers([])
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  const getApproverStatusIcon = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <CheckCircle2 className="h-4 w-4 text-green-600" />
+      case "rejected":
+        return <XCircle className="h-4 w-4 text-red-600" />
+      default:
+        return <AlertCircle className="h-4 w-4 text-yellow-600" />
+    }
+  }
+
+  const getApproverStatusText = (status: string) => {
+    switch (status) {
+      case "approved":
+        return "Đã duyệt"
+      case "rejected":
+        return "Từ chối"
+      default:
+        return "Chờ duyệt"
     }
   }
 
@@ -526,8 +585,12 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                                    request.myApprovalStatus !== "rejected"
                   
                   return (
-                    <TableRow key={request.id}>
-                      <TableCell>
+                    <TableRow 
+                      key={request.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleViewDetail(request)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         {canSelect && (
                           <input
                             type="checkbox"
@@ -579,6 +642,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <Paperclip className="h-3 w-3" />
                           Xem
@@ -586,7 +650,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                       ) : "-"}
                     </TableCell>
                     <TableCell>{getStatusBadge(request.status)}</TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       {request.status === "pending" ? (
                         <div className="flex flex-col gap-1">
                           {/* Nếu đã duyệt rồi (với approval_mode = all) */}
@@ -645,6 +709,186 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog xem chi tiết phiếu */}
+      <Dialog open={viewDialogOpen} onOpenChange={(o) => { setViewDialogOpen(o); if (!o) { setViewingRequest(null); setAssignedApprovers([]) } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Chi tiết phiếu
+            </DialogTitle>
+            <DialogDescription>
+              {viewingRequest?.typeName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {viewingRequest && (
+            <div className="space-y-4">
+              {/* Thông tin nhân viên */}
+              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                <User className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">{viewingRequest.employeeName}</p>
+                  <p className="text-sm text-muted-foreground">{viewingRequest.employeeCode}</p>
+                </div>
+              </div>
+
+              {/* Trạng thái */}
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <span className="text-sm text-muted-foreground">Trạng thái</span>
+                {getStatusBadge(viewingRequest.status)}
+              </div>
+
+              {/* Thông tin ngày giờ */}
+              <div className="space-y-3">
+                {viewingRequest.fromDate && (
+                  <div className="flex items-start gap-3">
+                    <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Ngày</p>
+                      <p className="text-sm text-muted-foreground">
+                        {viewingRequest.fromDate && viewingRequest.toDate && viewingRequest.fromDate !== viewingRequest.toDate ? (
+                          <>
+                            {formatDateVN(viewingRequest.fromDate)} - {formatDateVN(viewingRequest.toDate)}
+                            <span className="ml-2">
+                              ({calculateLeaveDays(
+                                viewingRequest.fromDate, 
+                                viewingRequest.toDate, 
+                                viewingRequest.originalData.from_time, 
+                                viewingRequest.originalData.to_time,
+                                viewingRequest.originalData.request_type ? {
+                                  requires_date_range: viewingRequest.originalData.request_type.requires_date_range,
+                                  requires_single_date: viewingRequest.originalData.request_type.requires_single_date,
+                                  requires_time_range: viewingRequest.originalData.request_type.requires_time_range,
+                                } : undefined
+                              )} ngày)
+                            </span>
+                          </>
+                        ) : (
+                          formatDateVN(viewingRequest.fromDate)
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.time && (
+                  <div className="flex items-start gap-3">
+                    <Clock className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Giờ</p>
+                      <p className="text-sm text-muted-foreground">{viewingRequest.time}</p>
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.reason && (
+                  <div className="flex items-start gap-3">
+                    <FileText className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Lý do</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{viewingRequest.reason}</p>
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.attachmentUrl && (
+                  <div className="flex items-start gap-3">
+                    <Paperclip className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">File đính kèm</p>
+                      <a 
+                        href={viewingRequest.attachmentUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        Xem file
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom fields */}
+                {viewingRequest.originalData.custom_data && Object.keys(viewingRequest.originalData.custom_data).length > 0 && (
+                  <div className="border-t pt-3 mt-3">
+                    <p className="text-sm font-medium mb-2">Thông tin bổ sung</p>
+                    {Object.entries(viewingRequest.originalData.custom_data).map(([key, value]) => {
+                      const field = viewingRequest.originalData.request_type?.custom_fields?.find((f: { id: string }) => f.id === key)
+                      return (
+                        <div key={key} className="flex items-start gap-3 mb-2">
+                          <div className="text-sm">
+                            <span className="text-muted-foreground">{field?.label || key}:</span>{" "}
+                            <span>{value}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Lý do từ chối */}
+                {viewingRequest.status === "rejected" && viewingRequest.originalData.rejection_reason && (
+                  <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                    <XCircle className="h-4 w-4 mt-0.5 text-red-600" />
+                    <div>
+                      <p className="text-sm font-medium text-red-800">Lý do từ chối</p>
+                      <p className="text-sm text-red-700">{viewingRequest.originalData.rejection_reason}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Danh sách người duyệt */}
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm font-medium">Người duyệt</p>
+                </div>
+                
+                {loadingDetail ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : assignedApprovers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Không có thông tin người duyệt</p>
+                ) : (
+                  <div className="space-y-2">
+                    {assignedApprovers.map((approver, index) => (
+                      <div key={approver.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-5">{index + 1}.</span>
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">{approver.approver?.full_name || "N/A"}</p>
+                            <p className="text-xs text-muted-foreground">{approver.approver?.employee_code || ""}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {getApproverStatusIcon(approver.status)}
+                          <span className="text-xs">{getApproverStatusText(approver.status)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Thời gian tạo */}
+              <div className="border-t pt-3 text-xs text-muted-foreground">
+                Tạo lúc: {new Date(viewingRequest.createdAt).toLocaleString("vi-VN")}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+              Đóng
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

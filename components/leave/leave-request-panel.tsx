@@ -20,11 +20,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers } from "@/lib/actions/request-type-actions"
+import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers, getRequestAssignedApprovers } from "@/lib/actions/request-type-actions"
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
-import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users, Edit } from "lucide-react"
+import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users, Edit, Clock, User, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 
 interface LeaveRequestPanelProps {
   requestTypes: RequestType[]
@@ -56,8 +56,25 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
   const [attachmentName, setAttachmentName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
+  // Custom field images
+  const [customFieldImages, setCustomFieldImages] = useState<Record<string, { url: string; name: string }>>({})
+  const [uploadingFieldId, setUploadingFieldId] = useState<string | null>(null)
+  const customFieldInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  
   // Edit mode
   const [editingRequest, setEditingRequest] = useState<UnifiedRequest | null>(null)
+
+  // Detail view mode
+  const [viewingRequest, setViewingRequest] = useState<UnifiedRequest | null>(null)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [assignedApprovers, setAssignedApprovers] = useState<Array<{
+    id: string
+    approver_id: string
+    status: string
+    display_order: number
+    approver?: { id: string; full_name: string; employee_code: string } | null
+  }>>([])
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   // Người duyệt
   const [eligibleApprovers, setEligibleApprovers] = useState<EligibleApprover[]>([])
@@ -197,6 +214,51 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     }
   }
 
+  const handleCustomFieldImageUpload = async (fieldId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File không được vượt quá 5MB")
+      return
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Vui lòng chọn file hình ảnh")
+      return
+    }
+
+    setUploadingFieldId(fieldId)
+    setError(null)
+
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const result = await uploadRequestAttachment(formData)
+
+    if (result.success && result.url) {
+      setCustomFieldImages(prev => ({
+        ...prev,
+        [fieldId]: { url: result.url!, name: file.name }
+      }))
+    } else {
+      setError(result.error || "Không thể upload hình ảnh")
+    }
+    setUploadingFieldId(null)
+  }
+
+  const handleRemoveCustomFieldImage = (fieldId: string) => {
+    setCustomFieldImages(prev => {
+      const newImages = { ...prev }
+      delete newImages[fieldId]
+      return newImages
+    })
+    const inputRef = customFieldInputRefs.current[fieldId]
+    if (inputRef) {
+      inputRef.value = ""
+    }
+  }
+
   const handleSubmitRequest = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!selectedType) return
@@ -211,9 +273,17 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     if (selectedType.custom_fields && selectedType.custom_fields.length > 0) {
       customData = {}
       for (const field of selectedType.custom_fields) {
-        const value = formData.get(`custom_${field.id}`) as string
-        if (value) {
-          customData[field.id] = value
+        if (field.type === "image") {
+          // Lấy URL từ customFieldImages state
+          const imageData = customFieldImages[field.id]
+          if (imageData?.url) {
+            customData[field.id] = imageData.url
+          }
+        } else {
+          const value = formData.get(`custom_${field.id}`) as string
+          if (value) {
+            customData[field.id] = value
+          }
         }
       }
       // Chỉ gửi nếu có dữ liệu
@@ -257,6 +327,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       setSelectedApprovers([])
       setEligibleApprovers([])
       setEditingRequest(null)
+      setCustomFieldImages({})
     }
     setLoading(false)
   }
@@ -269,6 +340,44 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       setAttachmentUrl(request.attachmentUrl)
       setAttachmentName(request.attachmentUrl ? "File đính kèm" : null)
       setOpen(true)
+    }
+  }
+
+  const handleViewDetail = async (request: UnifiedRequest) => {
+    setViewingRequest(request)
+    setViewDialogOpen(true)
+    setLoadingDetail(true)
+    
+    try {
+      const approvers = await getRequestAssignedApprovers(request.id)
+      setAssignedApprovers(approvers)
+    } catch (error) {
+      console.error("Error loading approvers:", error)
+      setAssignedApprovers([])
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  const getApproverStatusIcon = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      case "rejected":
+        return <XCircle className="h-4 w-4 text-red-600" />
+      default:
+        return <AlertCircle className="h-4 w-4 text-yellow-600" />
+    }
+  }
+
+  const getApproverStatusText = (status: string) => {
+    switch (status) {
+      case "approved":
+        return "Đã duyệt"
+      case "rejected":
+        return "Từ chối"
+      default:
+        return "Chờ duyệt"
     }
   }
 
@@ -341,7 +450,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       </div>
 
       {/* Nút tạo phiếu */}
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]); setEditingRequest(null) } }}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]); setEditingRequest(null); setCustomFieldImages({}) } }}>
         <DialogTrigger asChild>
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
@@ -574,6 +683,60 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             </SelectContent>
                           </Select>
                         )}
+                        {field.type === "image" && (
+                          <div className="space-y-2">
+                            <input
+                              ref={(el) => { customFieldInputRefs.current[field.id] = el }}
+                              type="file"
+                              className="hidden"
+                              accept="image/*"
+                              onChange={(e) => handleCustomFieldImageUpload(field.id, e)}
+                            />
+                            {!customFieldImages[field.id]?.url && !editingRequest?.originalData.custom_data?.[field.id] ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full gap-2"
+                                onClick={() => customFieldInputRefs.current[field.id]?.click()}
+                                disabled={uploadingFieldId === field.id}
+                              >
+                                {uploadingFieldId === field.id ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Đang upload...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="h-4 w-4" />
+                                    Chọn hình ảnh (tối đa 5MB)
+                                  </>
+                                )}
+                              </Button>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="relative border rounded-md overflow-hidden">
+                                  <img 
+                                    src={customFieldImages[field.id]?.url || editingRequest?.originalData.custom_data?.[field.id]} 
+                                    alt={field.label}
+                                    className="w-full h-40 object-contain bg-muted"
+                                  />
+                                  <Button 
+                                    type="button" 
+                                    variant="destructive" 
+                                    size="sm" 
+                                    className="absolute top-2 right-2"
+                                    onClick={() => handleRemoveCustomFieldImage(field.id)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {customFieldImages[field.id]?.name || "Hình ảnh đã upload"}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -698,7 +861,11 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                 </TableRow>
               ) : (
                 filteredRequests.map((request) => (
-                  <TableRow key={request.id}>
+                  <TableRow 
+                    key={request.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleViewDetail(request)}
+                  >
                     <TableCell>
                       <Badge variant="secondary">
                         {request.typeName}
@@ -730,6 +897,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
                         >
                           <Paperclip className="h-3 w-3" />
                           Xem
@@ -739,7 +907,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     <TableCell>{getStatusBadge(request.status)}</TableCell>
                     <TableCell>
                       {request.status === "pending" && (
-                        <div className="flex gap-1">
+                        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(request)} title="Sửa phiếu">
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -756,6 +924,186 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog xem chi tiết phiếu */}
+      <Dialog open={viewDialogOpen} onOpenChange={(o) => { setViewDialogOpen(o); if (!o) { setViewingRequest(null); setAssignedApprovers([]) } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Chi tiết phiếu
+            </DialogTitle>
+            <DialogDescription>
+              {viewingRequest?.typeName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {viewingRequest && (
+            <div className="space-y-4">
+              {/* Trạng thái */}
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <span className="text-sm text-muted-foreground">Trạng thái</span>
+                {getStatusBadge(viewingRequest.status)}
+              </div>
+
+              {/* Thông tin ngày giờ */}
+              <div className="space-y-3">
+                {viewingRequest.fromDate && (
+                  <div className="flex items-start gap-3">
+                    <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Ngày</p>
+                      <p className="text-sm text-muted-foreground">
+                        {viewingRequest.fromDate && viewingRequest.originalData.to_date && viewingRequest.fromDate !== viewingRequest.originalData.to_date ? (
+                          <>
+                            {formatDateVN(viewingRequest.fromDate)} - {formatDateVN(viewingRequest.originalData.to_date)}
+                            <span className="ml-2">
+                              ({calculateLeaveDays(
+                                viewingRequest.fromDate, 
+                                viewingRequest.originalData.to_date, 
+                                viewingRequest.originalData.from_time, 
+                                viewingRequest.originalData.to_time
+                              )} ngày)
+                            </span>
+                          </>
+                        ) : (
+                          formatDateVN(viewingRequest.fromDate)
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.time && (
+                  <div className="flex items-start gap-3">
+                    <Clock className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Giờ</p>
+                      <p className="text-sm text-muted-foreground">{viewingRequest.time}</p>
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.reason && (
+                  <div className="flex items-start gap-3">
+                    <FileText className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Lý do</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{viewingRequest.reason}</p>
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.attachmentUrl && (
+                  <div className="flex items-start gap-3">
+                    <Paperclip className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">File đính kèm</p>
+                      <a 
+                        href={viewingRequest.attachmentUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        Xem file
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom fields */}
+                {viewingRequest.originalData.custom_data && Object.keys(viewingRequest.originalData.custom_data).length > 0 && (
+                  <div className="border-t pt-3 mt-3">
+                    <p className="text-sm font-medium mb-2">Thông tin bổ sung</p>
+                    {Object.entries(viewingRequest.originalData.custom_data).map(([key, value]) => {
+                      const requestType = requestTypes.find(rt => rt.id === viewingRequest.originalData.request_type_id)
+                      const field = requestType?.custom_fields?.find(f => f.id === key)
+                      const isImage = field?.type === "image" || (typeof value === "string" && (value.includes("/storage/") || value.match(/\.(jpg|jpeg|png|gif|webp)$/i)))
+                      return (
+                        <div key={key} className="flex items-start gap-3 mb-2">
+                          <div className="text-sm w-full">
+                            <span className="text-muted-foreground">{field?.label || key}:</span>
+                            {isImage ? (
+                              <div className="mt-2">
+                                <a href={value} target="_blank" rel="noopener noreferrer">
+                                  <img 
+                                    src={value} 
+                                    alt={field?.label || key}
+                                    className="max-w-full h-40 object-contain rounded-md border cursor-pointer hover:opacity-80"
+                                  />
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="ml-1">{value}</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Lý do từ chối */}
+                {viewingRequest.status === "rejected" && viewingRequest.originalData.rejection_reason && (
+                  <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
+                    <XCircle className="h-4 w-4 mt-0.5 text-red-600" />
+                    <div>
+                      <p className="text-sm font-medium text-red-800">Lý do từ chối</p>
+                      <p className="text-sm text-red-700">{viewingRequest.originalData.rejection_reason}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Danh sách người duyệt */}
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm font-medium">Người duyệt</p>
+                </div>
+                
+                {loadingDetail ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : assignedApprovers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Không có thông tin người duyệt</p>
+                ) : (
+                  <div className="space-y-2">
+                    {assignedApprovers.map((approver, index) => (
+                      <div key={approver.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-5">{index + 1}.</span>
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">{approver.approver?.full_name || "N/A"}</p>
+                            <p className="text-xs text-muted-foreground">{approver.approver?.employee_code || ""}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {getApproverStatusIcon(approver.status)}
+                          <span className="text-xs">{getApproverStatusText(approver.status)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Thời gian tạo */}
+              <div className="border-t pt-3 text-xs text-muted-foreground">
+                Tạo lúc: {new Date(viewingRequest.createdAt).toLocaleString("vi-VN")}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
+              Đóng
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -924,12 +924,26 @@ export async function generatePayroll(month: number, year: number) {
 
         const rules = adjType.auto_rules
 
+        // Kiểm tra xem nhân viên có override cho loại này không
+        const empOverride = empAdjustments?.find(
+          (ea: any) => ea.adjustment_type_id === adjType.id
+        )
+
         // ========== KHẤU TRỪ TỰ ĐỘNG (Quỹ chung, BHXH...) ==========
         if (adjType.category === "deduction") {
           let finalAmount = adjType.amount
+          let reason = adjType.name
 
-          // Tính BHXH theo % lương cơ bản nếu có rule
-          if (rules?.calculate_from === "base_salary" && rules?.percentage) {
+          // Nếu có override từ nhân viên
+          if (empOverride) {
+            if (empOverride.custom_percentage) {
+              finalAmount = (baseSalary * empOverride.custom_percentage) / 100
+              reason = `${adjType.name} (${empOverride.custom_percentage}% lương)`
+            } else if (empOverride.custom_amount) {
+              finalAmount = empOverride.custom_amount
+            }
+          } else if (rules?.calculate_from === "base_salary" && rules?.percentage) {
+            // Tính BHXH theo % lương cơ bản nếu có rule
             finalAmount = (baseSalary * rules.percentage) / 100
           }
 
@@ -940,7 +954,7 @@ export async function generatePayroll(month: number, year: number) {
             base_amount: adjType.amount,
             adjusted_amount: 0,
             final_amount: finalAmount,
-            reason: adjType.name,
+            reason: reason,
             occurrence_count: 1,
           })
           continue
@@ -1268,7 +1282,9 @@ export async function generatePayroll(month: number, year: number) {
     if (empAdjustments) {
       for (const empAdj of empAdjustments) {
         const adjType = empAdj.adjustment_type as PayrollAdjustmentType
-        if (!adjType || adjType.is_auto_applied) continue // Bỏ qua auto-applied (đã xử lý ở trên)
+        if (!adjType) continue
+        // Bỏ qua auto-applied vì đã xử lý ở trên (với override nếu có)
+        if (adjType.is_auto_applied) continue
 
         let finalAmount = empAdj.custom_amount || adjType.amount
 
@@ -2128,11 +2144,27 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       if (!adjType.is_auto_applied) continue
       const rules = adjType.auto_rules
 
+      // Kiểm tra xem nhân viên có override cho loại này không
+      const empOverride = empAdjustments?.find(
+        (ea: any) => ea.adjustment_type_id === adjType.id
+      )
+
       if (adjType.category === "deduction") {
         let finalAmount = adjType.amount
-        if (rules?.calculate_from === "base_salary" && rules?.percentage) {
+        let reason = adjType.name
+
+        // Nếu có override từ nhân viên
+        if (empOverride) {
+          if (empOverride.custom_percentage) {
+            finalAmount = (baseSalary * empOverride.custom_percentage) / 100
+            reason = `${adjType.name} (${empOverride.custom_percentage}% lương)`
+          } else if (empOverride.custom_amount) {
+            finalAmount = empOverride.custom_amount
+          }
+        } else if (rules?.calculate_from === "base_salary" && rules?.percentage) {
           finalAmount = (baseSalary * rules.percentage) / 100
         }
+
         totalDeductions += finalAmount
         adjustmentDetails.push({
           adjustment_type_id: adjType.id,
@@ -2140,7 +2172,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
           base_amount: adjType.amount,
           adjusted_amount: 0,
           final_amount: finalAmount,
-          reason: adjType.name,
+          reason: reason,
           occurrence_count: 1,
         })
       }
@@ -2207,7 +2239,9 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   if (empAdjustments) {
     for (const empAdj of empAdjustments) {
       const adjType = empAdj.adjustment_type as PayrollAdjustmentType
-      if (!adjType || adjType.is_auto_applied) continue
+      if (!adjType) continue
+      // Bỏ qua auto-applied vì đã xử lý ở trên (với override nếu có)
+      if (adjType.is_auto_applied) continue
 
       let finalAmount = empAdj.custom_amount || adjType.amount
       if (empAdj.custom_percentage) {

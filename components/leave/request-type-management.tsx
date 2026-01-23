@@ -466,6 +466,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                         <SelectItem value="textarea">Ô nhập text nhiều dòng</SelectItem>
                         <SelectItem value="number">Ô nhập số</SelectItem>
                         <SelectItem value="select">Dropdown chọn</SelectItem>
+                        <SelectItem value="image">Hình ảnh</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

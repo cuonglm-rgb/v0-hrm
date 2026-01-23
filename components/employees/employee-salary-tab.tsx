@@ -34,13 +34,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
-import { Plus, Wallet, TrendingUp, Shield, Trash2, Receipt } from "lucide-react"
+import { Plus, Wallet, TrendingUp, Shield, Trash2, Receipt, Pencil } from "lucide-react"
 import { createSalaryStructure } from "@/lib/actions/payroll-actions"
 import {
   listAdjustmentTypes,
   listEmployeeAdjustments,
   assignAdjustmentToEmployee,
   removeEmployeeAdjustment,
+  updateEmployeeAdjustment,
 } from "@/lib/actions/allowance-actions"
 import { formatCurrency } from "@/lib/utils/format-utils"
 import { formatDateVN } from "@/lib/utils/date-utils"
@@ -69,6 +70,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
   const [adjustmentOpen, setAdjustmentOpen] = useState(false)
   const [adjustmentSaving, setAdjustmentSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [editingAdjustment, setEditingAdjustment] = useState<EmployeeAdjustmentWithType | null>(null)
   const [adjustmentForm, setAdjustmentForm] = useState({
     adjustment_type_id: "",
     custom_amount: "",
@@ -87,8 +89,8 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
         listAdjustmentTypes(),
         listEmployeeAdjustments(employeeId),
       ])
-      // Chỉ lấy các loại thủ công (không tự động áp dụng)
-      setAdjustmentTypes(types.filter((t) => !t.is_auto_applied && t.is_active))
+      // Lấy tất cả các loại active (bao gồm cả auto-applied để override)
+      setAdjustmentTypes(types.filter((t) => t.is_active))
       setEmployeeAdjustments(empAdj)
     }
     loadData()
@@ -172,6 +174,61 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
     } finally {
       setAdjustmentSaving(false)
     }
+  }
+
+  // Xử lý sửa khấu trừ/phụ cấp
+  const handleEditAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingAdjustment) return
+    setAdjustmentSaving(true)
+
+    try {
+      const result = await updateEmployeeAdjustment(editingAdjustment.id, {
+        custom_amount: adjustmentForm.custom_amount
+          ? parseFloat(adjustmentForm.custom_amount.replace(/[^\d]/g, ""))
+          : null,
+        custom_percentage: adjustmentForm.custom_percentage
+          ? parseFloat(adjustmentForm.custom_percentage.replace(/[^\d.,]/g, "").replace(",", "."))
+          : null,
+        effective_date: adjustmentForm.effective_date,
+        end_date: adjustmentForm.end_date || null,
+        note: adjustmentForm.note || null,
+      })
+
+      if (result.success) {
+        toast.success("Đã cập nhật khoản điều chỉnh")
+        setEditingAdjustment(null)
+        setAdjustmentForm({
+          adjustment_type_id: "",
+          custom_amount: "",
+          custom_percentage: "",
+          effective_date: new Date().toISOString().split("T")[0],
+          end_date: "",
+          note: "",
+        })
+        // Reload data
+        const empAdj = await listEmployeeAdjustments(employeeId)
+        setEmployeeAdjustments(empAdj)
+        router.refresh()
+      } else {
+        toast.error(result.error || "Không thể cập nhật khoản điều chỉnh")
+      }
+    } finally {
+      setAdjustmentSaving(false)
+    }
+  }
+
+  // Mở dialog sửa
+  const openEditDialog = (adj: EmployeeAdjustmentWithType) => {
+    setEditingAdjustment(adj)
+    setAdjustmentForm({
+      adjustment_type_id: adj.adjustment_type_id,
+      custom_amount: adj.custom_amount ? formatInputCurrency(adj.custom_amount.toString()) : "",
+      custom_percentage: adj.custom_percentage ? adj.custom_percentage.toString() : "",
+      effective_date: adj.effective_date,
+      end_date: adj.end_date || "",
+      note: adj.note || "",
+    })
   }
 
   // Xử lý xóa khấu trừ/phụ cấp
@@ -558,14 +615,24 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                   <TableCell className="text-muted-foreground">{adj.note || "-"}</TableCell>
                   {isHROrAdmin && (
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteId(adj.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEditDialog(adj)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteId(adj.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -592,6 +659,99 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog sửa khấu trừ/phụ cấp */}
+      <Dialog open={!!editingAdjustment} onOpenChange={(open) => !open && setEditingAdjustment(null)}>
+        <DialogContent>
+          <form onSubmit={handleEditAdjustment}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil className="h-5 w-5" />
+                Sửa khấu trừ / phụ cấp
+              </DialogTitle>
+              <DialogDescription>
+                {editingAdjustment?.adjustment_type?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Số tiền cố định (VND)</Label>
+                  <Input
+                    value={adjustmentForm.custom_amount}
+                    onChange={(e) =>
+                      setAdjustmentForm({ 
+                        ...adjustmentForm, 
+                        custom_amount: formatInputCurrency(e.target.value),
+                        custom_percentage: ""
+                      })
+                    }
+                    placeholder="Số tiền..."
+                    disabled={!!adjustmentForm.custom_percentage}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Hoặc % lương cơ bản</Label>
+                  <div className="relative">
+                    <Input
+                      value={adjustmentForm.custom_percentage}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^\d.,]/g, "")
+                        setAdjustmentForm({ 
+                          ...adjustmentForm, 
+                          custom_percentage: val,
+                          custom_amount: ""
+                        })
+                      }}
+                      placeholder="%"
+                      disabled={!!adjustmentForm.custom_amount}
+                      className="pr-8"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>Ngày bắt đầu</Label>
+                  <Input
+                    type="date"
+                    value={adjustmentForm.effective_date}
+                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, effective_date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Ngày kết thúc (tùy chọn)</Label>
+                  <Input
+                    type="date"
+                    value={adjustmentForm.end_date}
+                    onChange={(e) => setAdjustmentForm({ ...adjustmentForm, end_date: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Ghi chú</Label>
+                <Input
+                  value={adjustmentForm.note}
+                  onChange={(e) => setAdjustmentForm({ ...adjustmentForm, note: e.target.value })}
+                  placeholder="Lý do áp dụng..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditingAdjustment(null)}>
+                Hủy
+              </Button>
+              <Button type="submit" disabled={adjustmentSaving}>
+                {adjustmentSaving ? "Đang lưu..." : "Lưu"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
