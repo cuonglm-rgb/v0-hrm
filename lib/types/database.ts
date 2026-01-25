@@ -466,6 +466,24 @@ export interface OvertimeRecordWithRelations extends OvertimeRecord {
 
 
 // =============================================
+// SPECIAL WORK DAYS (Ngày làm việc đặc biệt)
+// =============================================
+
+export interface SpecialWorkDay {
+  id: string
+  work_date: string
+  reason: string
+  allow_early_leave: boolean
+  allow_late_arrival: boolean
+  custom_start_time: string | null
+  custom_end_time: string | null
+  note: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+// =============================================
 // KPI EVALUATION (Đánh giá KPI)
 // =============================================
 

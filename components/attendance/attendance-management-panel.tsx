@@ -32,12 +32,13 @@ import {
   importAttendanceFromExcel,
   generateAttendanceTemplate,
 } from "@/lib/actions/attendance-import-actions"
-import type { AttendanceLogWithRelations, WorkShift } from "@/lib/types/database"
+import type { AttendanceLogWithRelations, WorkShift, SpecialWorkDay } from "@/lib/types/database"
 import { formatDateVN, formatTimeVN, formatSourceVN } from "@/lib/utils/date-utils"
 import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, AlertTriangle, Clock, Filter, Search } from "lucide-react"
 
 interface AttendanceManagementPanelProps {
   attendanceLogs: (AttendanceLogWithRelations & { employee?: { shift?: WorkShift | null } | null })[]
+  specialDays?: SpecialWorkDay[]
 }
 
 interface ImportResult {
@@ -73,20 +74,21 @@ const months = [
 function checkViolations(
   checkIn: string | null,
   checkOut: string | null,
-  shift: WorkShift | null | undefined
+  shift: WorkShift | null | undefined,
+  specialDay?: { allow_early_leave: boolean; allow_late_arrival: boolean; custom_start_time?: string | null; custom_end_time?: string | null } | null
 ): AttendanceViolation[] {
   const violations: AttendanceViolation[] = []
 
   if (!shift) return violations
 
-  // Parse shift times
-  const shiftStart = shift.start_time?.slice(0, 5) // "08:00"
-  const shiftEnd = shift.end_time?.slice(0, 5) // "17:00"
+  // Parse shift times - ưu tiên giờ tùy chỉnh từ special day
+  const shiftStart = specialDay?.custom_start_time?.slice(0, 5) || shift.start_time?.slice(0, 5) // "08:00"
+  const shiftEnd = specialDay?.custom_end_time?.slice(0, 5) || shift.end_time?.slice(0, 5) // "17:00"
 
   if (!shiftStart || !shiftEnd) return violations
 
-  // Check late arrival
-  if (checkIn) {
+  // Check late arrival (bỏ qua nếu là ngày đặc biệt cho phép đi muộn)
+  if (checkIn && !specialDay?.allow_late_arrival) {
     const checkInTime = new Date(checkIn)
     const checkInHHMM = `${String(checkInTime.getHours()).padStart(2, "0")}:${String(checkInTime.getMinutes()).padStart(2, "0")}`
 
@@ -104,15 +106,15 @@ function checkViolations(
         message: `Đi muộn ${lateMinutes} phút (vào lúc ${checkInHHMM}, ca bắt đầu ${shiftStart})`,
       })
     }
-  } else {
+  } else if (!checkIn) {
     violations.push({
       type: "no_checkin",
       message: "Quên chấm công vào",
     })
   }
 
-  // Check early leave
-  if (checkOut) {
+  // Check early leave (bỏ qua nếu là ngày đặc biệt cho phép về sớm)
+  if (checkOut && !specialDay?.allow_early_leave) {
     const checkOutTime = new Date(checkOut)
     const checkOutHHMM = `${String(checkOutTime.getHours()).padStart(2, "0")}:${String(checkOutTime.getMinutes()).padStart(2, "0")}`
 
@@ -130,7 +132,7 @@ function checkViolations(
         message: `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca kết thúc ${shiftEnd})`,
       })
     }
-  } else if (checkIn) {
+  } else if (!checkOut && checkIn) {
     // Có check in nhưng không có check out
     violations.push({
       type: "no_checkout",
@@ -141,7 +143,7 @@ function checkViolations(
   return violations
 }
 
-export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManagementPanelProps) {
+export function AttendanceManagementPanel({ attendanceLogs, specialDays = [] }: AttendanceManagementPanelProps) {
   const currentDate = new Date()
   const [importing, setImporting] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -158,6 +160,15 @@ export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManageme
   const [filterYear, setFilterYear] = useState<string>(currentDate.getFullYear().toString())
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [filterEmployee, setFilterEmployee] = useState<string>("")
+
+  // Tạo map để tra cứu nhanh special days
+  const specialDaysMap = useMemo(() => {
+    const map = new Map<string, SpecialWorkDay>()
+    specialDays.forEach((day) => {
+      map.set(day.work_date, day)
+    })
+    return map
+  }, [specialDays])
 
   // Lọc dữ liệu chấm công
   const filteredLogs = useMemo(() => {
@@ -183,7 +194,9 @@ export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManageme
       // Lọc theo trạng thái
       if (filterStatus !== "all") {
         const shift = log.employee?.shift
-        const violations = checkViolations(log.check_in, log.check_out, shift)
+        const logDateOnly = log.check_in ? log.check_in.split('T')[0] : null
+        const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
+        const violations = checkViolations(log.check_in, log.check_out, shift, specialDay)
         const hasViolation = violations.length > 0
         
         if (filterStatus === "violation" && !hasViolation) return false
@@ -463,7 +476,9 @@ export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManageme
                 ) : (
                   filteredLogs.map((log) => {
                     const shift = log.employee?.shift
-                    const violations = checkViolations(log.check_in, log.check_out, shift)
+                    const logDateOnly = log.check_in ? log.check_in.split('T')[0] : null
+                    const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
+                    const violations = checkViolations(log.check_in, log.check_out, shift, specialDay)
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
                     const isEarlyLeave = violations.some((v) => v.type === "early_leave")
@@ -471,7 +486,7 @@ export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManageme
                     const noCheckOut = violations.some((v) => v.type === "no_checkout")
 
                     return (
-                      <TableRow key={log.id} className={hasViolation ? "bg-red-50" : ""}>
+                      <TableRow key={log.id} className={hasViolation ? "bg-red-50" : specialDay ? "bg-blue-50" : ""}>
                         <TableCell>
                           <div>
                             <div className="font-medium">{log.employee?.full_name}</div>
@@ -480,7 +495,16 @@ export function AttendanceManagementPanel({ attendanceLogs }: AttendanceManageme
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>{formatDateVN(log.check_in)}</TableCell>
+                        <TableCell>
+                          <div>
+                            {formatDateVN(log.check_in)}
+                            {specialDay && (
+                              <Badge variant="outline" className="ml-2 text-xs bg-blue-100 text-blue-700">
+                                {specialDay.reason}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {noCheckIn ? (
                             <Tooltip>
