@@ -463,17 +463,7 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                 </div>
                 
                 <div className="space-y-2 pl-7">
-                  {/* Nghỉ không lương */}
-                  {selectedPayslip.unpaid_leave_days > 0 && (
-                    <div className="flex justify-between items-center py-1 gap-4">
-                      <span className="text-sm text-muted-foreground flex-1 min-w-0">
-                        Nghỉ không lương ({selectedPayslip.unpaid_leave_days} ngày)
-                      </span>
-                      <span className="text-sm text-red-600 whitespace-nowrap tabular-nums">
-                        -{formatCurrency((selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25)) * selectedPayslip.unpaid_leave_days)}
-                      </span>
-                    </div>
-                  )}
+                  {/* KHÔNG HIỂN THỊ NGHỈ KHÔNG LƯƠNG VÌ KHÔNG TRỪ TIỀN */}
 
                   {/* Khấu trừ (BHXH, quỹ...) */}
                   {!isLoading && adjustmentDetails.filter((d) => d.category === "deduction").length > 0 && (

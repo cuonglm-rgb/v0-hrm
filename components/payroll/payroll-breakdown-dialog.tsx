@@ -106,7 +106,8 @@ export function PayrollBreakdownDialog({
   const attendanceSalary = dailySalary * workingDaysDetail.attendance
   const wfhSalary = dailySalary * workingDaysDetail.wfh
   const paidLeaveSalary = dailySalary * workingDaysDetail.paidLeave
-  const unpaidDeduction = dailySalary * (payrollItem.unpaid_leave_days || 0)
+  // KHÔNG TRỪ LƯƠNG CHO NGHỈ KHÔNG LƯƠNG - chỉ ghi nhận số ngày
+  // const unpaidDeduction = dailySalary * (payrollItem.unpaid_leave_days || 0)
 
   const allowances = details.filter((d) => d.category === "allowance")
   const deductions = details.filter((d) => d.category === "deduction")
@@ -279,13 +280,8 @@ export function PayrollBreakdownDialog({
                 Khấu trừ
               </h4>
               <div className="space-y-2 pl-6">
-                {(payrollItem.unpaid_leave_days || 0) > 0 && (
-                  <div className="flex justify-between items-center text-sm gap-4">
-                    <span className="flex-1 min-w-0">Nghỉ không lương ({payrollItem.unpaid_leave_days} ngày)</span>
-                    <span className="font-medium text-red-600 whitespace-nowrap">-{formatCurrency(unpaidDeduction)}</span>
-                  </div>
-                )}
-
+                {/* KHÔNG HIỂN THỊ NGHỈ KHÔNG LƯƠNG VÌ KHÔNG TRỪ TIỀN */}
+                
                 {/* Khấu trừ từ adjustment */}
                 {deductions.map((item) => (
                   <div key={item.id} className="flex justify-between items-center text-sm gap-4">
