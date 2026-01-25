@@ -65,6 +65,7 @@ export function EmployeeDetail({
   const [formData, setFormData] = useState({
     full_name: employee.full_name,
     phone: employee.phone || "",
+    employee_code: employee.employee_code || "",
     department_id: employee.department_id || "",
     position_id: employee.position_id || "",
     shift_id: employee.shift_id || "",
@@ -263,7 +264,13 @@ export function EmployeeDetail({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="employee_code">Mã nhân viên</Label>
-                    <Input id="employee_code" value={employee.employee_code || ""} disabled />
+                    <Input
+                      id="employee_code"
+                      value={formData.employee_code}
+                      onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
+                      disabled={!isHROrAdmin}
+                      placeholder="Nhập mã nhân viên"
+                    />
                   </div>
                 </div>
               </TabsContent>

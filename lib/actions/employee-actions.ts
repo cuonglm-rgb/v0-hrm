@@ -101,16 +101,30 @@ export async function getEmployee(id: string): Promise<EmployeeWithRelations | n
 
 export async function updateEmployee(
   id: string,
-  data: Partial<Pick<Employee, "full_name" | "phone" | "department_id" | "position_id" | "shift_id" | "status" | "join_date" | "official_date">>,
+  data: Partial<Pick<Employee, "full_name" | "phone" | "employee_code" | "department_id" | "position_id" | "shift_id" | "status" | "join_date" | "official_date">>,
 ) {
   const supabase = await createClient()
 
   // 1. Fetch current employee to check status transition
   const { data: currentEmp } = await supabase
     .from("employees")
-    .select("status, official_date")
+    .select("status, official_date, employee_code")
     .eq("id", id)
     .single()
+
+  // 2. Check if employee_code is being changed and if it's unique
+  if (data.employee_code && data.employee_code !== currentEmp?.employee_code) {
+    const { data: existingEmployee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("employee_code", data.employee_code)
+      .neq("id", id)
+      .single()
+
+    if (existingEmployee) {
+      return { success: false, error: "Mã nhân viên đã tồn tại" }
+    }
+  }
 
   const updateData: any = { ...data, updated_at: new Date().toISOString() }
 
