@@ -23,6 +23,8 @@ interface ImportResult {
   imported: number
   skipped: number
   errors: string[]
+  salaryCreated?: number
+  salaryUpdated?: number
 }
 
 // Parse date from various formats (DD/MM/YYYY, D/M/YYYY, YYYY-MM-DD, Excel serial number)
@@ -64,19 +66,42 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
     total: rows.length,
     imported: 0,
     skipped: 0,
-    errors: []
+    errors: [],
+    salaryCreated: 0,
+    salaryUpdated: 0
   }
 
   // Fetch departments, positions, shifts for mapping
   const [{ data: departments }, { data: positions }, { data: shifts }] = await Promise.all([
-    supabase.from("departments").select("id, name"),
+    supabase.from("departments").select("id, name, code"),
     supabase.from("positions").select("id, name"),
     supabase.from("work_shifts").select("id, name")
   ])
 
-  const deptMap = new Map(departments?.map(d => [d.name.toLowerCase(), d.id]) || [])
+  // Create maps for department lookup (by both name and code)
+  const deptByNameMap = new Map(departments?.map(d => [d.name.toLowerCase(), d.id]) || [])
+  const deptByCodeMap = new Map(departments?.filter(d => d.code).map(d => [d.code!.toLowerCase(), d.id]) || [])
   const posMap = new Map(positions?.map(p => [p.name.toLowerCase(), p.id]) || [])
   const shiftMap = new Map(shifts?.map(s => [s.name.toLowerCase(), s.id]) || [])
+
+  // Helper function to find department ID by name or code
+  const findDepartmentId = (deptName: string): string | null => {
+    if (!deptName) return null
+    const normalized = deptName.toLowerCase().trim()
+    // Try to find by code first (exact match)
+    const byCode = deptByCodeMap.get(normalized)
+    if (byCode) return byCode
+    // Then try by name (exact match)
+    const byName = deptByNameMap.get(normalized)
+    if (byName) return byName
+    // Try partial match on name (e.g., "Support" matches "Phòng Support")
+    for (const [name, id] of deptByNameMap.entries()) {
+      if (name.includes(normalized) || normalized.includes(name)) {
+        return id
+      }
+    }
+    return null
+  }
 
   // Get existing employees to check duplicates and update
   const { data: existingEmployees } = await supabase
@@ -102,9 +127,14 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
     const officialDate = parseDate(row.official_date)
     // Parse salary - handle formats like "5000000", "5,000,000", "5.000.000"
     const baseSalaryRaw = row.base_salary != null ? String(row.base_salary).trim() : ""
-    const baseSalary = typeof row.base_salary === "number" 
-      ? row.base_salary 
-      : parseFloat(baseSalaryRaw.replace(/[.,\s]/g, "")) || 0
+    let baseSalary = 0
+    if (typeof row.base_salary === "number") {
+      baseSalary = row.base_salary
+    } else if (baseSalaryRaw) {
+      // Remove all commas, dots, and spaces then parse
+      const cleanedSalary = baseSalaryRaw.replace(/[,.\s]/g, "")
+      baseSalary = parseFloat(cleanedSalary) || 0
+    }
 
     // Validate required fields
     if (!fullName) {
@@ -127,9 +157,9 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
       // Update existing employee
       const updateData: Record<string, unknown> = {}
       
-      // Map department
+      // Map department (try both name and code)
       if (departmentName) {
-        const deptId = deptMap.get(departmentName.toLowerCase())
+        const deptId = findDepartmentId(departmentName)
         if (deptId) updateData.department_id = deptId
       }
       
@@ -166,7 +196,7 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
         
         // Check if salary already exists for this date
         const { data: existingSalary } = await supabase
-          .from("salary_structures")
+          .from("salary_structure")
           .select("id")
           .eq("employee_id", existingEmployeeId)
           .eq("effective_date", effectiveDate)
@@ -174,22 +204,34 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
         
         if (existingSalary) {
           // Update existing salary
-          await supabase
-            .from("salary_structures")
+          const { error: updateError } = await supabase
+            .from("salary_structure")
             .update({
               base_salary: baseSalary,
               note: "Cập nhật từ import"
             })
             .eq("id", existingSalary.id)
+          
+          if (updateError) {
+            result.errors.push(`Dòng ${rowNum}: Lỗi cập nhật lương - ${updateError.message}`)
+          } else {
+            result.salaryUpdated = (result.salaryUpdated || 0) + 1
+          }
         } else {
           // Insert new salary
-          await supabase.from("salary_structures").insert({
+          const { error: insertError } = await supabase.from("salary_structure").insert({
             employee_id: existingEmployeeId,
             base_salary: baseSalary,
             allowance: 0,
             effective_date: effectiveDate,
             note: "Import từ file"
           })
+          
+          if (insertError) {
+            result.errors.push(`Dòng ${rowNum}: Lỗi tạo lương - ${insertError.message}`)
+          } else {
+            result.salaryCreated = (result.salaryCreated || 0) + 1
+          }
         }
       }
       
@@ -210,9 +252,9 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
       employeeCode = `NV${getNowVN().slice(0, 7).replace("-", "")}${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`
     }
 
-    // Map department
+    // Map department (try both name and code)
     const departmentId = departmentName 
-      ? deptMap.get(departmentName.toLowerCase()) || null
+      ? findDepartmentId(departmentName)
       : null
 
     // Map position
@@ -253,13 +295,19 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
     if (baseSalary && baseSalary > 0 && newEmployee) {
       const effectiveDate = officialDate || joinDate || getTodayVN()
       
-      await supabase.from("salary_structures").insert({
+      const { error: salaryError } = await supabase.from("salary_structure").insert({
         employee_id: newEmployee.id,
         base_salary: baseSalary,
         allowance: 0,
         effective_date: effectiveDate,
         note: "Import từ file"
       })
+      
+      if (salaryError) {
+        result.errors.push(`Dòng ${rowNum}: Lỗi tạo lương - ${salaryError.message}`)
+      } else {
+        result.salaryCreated = (result.salaryCreated || 0) + 1
+      }
     }
 
     existingEmailMap.set(email, newEmployee.id)

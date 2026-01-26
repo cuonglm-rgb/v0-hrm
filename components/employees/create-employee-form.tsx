@@ -47,6 +47,8 @@ export function CreateEmployeeForm({ departments, positions }: CreateEmployeeFor
     imported: number
     skipped: number
     errors: string[]
+    salaryCreated?: number
+    salaryUpdated?: number
   } | null>(null)
   const [formData, setFormData] = useState({
     full_name: "",
@@ -250,6 +252,13 @@ export function CreateEmployeeForm({ departments, positions }: CreateEmployeeFor
                   Kết quả: {importResult.imported}/{importResult.total} nhân viên đã import
                 </span>
               </div>
+              {(importResult.salaryCreated || importResult.salaryUpdated) && (
+                <div className="mt-2 text-sm text-green-700 dark:text-green-400">
+                  <p>
+                    Lương: {importResult.salaryCreated || 0} tạo mới, {importResult.salaryUpdated || 0} cập nhật
+                  </p>
+                </div>
+              )}
               {importResult.errors.length > 0 && (
                 <div className="mt-2 text-sm">
                   <p className="font-medium text-red-600 mb-1">Lỗi ({importResult.errors.length}):</p>

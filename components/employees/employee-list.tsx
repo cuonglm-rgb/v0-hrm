@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Eye, UserPlus } from "lucide-react"
+import { Search, UserPlus } from "lucide-react"
 import type { EmployeeWithRelations, UserRoleWithRelations, Department } from "@/lib/types/database"
 
 interface EmployeeListProps {
@@ -114,13 +114,12 @@ export function EmployeeList({ employees, userRoles, departments = [] }: Employe
                 <TableHead>Department</TableHead>
                 <TableHead>Position</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredEmployees.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     No employees found
                   </TableCell>
                 </TableRow>
@@ -134,7 +133,11 @@ export function EmployeeList({ employees, userRoles, departments = [] }: Employe
                     .slice(0, 2)
 
                   return (
-                    <TableRow key={emp.id}>
+                    <TableRow 
+                      key={emp.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => window.location.href = `/dashboard/employees/${emp.id}`}
+                    >
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9">
@@ -156,14 +159,6 @@ export function EmployeeList({ employees, userRoles, departments = [] }: Employe
                       <TableCell>{emp.position?.name || "-"}</TableCell>
                       <TableCell>
                         <Badge className={statusColors[emp.status]}>{statusLabels[emp.status]}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/dashboard/employees/${emp.id}`}>
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Link>
-                        </Button>
                       </TableCell>
                     </TableRow>
                   )
