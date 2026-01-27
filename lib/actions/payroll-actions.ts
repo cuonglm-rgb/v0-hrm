@@ -2434,3 +2434,214 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   revalidatePath("/dashboard/payroll")
   return { success: true, message: `Đã tính lại lương cho ${emp.full_name}` }
 }
+
+
+// =============================================
+// EXPORT PAYROLL TO XLSX
+// =============================================
+
+interface PayrollExportData {
+  stt: number
+  hoTen: string
+  mcc: string
+  ngayCongChuan: number
+  mucLuongThang: number
+  mucPhuCapNgay: number
+  congTinhLuong: number
+  tangCaThuong: number
+  tangCaNgayNghi: number
+  tangCaNgayLe: number
+  phep: number
+  truPhuCap: number
+  luongThucTe: number
+  phuCapThucTe: number
+  bhxh: number
+  congKhac: number
+  truKhac: number
+  thucNhan: number
+  quy: number
+  ck: number
+  email: string
+}
+
+export async function getPayrollExportData(
+  payroll_run_id: string,
+  employee_ids?: string[]
+): Promise<{ success: boolean; data?: PayrollExportData[]; error?: string; month?: number; year?: number }> {
+  const supabase = await createClient()
+
+  // Lấy thông tin payroll run
+  const { data: payrollRun, error: runError } = await supabase
+    .from("payroll_runs")
+    .select("*")
+    .eq("id", payroll_run_id)
+    .single()
+
+  if (runError || !payrollRun) {
+    return { success: false, error: "Không tìm thấy bảng lương" }
+  }
+
+  // Lấy payroll items
+  let query = supabase
+    .from("payroll_items")
+    .select(`
+      *,
+      employee:employees(id, full_name, employee_code, email)
+    `)
+    .eq("payroll_run_id", payroll_run_id)
+    .order("created_at", { ascending: true })
+
+  if (employee_ids && employee_ids.length > 0) {
+    query = query.in("employee_id", employee_ids)
+  }
+
+  const { data: items, error: itemsError } = await query
+
+  if (itemsError || !items) {
+    return { success: false, error: "Không thể lấy dữ liệu lương" }
+  }
+
+  // Lấy adjustment details cho tất cả items
+  const itemIds = items.map((i) => i.id)
+  const { data: allAdjustments } = await supabase
+    .from("payroll_adjustment_details")
+    .select(`
+      *,
+      adjustment_type:payroll_adjustment_types(id, name, code, category)
+    `)
+    .in("payroll_item_id", itemIds)
+
+  // Group adjustments by payroll_item_id
+  const adjustmentsByItem = new Map<string, any[]>()
+  for (const adj of allAdjustments || []) {
+    const list = adjustmentsByItem.get(adj.payroll_item_id) || []
+    list.push(adj)
+    adjustmentsByItem.set(adj.payroll_item_id, list)
+  }
+
+  // Lấy salary structure để lấy daily_allowance
+  const employeeIds = items.map((i) => i.employee_id)
+  const { data: salaries } = await supabase
+    .from("salary_structure")
+    .select("*")
+    .in("employee_id", employeeIds)
+    .order("effective_date", { ascending: false })
+
+  // Group salary by employee_id (lấy mới nhất)
+  const salaryByEmployee = new Map<string, any>()
+  for (const sal of salaries || []) {
+    if (!salaryByEmployee.has(sal.employee_id)) {
+      salaryByEmployee.set(sal.employee_id, sal)
+    }
+  }
+
+  // Build export data
+  const exportData: PayrollExportData[] = []
+  let stt = 1
+
+  for (const item of items) {
+    const emp = item.employee as any
+    const adjustments = adjustmentsByItem.get(item.id) || []
+    const salary = salaryByEmployee.get(item.employee_id)
+
+    // Tính các khoản tăng ca theo loại
+    let tangCaThuong = 0
+    let tangCaNgayNghi = 0
+    let tangCaNgayLe = 0
+
+    // Tính phụ cấp (không bao gồm tăng ca)
+    let phuCapThucTe = 0
+
+    // Tính BHXH
+    let bhxh = 0
+
+    // Tính quỹ
+    let quy = 0
+
+    // Tính cộng khác và trừ khác
+    let congKhac = 0
+    let truKhac = 0
+
+    // Tính trừ phụ cấp (phạt)
+    let truPhuCap = 0
+
+    for (const adj of adjustments) {
+      const code = adj.adjustment_type?.code || ""
+      const category = adj.category
+
+      if (code === "overtime") {
+        // Parse reason để xác định loại tăng ca
+        const reason = adj.reason || ""
+        if (reason.includes("ngày lễ")) {
+          tangCaNgayLe += adj.final_amount
+        } else if (reason.includes("ngày nghỉ") || reason.includes("cuối tuần")) {
+          tangCaNgayNghi += adj.final_amount
+        } else {
+          tangCaThuong += adj.final_amount
+        }
+      } else if (category === "allowance") {
+        if (code.startsWith("MANUAL")) {
+          congKhac += adj.final_amount
+        } else if (code === "kpi_bonus") {
+          congKhac += adj.final_amount
+        } else {
+          phuCapThucTe += adj.final_amount
+        }
+      } else if (category === "deduction") {
+        if (code === "social_insurance" || code === "bhxh") {
+          bhxh += adj.final_amount
+        } else if (code === "fund" || code === "quy" || code.includes("fund")) {
+          quy += adj.final_amount
+        } else if (code.startsWith("MANUAL")) {
+          truKhac += adj.final_amount
+        } else {
+          truKhac += adj.final_amount
+        }
+      } else if (category === "penalty") {
+        truPhuCap += adj.final_amount
+      }
+    }
+
+    // Tính lương thực tế (lương theo ngày công)
+    const standardDays = item.standard_working_days || 26
+    const dailySalary = item.base_salary / standardDays
+    const luongThucTe = dailySalary * item.working_days
+
+    // Mức phụ cấp ngày từ salary structure
+    const mucPhuCapNgay = salary?.daily_allowance || 0
+
+    // Tính CK = thực nhận - quỹ
+    const ck = item.net_salary - quy
+
+    exportData.push({
+      stt: stt++,
+      hoTen: emp?.full_name || "",
+      mcc: emp?.employee_code || "",
+      ngayCongChuan: standardDays,
+      mucLuongThang: item.base_salary,
+      mucPhuCapNgay: mucPhuCapNgay,
+      congTinhLuong: item.working_days,
+      tangCaThuong,
+      tangCaNgayNghi,
+      tangCaNgayLe,
+      phep: item.leave_days || 0,
+      truPhuCap,
+      luongThucTe,
+      phuCapThucTe,
+      bhxh,
+      congKhac,
+      truKhac,
+      thucNhan: item.net_salary,
+      quy,
+      ck,
+      email: emp?.email || "",
+    })
+  }
+
+  return {
+    success: true,
+    data: exportData,
+    month: payrollRun.month,
+    year: payrollRun.year,
+  }
+}
