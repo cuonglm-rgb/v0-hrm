@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 // Generate employee code
@@ -23,33 +23,102 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
-        // Check if employee record exists
-        const { data: existingEmployee } = await supabase
+        console.log("=== AUTH CALLBACK: Processing user ===")
+        console.log("User ID:", user.id)
+        console.log("User Email:", user.email)
+
+        // Use service client to bypass RLS for employee lookup/linking
+        const serviceClient = createServiceClient()
+
+        // 1. Check if employee already linked to this user
+        const { data: linkedEmployee } = await serviceClient
           .from("employees")
-          .select("id")
+          .select("id, employee_code, full_name, email")
           .eq("user_id", user.id)
           .single()
 
-        // Create employee if not exists
-        if (!existingEmployee) {
-          const fullName = user.user_metadata?.full_name 
-            || user.user_metadata?.name 
-            || user.email?.split("@")[0] 
-            || "User"
+        if (linkedEmployee) {
+          console.log("✅ EXISTING LINKED: Employee already linked to this user")
+          console.log("   Employee ID:", linkedEmployee.id)
+          console.log("   Employee Code:", linkedEmployee.employee_code)
+          console.log("   Full Name:", linkedEmployee.full_name)
+          console.log("   Email:", linkedEmployee.email)
+        } else {
+          // Debug: Check ALL employees with this email
+          const { data: allWithEmail, error: debugError } = await serviceClient
+            .from("employees")
+            .select("id, employee_code, full_name, email, user_id")
+            .ilike("email", user.email || "")
 
-          const { error: insertError } = await supabase.from("employees").insert({
-            user_id: user.id,
-            employee_code: generateEmployeeCode(),
-            full_name: fullName,
-            email: user.email,
-            avatar_url: user.user_metadata?.avatar_url || null,
-            status: "onboarding",
-          })
+          console.log("🔍 DEBUG: All employees with email", user.email)
+          console.log("   Results:", allWithEmail)
+          console.log("   Error:", debugError)
 
-          if (insertError) {
-            console.error("Error creating employee:", insertError)
+          // 2. Check if pre-imported employee exists with same email (not yet linked)
+          const { data: preImportedEmployee, error: searchError } = await serviceClient
+            .from("employees")
+            .select("id, employee_code, full_name, email")
+            .ilike("email", user.email || "")
+            .is("user_id", null)
+            .single()
+
+          console.log("🔍 SEARCH: Looking for pre-imported employee with email:", user.email)
+          console.log("   Search result:", preImportedEmployee)
+          console.log("   Search error:", searchError)
+
+          if (preImportedEmployee) {
+            console.log("🔗 PRE-IMPORTED FOUND: Linking existing employee to user")
+            console.log("   Employee ID:", preImportedEmployee.id)
+            console.log("   Employee Code:", preImportedEmployee.employee_code)
+            console.log("   Full Name:", preImportedEmployee.full_name)
+            console.log("   Email:", preImportedEmployee.email)
+
+            // Link existing pre-imported employee to this user
+            const { error: updateError } = await serviceClient
+              .from("employees")
+              .update({
+                user_id: user.id,
+                avatar_url: user.user_metadata?.avatar_url || null,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", preImportedEmployee.id)
+
+            if (updateError) {
+              console.error("❌ ERROR linking pre-imported employee:", updateError)
+            } else {
+              console.log("✅ SUCCESS: Linked pre-imported employee to user")
+            }
+          } else {
+            // 3. No existing employee found - create new one
+            console.log("🆕 NEW EMPLOYEE: No existing employee found, creating new one")
+            
+            const fullName = user.user_metadata?.full_name 
+              || user.user_metadata?.name 
+              || user.email?.split("@")[0] 
+              || "User"
+            const newEmployeeCode = generateEmployeeCode()
+
+            console.log("   New Employee Code:", newEmployeeCode)
+            console.log("   Full Name:", fullName)
+            console.log("   Email:", user.email)
+
+            const { error: insertError } = await serviceClient.from("employees").insert({
+              user_id: user.id,
+              employee_code: newEmployeeCode,
+              full_name: fullName,
+              email: user.email,
+              avatar_url: user.user_metadata?.avatar_url || null,
+              status: "onboarding",
+            })
+
+            if (insertError) {
+              console.error("❌ ERROR creating employee:", insertError)
+            } else {
+              console.log("✅ SUCCESS: Created new employee")
+            }
           }
         }
+        console.log("=== AUTH CALLBACK: Complete ===")
       }
 
       return NextResponse.redirect(`${origin}${next}`)
