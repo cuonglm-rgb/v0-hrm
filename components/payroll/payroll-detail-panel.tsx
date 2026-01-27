@@ -11,10 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { lockPayroll, markPayrollPaid, sendPayrollForReview, getPayrollAdjustmentDetails, addManualAdjustment, deleteAdjustmentDetail, recalculateSingleEmployee } from "@/lib/actions/payroll-actions"
+import { lockPayroll, markPayrollPaid, sendPayrollForReview, getPayrollAdjustmentDetails, addManualAdjustment, deleteAdjustmentDetail, recalculateSingleEmployee, getPayrollExportData } from "@/lib/actions/payroll-actions"
 import type { PayrollRun, PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
-import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar, TrendingUp, TrendingDown, RefreshCw, Pencil, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar, TrendingUp, TrendingDown, RefreshCw, Pencil, Plus, Trash2, Download, CheckSquare, Square } from "lucide-react"
+import * as XLSX from "xlsx"
+import { toast } from "sonner"
 
 interface WorkingDaysInfo {
   totalDays: number
@@ -63,6 +65,8 @@ export function PayrollDetailPanel({
   const [addReason, setAddReason] = useState("")
   const [isAdding, setIsAdding] = useState(false)
   const [localPayrollItems, setLocalPayrollItems] = useState(payrollItems)
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set())
+  const [isExporting, setIsExporting] = useState(false)
 
   const loadAdjustmentDetails = async (payrollItemId: string) => {
     setIsLoading(true)
@@ -75,6 +79,144 @@ export function PayrollDetailPanel({
       console.error("[PayrollDetailPanel] Error loading adjustment details:", error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedEmployeeIds.size === localPayrollItems.length) {
+      setSelectedEmployeeIds(new Set())
+    } else {
+      setSelectedEmployeeIds(new Set(localPayrollItems.map((item) => item.employee_id)))
+    }
+  }
+
+  const toggleSelectEmployee = (employeeId: string) => {
+    const newSet = new Set(selectedEmployeeIds)
+    if (newSet.has(employeeId)) {
+      newSet.delete(employeeId)
+    } else {
+      newSet.add(employeeId)
+    }
+    setSelectedEmployeeIds(newSet)
+  }
+
+  // Export handler
+  const handleExport = async (exportAll: boolean = false) => {
+    setIsExporting(true)
+    try {
+      const employeeIds = exportAll ? undefined : Array.from(selectedEmployeeIds)
+      
+      if (!exportAll && employeeIds && employeeIds.length === 0) {
+        toast.error("Vui lòng chọn ít nhất 1 nhân viên để export")
+        setIsExporting(false)
+        return
+      }
+
+      const result = await getPayrollExportData(payrollRun.id, employeeIds)
+      
+      if (!result.success || !result.data) {
+        toast.error(result.error || "Không thể export dữ liệu")
+        setIsExporting(false)
+        return
+      }
+
+      // Tạo workbook
+      const wb = XLSX.utils.book_new()
+
+      // Tạo header theo format CSV mẫu
+      const headers = [
+        "STT",
+        "HỌ TÊN",
+        "MCC",
+        "NGÀY CÔNG CHUẨN",
+        "MỨC LƯƠNG THÁNG",
+        "MỨC PHỤ CẤP NGÀY",
+        "CÔNG TÍNH LƯƠNG",
+        "TĂNG CA THƯỜNG",
+        "TĂNG CA NGÀY NGHỈ",
+        "TĂNG CA NGÀY LỄ",
+        "PHÉP",
+        "TRỪ PHỤ CẤP",
+        "LƯƠNG THỰC TẾ",
+        "PHỤ CẤP THỰC TẾ",
+        "BHXH",
+        "CỘNG KHÁC",
+        "TRỪ KHÁC",
+        "THỰC NHẬN",
+        "QUỸ",
+        "CK",
+        "EMAIL",
+      ]
+
+      // Chuyển data sang array format
+      const rows = result.data.map((item) => [
+        item.stt,
+        item.hoTen,
+        item.mcc,
+        item.ngayCongChuan,
+        item.mucLuongThang,
+        item.mucPhuCapNgay,
+        item.congTinhLuong,
+        item.tangCaThuong,
+        item.tangCaNgayNghi,
+        item.tangCaNgayLe,
+        item.phep,
+        item.truPhuCap,
+        item.luongThucTe,
+        item.phuCapThucTe,
+        item.bhxh,
+        item.congKhac,
+        item.truKhac,
+        item.thucNhan,
+        item.quy,
+        item.ck,
+        item.email,
+      ])
+
+      // Tạo worksheet
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+
+      // Set column widths
+      ws["!cols"] = [
+        { wch: 5 },   // STT
+        { wch: 25 },  // HỌ TÊN
+        { wch: 10 },  // MCC
+        { wch: 15 },  // NGÀY CÔNG CHUẨN
+        { wch: 18 },  // MỨC LƯƠNG THÁNG
+        { wch: 18 },  // MỨC PHỤ CẤP NGÀY
+        { wch: 15 },  // CÔNG TÍNH LƯƠNG
+        { wch: 15 },  // TĂNG CA THƯỜNG
+        { wch: 18 },  // TĂNG CA NGÀY NGHỈ
+        { wch: 15 },  // TĂNG CA NGÀY LỄ
+        { wch: 8 },   // PHÉP
+        { wch: 12 },  // TRỪ PHỤ CẤP
+        { wch: 15 },  // LƯƠNG THỰC TẾ
+        { wch: 15 },  // PHỤ CẤP THỰC TẾ
+        { wch: 12 },  // BHXH
+        { wch: 12 },  // CỘNG KHÁC
+        { wch: 12 },  // TRỪ KHÁC
+        { wch: 15 },  // THỰC NHẬN
+        { wch: 12 },  // QUỸ
+        { wch: 15 },  // CK
+        { wch: 30 },  // EMAIL
+      ]
+
+      // Thêm worksheet vào workbook
+      XLSX.utils.book_append_sheet(wb, ws, `Lương T${result.month}_${result.year}`)
+
+      // Tạo tên file
+      const fileName = `Bang_Luong_T${result.month}_${result.year}${exportAll ? "_TatCa" : "_ChonLoc"}.xlsx`
+
+      // Download file
+      XLSX.writeFile(wb, fileName)
+
+      toast.success(`Đã export ${result.data.length} nhân viên`)
+    } catch (error) {
+      console.error("Export error:", error)
+      toast.error("Có lỗi xảy ra khi export")
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -203,6 +345,26 @@ export function PayrollDetailPanel({
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          {/* Export buttons */}
+          <Button
+            variant="outline"
+            onClick={() => handleExport(false)}
+            disabled={isExporting || selectedEmployeeIds.size === 0}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {isExporting ? "Đang export..." : `Export (${selectedEmployeeIds.size})`}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleExport(true)}
+            disabled={isExporting}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {isExporting ? "Đang export..." : "Export tất cả"}
+          </Button>
+          
           {getStatusBadge(payrollRun.status)}
           {payrollRun.status === "draft" && (
             <>
@@ -309,6 +471,19 @@ export function PayrollDetailPanel({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="flex items-center justify-center"
+                    title={selectedEmployeeIds.size === localPayrollItems.length ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                  >
+                    {selectedEmployeeIds.size === localPayrollItems.length && localPayrollItems.length > 0 ? (
+                      <CheckSquare className="h-4 w-4 text-primary" />
+                    ) : (
+                      <Square className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead>Nhân viên</TableHead>
                 <TableHead className="text-right">Ngày công</TableHead>
                 <TableHead className="text-right">Nghỉ phép</TableHead>
@@ -327,7 +502,7 @@ export function PayrollDetailPanel({
             <TableBody>
               {localPayrollItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center text-muted-foreground">
+                  <TableCell colSpan={12} className="text-center text-muted-foreground">
                     Chưa có dữ liệu
                   </TableCell>
                 </TableRow>
@@ -338,6 +513,18 @@ export function PayrollDetailPanel({
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleViewDetails(item)}
                   >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => toggleSelectEmployee(item.employee_id)}
+                        className="flex items-center justify-center"
+                      >
+                        {selectedEmployeeIds.has(item.employee_id) ? (
+                          <CheckSquare className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Square className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       <div>
                         <div className="font-medium">{item.employee?.full_name}</div>
