@@ -34,7 +34,7 @@ import {
 } from "@/lib/actions/attendance-import-actions"
 import type { AttendanceLogWithRelations, WorkShift, SpecialWorkDay } from "@/lib/types/database"
 import { formatDateVN, formatTimeVN, formatSourceVN } from "@/lib/utils/date-utils"
-import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, AlertTriangle, Clock, Filter, Search } from "lucide-react"
+import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, AlertTriangle, Clock, Filter, Search, Loader2 } from "lucide-react"
 
 interface AttendanceManagementPanelProps {
   attendanceLogs: (AttendanceLogWithRelations & { employee?: { shift?: WorkShift | null } | null })[]
@@ -54,21 +54,6 @@ interface AttendanceViolation {
   minutes?: number
   message: string
 }
-
-const months = [
-  { value: "01", label: "Tháng 1" },
-  { value: "02", label: "Tháng 2" },
-  { value: "03", label: "Tháng 3" },
-  { value: "04", label: "Tháng 4" },
-  { value: "05", label: "Tháng 5" },
-  { value: "06", label: "Tháng 6" },
-  { value: "07", label: "Tháng 7" },
-  { value: "08", label: "Tháng 8" },
-  { value: "09", label: "Tháng 9" },
-  { value: "10", label: "Tháng 10" },
-  { value: "11", label: "Tháng 11" },
-  { value: "12", label: "Tháng 12" },
-]
 
 // Hàm kiểm tra vi phạm chấm công
 function checkViolations(
@@ -149,9 +134,6 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [] }: 
   const [downloading, setDownloading] = useState(false)
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [showResultDialog, setShowResultDialog] = useState(false)
-  const [showImportDialog, setShowImportDialog] = useState(false)
-  const [selectedMonth, setSelectedMonth] = useState(String(currentDate.getMonth() + 1).padStart(2, "0"))
-  const [selectedYear, setSelectedYear] = useState(String(currentDate.getFullYear()))
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -239,22 +221,19 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [] }: 
         return
       }
       setSelectedFile(file)
-      setShowImportDialog(true)
+      // Import trực tiếp, không cần chọn tháng/năm nữa
+      handleImportFile(file)
     }
   }
 
-  const handleImport = async () => {
-    if (!selectedFile) return
-
+  const handleImportFile = async (file: File) => {
     setImporting(true)
     const formData = new FormData()
-    formData.append("file", selectedFile)
-    formData.append("monthYear", `${selectedYear}-${selectedMonth}`)
+    formData.append("file", file)
 
     try {
       const result = await importAttendanceFromExcel(formData)
       setImportResult(result)
-      setShowImportDialog(false)
       setShowResultDialog(true)
     } catch (error) {
       setImportResult({
@@ -264,7 +243,6 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [] }: 
         skipped: 0,
         errors: ["Lỗi không xác định khi import"],
       })
-      setShowImportDialog(false)
       setShowResultDialog(true)
     } finally {
       setImporting(false)
@@ -273,6 +251,11 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [] }: 
         fileInputRef.current.value = ""
       }
     }
+  }
+
+  const handleImport = async () => {
+    if (!selectedFile) return
+    handleImportFile(selectedFile)
   }
 
   const handleDownloadTemplate = async () => {
@@ -357,6 +340,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [] }: 
                     <th className="px-3 py-1 text-left">Mã N.Viên</th>
                     <th className="px-3 py-1 text-left">Tên nhân viên</th>
                     <th className="px-3 py-1 text-left">Phòng ban</th>
+                    <th className="px-3 py-1 text-left">Chức vụ</th>
                     <th className="px-3 py-1 text-left">Ngày</th>
                     <th className="px-3 py-1 text-left">Thứ</th>
                     <th className="px-3 py-1 text-left">Vào</th>
@@ -365,19 +349,20 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [] }: 
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="px-3 py-1">NV001</td>
+                    <td className="px-3 py-1">2</td>
                     <td className="px-3 py-1">Nguyễn Văn A</td>
-                    <td className="px-3 py-1">IT</td>
-                    <td className="px-3 py-1">1</td>
-                    <td className="px-3 py-1">T2</td>
-                    <td className="px-3 py-1">08:30</td>
-                    <td className="px-3 py-1">17:30</td>
+                    <td className="px-3 py-1">Văn phòng</td>
+                    <td className="px-3 py-1">Nhân viên</td>
+                    <td className="px-3 py-1">02/01/2026</td>
+                    <td className="px-3 py-1">Sáu</td>
+                    <td className="px-3 py-1">7:53</td>
+                    <td className="px-3 py-1">17:25</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              * Cột "Ngày" là ngày trong tháng (1-31). Tháng/năm sẽ chọn khi import.
+              * Chỉ cần các cột: Mã N.Viên, Ngày (dd/mm/yyyy), Vào, Ra. Các cột khác có thể bỏ qua.
             </p>
           </div>
         </CardContent>
@@ -607,64 +592,30 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [] }: 
         </CardContent>
       </Card>
 
-      {/* Import Dialog - Chọn tháng/năm */}
-      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent>
+      {/* Import Loading Dialog */}
+      <Dialog open={importing} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Import chấm công
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              Đang import dữ liệu
             </DialogTitle>
             <DialogDescription>
-              Chọn tháng/năm cho dữ liệu chấm công trong file
+              Vui lòng chờ trong giây lát...
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <p className="text-sm">
-                <span className="font-medium">File:</span> {selectedFile?.name}
+          <div className="flex flex-col items-center justify-center py-8 space-y-4">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-muted rounded-full"></div>
+              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-sm font-medium">Đang xử lý file: {selectedFile?.name}</p>
+              <p className="text-xs text-muted-foreground">
+                Hệ thống đang đọc và import dữ liệu chấm công
               </p>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tháng</Label>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {months.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Năm</Label>
-                <Input
-                  type="number"
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  min={2020}
-                  max={2100}
-                />
-              </div>
-            </div>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowImportDialog(false)}>
-              Hủy
-            </Button>
-            <Button onClick={handleImport} disabled={importing} className="gap-2">
-              <Upload className="h-4 w-4" />
-              {importing ? "Đang import..." : "Import"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -623,13 +623,16 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                       }
                     }
 
+                    // Kiểm tra ngày tương lai
+                    const isFutureDate = dateObj > new Date()
+
                     return (
                       <TableRow
                         key={date}
                         className={
                           isHalfDayWork
                             ? "bg-yellow-50"
-                            : hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay)
+                            : hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay && !isFutureDate)
                               ? "bg-red-50"
                               : ""
                         }
@@ -726,6 +729,9 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                                 <Calendar className="h-3 w-3" />
                                 {leaveUsageMap.get(date) === "exceeded" ? "Quỹ phép hết" : leaveTypeName}
                               </Badge>
+                            ) : dateObj > new Date() ? (
+                              // Ngày tương lai - không hiển thị gì
+                              <span className="text-muted-foreground">-</span>
                             ) : (
                               <Badge variant="destructive" className="gap-1">
                                 <AlertTriangle className="h-3 w-3" />

@@ -196,7 +196,8 @@ export async function listAttendance(filters?: {
   if (filters?.from) query = query.gte("check_in", filters.from)
   if (filters?.to) query = query.lte("check_in", filters.to)
 
-  const { data, error } = await query.limit(100)
+  // Tăng limit để hiển thị đủ dữ liệu (1 tháng x 30 ngày x 50 nhân viên = 1500)
+  const { data, error } = await query.limit(5000)
 
   if (error) {
     console.error("Error listing attendance:", error)
