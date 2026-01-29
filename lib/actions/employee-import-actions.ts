@@ -14,6 +14,7 @@ interface ImportEmployeeRow {
   join_date?: string | number
   official_date?: string | number
   base_salary?: number | string
+  insurance_salary?: number | string
   shift_name?: string
 }
 
@@ -136,6 +137,16 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
       baseSalary = parseFloat(cleanedSalary) || 0
     }
 
+    // Parse insurance salary
+    const insuranceSalaryRaw = row.insurance_salary != null ? String(row.insurance_salary).trim() : ""
+    let insuranceSalary: number | null = null
+    if (typeof row.insurance_salary === "number") {
+      insuranceSalary = row.insurance_salary
+    } else if (insuranceSalaryRaw) {
+      const cleanedSalary = insuranceSalaryRaw.replace(/[,.\s]/g, "")
+      insuranceSalary = parseFloat(cleanedSalary) || null
+    }
+
     // Validate required fields
     if (!fullName) {
       result.errors.push(`Dòng ${rowNum}: Thiếu họ tên`)
@@ -208,6 +219,7 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
             .from("salary_structure")
             .update({
               base_salary: baseSalary,
+              insurance_salary: insuranceSalary,
               note: "Cập nhật từ import"
             })
             .eq("id", existingSalary.id)
@@ -222,6 +234,7 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
           const { error: insertError } = await supabase.from("salary_structure").insert({
             employee_id: existingEmployeeId,
             base_salary: baseSalary,
+            insurance_salary: insuranceSalary,
             allowance: 0,
             effective_date: effectiveDate,
             note: "Import từ file"
@@ -298,6 +311,7 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
       const { error: salaryError } = await supabase.from("salary_structure").insert({
         employee_id: newEmployee.id,
         base_salary: baseSalary,
+        insurance_salary: insuranceSalary,
         allowance: 0,
         effective_date: effectiveDate,
         note: "Import từ file"

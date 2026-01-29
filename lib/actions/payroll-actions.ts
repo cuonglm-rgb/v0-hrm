@@ -7,6 +7,7 @@ import type {
   PayrollItemWithRelations,
   SalaryStructure,
   PayrollAdjustmentType,
+  AdjustmentAutoRules,
 } from "@/lib/types/database"
 import { calculateOvertimePay, listHolidays } from "./overtime-actions"
 import { getEmployeeKPI } from "./kpi-actions"
@@ -216,6 +217,9 @@ interface AttendanceViolation {
   isAbsent: boolean // Không tính công (đi muộn >1 tiếng không có phép)
   hasApprovedRequest: boolean
   approvedRequestTypes: string[] // Các loại phiếu đã approved ["late_arrival", "early_leave", "half_day_leave"]
+  forgotCheckOut: boolean // Quên chấm công về
+  hasCheckIn: boolean // Có chấm công đến
+  hasCheckOut: boolean // Có chấm công về
 }
 
 interface ShiftInfo {
@@ -350,9 +354,11 @@ async function getEmployeeViolations(
       // CHỈ TÍNH ĐI MUỘN/VỀ SỚM KHI CÓ ĐỦ CẢ CHECK_IN VÀ CHECK_OUT
       // Nếu thiếu check_in hoặc check_out → đó là quên chấm công, không phải đi muộn/về sớm
       const isAbsent = false // Sẽ được set lại bên dưới nếu cần
+      let forgotCheckOut = false
       
       if (!hasCheckOut) {
         // Thiếu check_out → quên chấm công về, KHÔNG tính đi muộn/về sớm
+        forgotCheckOut = true
         lateMinutes = 0
         earlyMinutes = 0
         isHalfDay = false
@@ -424,6 +430,9 @@ async function getEmployeeViolations(
         isAbsent: finalIsAbsent,
         hasApprovedRequest,
         approvedRequestTypes, // Lưu các loại phiếu đã approved
+        forgotCheckOut,
+        hasCheckIn: true, // Luôn có check_in vì đang loop qua logs
+        hasCheckOut,
       })
     }
   }
@@ -947,12 +956,82 @@ export async function generatePayroll(month: number, year: number) {
     // Số ngày công = số bản ghi chấm công (loại trừ OT thay thế)
     const actualAttendanceDays = workingDaysCount - (halfDays * 0.5)
 
+    // =============================================
+    // TÍNH NGÀY ĐỦ GIỜ VÀ VI PHẠM CHO PHỤ CẤP ĂN TRƯA
+    // =============================================
+    // Ngày đủ giờ = có check_in VÀ check_out, không có vi phạm gì
+    const fullAttendanceDays = violationsWithoutOT.filter((v) => 
+      v.hasCheckIn && 
+      v.hasCheckOut && 
+      !v.isHalfDay && 
+      !v.isAbsent &&
+      v.lateMinutes === 0 && 
+      v.earlyMinutes === 0
+    ).length
+
+    // Đếm từng loại vi phạm để log chi tiết
+    const lateViolations = violationsWithoutOT.filter((v) => v.lateMinutes > 0).length
+    const earlyViolations = violationsWithoutOT.filter((v) => v.earlyMinutes > 0).length
+    const forgotCheckOutViolations = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
+    const halfDayViolations = violationsWithoutOT.filter((v) => v.isHalfDay).length
+    const absentViolations = violationsWithoutOT.filter((v) => v.isAbsent).length
+
+    // Đếm tổng số vi phạm (cho phụ cấp ăn trưa)
+    const totalViolations = violationsWithoutOT.filter((v) => 
+      v.lateMinutes > 0 ||        // Đi muộn
+      v.earlyMinutes > 0 ||       // Về sớm
+      v.forgotCheckOut ||         // Quên chấm công về
+      v.isHalfDay ||              // Nghỉ nửa ngày
+      v.isAbsent                  // Không tính công
+    ).length
+
+    console.log(`[Allowance] ${emp.full_name}: ===== TÍNH PHỤ CẤP ĂN TRƯA =====`)
+    console.log(`[Allowance] ${emp.full_name}: Tổng ngày chấm công: ${workingDaysCount}`)
+    console.log(`[Allowance] ${emp.full_name}: Ngày đủ giờ (full): ${fullAttendanceDays}`)
+    console.log(`[Allowance] ${emp.full_name}: Vi phạm - Đi muộn: ${lateViolations}, Về sớm: ${earlyViolations}, Quên chấm công về: ${forgotCheckOutViolations}, Nửa ngày: ${halfDayViolations}, Vắng: ${absentViolations}`)
+    console.log(`[Allowance] ${emp.full_name}: Tổng vi phạm: ${totalViolations}`)
+    
+    // Log chi tiết từng ngày vi phạm (chỉ log 5 ngày đầu để tránh spam)
+    const violationDays = violationsWithoutOT.filter((v) => 
+      v.lateMinutes > 0 || v.earlyMinutes > 0 || v.forgotCheckOut || v.isHalfDay || v.isAbsent
+    )
+    if (violationDays.length > 0) {
+      console.log(`[Allowance] ${emp.full_name}: Chi tiết vi phạm (${Math.min(5, violationDays.length)} ngày đầu):`)
+      violationDays.slice(0, 5).forEach((v) => {
+        const reasons = []
+        if (v.lateMinutes > 0) reasons.push(`đi muộn ${v.lateMinutes}p`)
+        if (v.earlyMinutes > 0) reasons.push(`về sớm ${v.earlyMinutes}p`)
+        if (v.forgotCheckOut) reasons.push(`quên chấm công về`)
+        if (v.isHalfDay) reasons.push(`nửa ngày`)
+        if (v.isAbsent) reasons.push(`vắng`)
+        console.log(`[Allowance] ${emp.full_name}:   - ${v.date}: ${reasons.join(', ')}`)
+      })
+      if (violationDays.length > 5) {
+        console.log(`[Allowance] ${emp.full_name}:   ... và ${violationDays.length - 5} ngày khác`)
+      }
+    }
+    
+    // Log chi tiết ngày đủ giờ (chỉ log 5 ngày đầu)
+    const fullDays = violationsWithoutOT.filter((v) => 
+      v.hasCheckIn && v.hasCheckOut && !v.isHalfDay && !v.isAbsent && v.lateMinutes === 0 && v.earlyMinutes === 0
+    )
+    if (fullDays.length > 0) {
+      console.log(`[Allowance] ${emp.full_name}: Ngày đủ giờ (${Math.min(5, fullDays.length)} ngày đầu):`)
+      fullDays.slice(0, 5).forEach((v) => {
+        console.log(`[Allowance] ${emp.full_name}:   ✓ ${v.date}`)
+      })
+      if (fullDays.length > 5) {
+        console.log(`[Allowance] ${emp.full_name}:   ... và ${fullDays.length - 5} ngày khác`)
+      }
+    }
+
     // Tổng ngày công = ngày đi làm + ngày làm từ xa + ngày nghỉ phép có lương
     const totalWorkingDays = actualAttendanceDays + workFromHomeDays + paidLeaveDays
 
     const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
     
     console.log(`[Payroll] ${emp.full_name}: Attendance breakdown - Logs: ${workingDaysCount}, Half days: ${halfDays}, Absent: ${absentDays}, Actual attendance: ${actualAttendanceDays}`)
+
 
     // Lấy các điều chỉnh được gán cho nhân viên
     const { data: empAdjustments } = await supabase
@@ -1023,36 +1102,66 @@ export async function generatePayroll(month: number, year: number) {
 
         // ========== PHỤ CẤP TỰ ĐỘNG ==========
         if (adjType.category === "allowance") {
-          // Phụ cấp theo ngày công (ăn trưa) - chỉ tính ngày đi làm đủ, không tính nửa ngày
+          // Phụ cấp theo ngày công (ăn trưa) - chỉ tính ngày đi làm đủ giờ
           if (adjType.calculation_type === "daily") {
-            let eligibleDays = actualAttendanceDays // Dùng actualAttendanceDays
+            console.log(`[Allowance] ${emp.full_name}: ----- Tính phụ cấp "${adjType.name}" -----`)
+            
+            // Bắt đầu từ số ngày đủ giờ (có check_in VÀ check_out, không vi phạm)
+            let eligibleDays = fullAttendanceDays
+            console.log(`[Allowance] ${emp.full_name}: Bắt đầu với ${eligibleDays} ngày đủ giờ`)
 
             if (rules) {
-              // Trừ ngày nghỉ
-              if (rules.deduct_on_absent) {
-                eligibleDays -= unpaidLeaveDays
+              // Áp dụng quy tắc miễn vi phạm (grace count)
+              // Ví dụ: miễn 4 lần vi phạm, trừ từ lần thứ 5
+              if (rules.late_grace_count !== undefined) {
+                // Tính số vi phạm vượt quá số lần được miễn
+                const excessViolations = Math.max(0, totalViolations - rules.late_grace_count)
+                
+                console.log(`[Allowance] ${emp.full_name}: Quy tắc miễn vi phạm: ${rules.late_grace_count} lần`)
+                console.log(`[Allowance] ${emp.full_name}: Vi phạm vượt quá: ${excessViolations} lần (${totalViolations} - ${rules.late_grace_count})`)
+                
+                // Trừ số ngày bị vi phạm vượt quá
+                eligibleDays = Math.max(0, eligibleDays - excessViolations)
+                
+                console.log(`[Allowance] ${emp.full_name}: Sau khi trừ vi phạm: ${eligibleDays} ngày`)
               }
 
-              // Trừ nếu đi muộn quá số lần cho phép
-              if (rules.deduct_on_late && rules.late_grace_count !== undefined) {
-                const excessLateDays = Math.max(0, lateCount - rules.late_grace_count)
-                eligibleDays -= excessLateDays
+              // Trừ ngày nghỉ không lương (nếu có rule)
+              if (rules.deduct_on_absent && unpaidLeaveDays > 0) {
+                console.log(`[Allowance] ${emp.full_name}: Trừ ngày nghỉ không lương: ${unpaidLeaveDays} ngày`)
+                eligibleDays -= unpaidLeaveDays
+                eligibleDays = Math.max(0, eligibleDays)
+                console.log(`[Allowance] ${emp.full_name}: Sau khi trừ nghỉ không lương: ${eligibleDays} ngày`)
               }
             }
 
-            eligibleDays = Math.max(0, eligibleDays)
+            eligibleDays = Math.max(0, Math.floor(eligibleDays)) // Đảm bảo là số nguyên
             const amount = eligibleDays * adjType.amount
+
+            console.log(`[Allowance] ${emp.full_name}: Kết quả cuối: ${eligibleDays} ngày x ${adjType.amount.toLocaleString()}đ = ${amount.toLocaleString()}đ`)
+            console.log(`[Allowance] ${emp.full_name}: ==========================================`)
 
             if (amount > 0) {
               totalAllowances += amount
               adjustmentDetails.push({
                 adjustment_type_id: adjType.id,
                 category: "allowance",
-                base_amount: actualAttendanceDays * adjType.amount,
-                adjusted_amount: (actualAttendanceDays - eligibleDays) * adjType.amount,
+                base_amount: fullAttendanceDays * adjType.amount,
+                adjusted_amount: (fullAttendanceDays - eligibleDays) * adjType.amount,
                 final_amount: amount,
                 reason: `${eligibleDays} ngày x ${adjType.amount.toLocaleString()}đ`,
                 occurrence_count: eligibleDays,
+              })
+            } else {
+              // Không có phụ cấp
+              adjustmentDetails.push({
+                adjustment_type_id: adjType.id,
+                category: "allowance",
+                base_amount: fullAttendanceDays * adjType.amount,
+                adjusted_amount: fullAttendanceDays * adjType.amount,
+                final_amount: 0,
+                reason: `0 ngày (vi phạm quá nhiều)`,
+                occurrence_count: 0,
               })
             }
           }
@@ -1097,6 +1206,63 @@ export async function generatePayroll(month: number, year: number) {
                 occurrence_count: 1,
               })
             }
+          }
+
+          // Phụ cấp/khấu trừ theo % lương
+          if (adjType.calculation_type === "percentage") {
+            const rules = adjType.auto_rules as AdjustmentAutoRules | null
+            const calculateFrom = rules?.calculate_from || "base_salary"
+            
+            // Lấy lương để tính %
+            let salaryForCalculation = baseSalary
+            let shouldSkip = false
+            
+            if (calculateFrom === "insurance_salary") {
+              // Lấy insurance_salary từ salary_structure
+              const { data: salaryData } = await supabase
+                .from("salary_structure")
+                .select("insurance_salary, base_salary")
+                .eq("employee_id", emp.id)
+                .lte("effective_date", `${year}-${String(month).padStart(2, "0")}-01`)
+                .order("effective_date", { ascending: false })
+                .limit(1)
+                .single()
+              
+              const insuranceSalary = salaryData?.insurance_salary
+              
+              // Nếu không có lương BHXH hoặc = 0, bỏ qua không tính
+              if (!insuranceSalary || insuranceSalary <= 0) {
+                console.log(`[Allowance] ${emp.full_name}: Bỏ qua "${adjType.name}" - Chưa có lương BHXH`)
+                shouldSkip = true
+              } else {
+                salaryForCalculation = insuranceSalary
+              }
+            }
+            
+            // Bỏ qua nếu không có lương BHXH
+            if (shouldSkip) {
+              continue
+            }
+            
+            const percentageAmount = (salaryForCalculation * adjType.amount) / 100
+            console.log(`[Allowance] ${emp.full_name}: Tính ${adjType.category} "${adjType.name}" theo % lương`)
+            console.log(`[Allowance] ${emp.full_name}: ${adjType.amount}% x ${salaryForCalculation.toLocaleString()}đ (${calculateFrom}) = ${percentageAmount.toLocaleString()}đ`)
+            
+            if (adjType.category === "allowance") {
+              totalAllowances += percentageAmount
+            } else if (adjType.category === "deduction") {
+              totalDeductions += percentageAmount
+            }
+            
+            adjustmentDetails.push({
+              adjustment_type_id: adjType.id,
+              category: adjType.category,
+              base_amount: percentageAmount,
+              adjusted_amount: 0,
+              final_amount: percentageAmount,
+              reason: `${adjType.amount}% ${calculateFrom === "insurance_salary" ? "lương BHXH" : "lương cơ bản"}`,
+              occurrence_count: 1,
+            })
           }
           continue
         }
@@ -1711,6 +1877,7 @@ export async function createSalaryStructure(input: {
   employee_id: string
   base_salary: number
   allowance?: number
+  insurance_salary?: number
   effective_date: string
   note?: string
 }) {
@@ -1720,6 +1887,7 @@ export async function createSalaryStructure(input: {
     employee_id: input.employee_id,
     base_salary: input.base_salary,
     allowance: input.allowance || 0,
+    insurance_salary: input.insurance_salary || null,
     effective_date: input.effective_date,
     note: input.note,
   })
@@ -2319,6 +2487,57 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
               occurrence_count: 1,
             })
           }
+        }
+
+        if (adjType.calculation_type === "percentage") {
+          const rules = adjType.auto_rules as AdjustmentAutoRules | null
+          const calculateFrom = rules?.calculate_from || "base_salary"
+          
+          // Lấy lương để tính %
+          let salaryForCalculation = baseSalary
+          let shouldSkip = false
+          
+          if (calculateFrom === "insurance_salary") {
+            // Lấy insurance_salary từ salary_structure
+            const { data: salaryData } = await supabase
+              .from("salary_structure")
+              .select("insurance_salary, base_salary")
+              .eq("employee_id", emp.id)
+              .lte("effective_date", `${year}-${String(month).padStart(2, "0")}-01`)
+              .order("effective_date", { ascending: false })
+              .limit(1)
+              .single()
+            
+            const insuranceSalary = salaryData?.insurance_salary
+            
+            // Nếu không có lương BHXH hoặc = 0, bỏ qua không tính
+            if (!insuranceSalary || insuranceSalary <= 0) {
+              shouldSkip = true
+            } else {
+              salaryForCalculation = insuranceSalary
+            }
+          }
+          
+          // Bỏ qua nếu không có lương BHXH
+          if (shouldSkip) {
+            continue
+          }
+          
+          const percentageAmount = (salaryForCalculation * adjType.amount) / 100
+          if (adjType.category === "allowance") {
+            totalAllowances += percentageAmount
+          } else if (adjType.category === "deduction") {
+            totalDeductions += percentageAmount
+          }
+          adjustmentDetails.push({
+            adjustment_type_id: adjType.id,
+            category: adjType.category,
+            base_amount: percentageAmount,
+            adjusted_amount: 0,
+            final_amount: percentageAmount,
+            reason: `${adjType.amount}% ${calculateFrom === "insurance_salary" ? "lương BHXH" : "lương cơ bản"}`,
+            occurrence_count: 1,
+          })
         }
       }
     }

@@ -27,7 +27,7 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
     redirect("/login")
   }
 
-  const [currentEmployee, currentUserRoles, targetEmployee, departments, positions, shifts, roles, jobHistory, canApproveRequests] =
+  const [currentEmployee, currentUserRoles, targetEmployee, departments, positions, shifts, roles, jobHistory, canApproveRequests, leaveUsage] =
     await Promise.all([
       getMyEmployee(),
       getMyRoles(),
@@ -76,6 +76,7 @@ export default async function EmployeeDetailPage({ params }: EmployeeDetailPageP
         isHROrAdmin={isHROrAdmin}
         jobHistory={jobHistory}
         salaryHistory={salaryHistory}
+        leaveUsage={leaveUsage}
       />
     </DashboardLayout>
   )

@@ -99,7 +99,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
     code: "",
     category: "allowance" as AdjustmentCategory,
     amount: "",
-    calculation_type: "fixed" as "fixed" | "daily" | "per_occurrence",
+    calculation_type: "fixed" as "fixed" | "daily" | "per_occurrence" | "percentage",
     is_auto_applied: false,
     description: "",
     auto_rules: { ...defaultAutoRules },
@@ -126,15 +126,23 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
 
   const handleOpenEdit = (item: PayrollAdjustmentType) => {
     setEditing(item)
+    const rules = (item.auto_rules as AdjustmentAutoRules) || { ...defaultAutoRules }
+    
     setFormData({
       name: item.name,
       code: item.code || "",
       category: item.category,
-      amount: item.amount.toString(),
+      amount: item.calculation_type === "percentage" 
+        ? item.amount.toString() 
+        : formatInputCurrency(item.amount.toString()),
       calculation_type: item.calculation_type,
       is_auto_applied: item.is_auto_applied,
       description: item.description || "",
-      auto_rules: (item.auto_rules as AdjustmentAutoRules) || { ...defaultAutoRules },
+      auto_rules: {
+        ...defaultAutoRules,
+        ...rules,
+        calculate_from: rules.calculate_from || "base_salary", // Đảm bảo có giá trị mặc định
+      },
     })
     setOpen(true)
   }
@@ -163,15 +171,27 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
         }
       }
 
+      // Đảm bảo calculate_from được set cho percentage type
+      if (formData.calculation_type === "percentage") {
+        autoRules = {
+          ...autoRules,
+          calculate_from: formData.auto_rules.calculate_from || "base_salary"
+        }
+      }
+
       const data = {
         name: formData.name,
         code: formData.code || undefined,
         category: formData.category,
-        amount: parseFloat(formData.amount.replace(/[^\d]/g, "")) || 0,
+        amount: formData.calculation_type === "percentage" 
+          ? parseFloat(formData.amount) || 0
+          : parseFloat(formData.amount.replace(/[^\d]/g, "")) || 0,
         calculation_type: formData.calculation_type,
         is_auto_applied: formData.is_auto_applied,
         description: formData.description || undefined,
-        auto_rules: formData.is_auto_applied ? autoRules : undefined,
+        auto_rules: formData.is_auto_applied || formData.calculation_type === "percentage" 
+          ? autoRules 
+          : undefined,
       }
 
       if (editing) {
@@ -271,7 +291,11 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                   <TableCell className="text-right font-medium">
                     {item.amount > 0 ? (
                       <>
-                        {formatCurrency(item.amount)}
+                        {item.calculation_type === "percentage" ? (
+                          <>{item.amount}%</>
+                        ) : (
+                          formatCurrency(item.amount)
+                        )}
                         {item.calculation_type === "daily" && (
                           <span className="text-xs text-muted-foreground">/ngày</span>
                         )}
@@ -289,6 +313,8 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                         ? "Cố định"
                         : item.calculation_type === "daily"
                         ? "Theo ngày"
+                        : item.calculation_type === "percentage"
+                        ? "% lương"
                         : "Theo lần"}
                     </Badge>
                   </TableCell>
@@ -397,8 +423,52 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
               </div>
             </div>
 
-            {/* Chỉ hiển thị field Số tiền nếu KHÔNG phải penalty HOẶC penalty_type = fixed_amount */}
-            {(formData.category !== "penalty" || formData.auto_rules.penalty_type === "fixed_amount") && (
+            {/* Hiển thị field Số tiền hoặc % tùy theo calculation_type */}
+            {formData.calculation_type === "percentage" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Phần trăm lương (%)</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={formData.amount}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setFormData({ ...formData, amount: e.target.value })
+                    }
+                    placeholder="8"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    VD: 8 = 8% lương
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tính từ</Label>
+                  <Select
+                    value={formData.auto_rules.calculate_from || "base_salary"}
+                    onValueChange={(v: "base_salary" | "insurance_salary") =>
+                      setFormData({
+                        ...formData,
+                        auto_rules: { ...formData.auto_rules, calculate_from: v },
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="base_salary">Lương cơ bản</SelectItem>
+                      <SelectItem value="insurance_salary">Lương BHXH</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Chọn loại lương để tính %
+                  </p>
+                </div>
+              </>
+            ) : (formData.category !== "penalty" || formData.auto_rules.penalty_type === "fixed_amount") && (
               <div className="space-y-2">
                 <Label htmlFor="amount">
                   Số tiền (VND)
@@ -424,7 +494,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
               <Label>Cách tính</Label>
               <Select
                 value={formData.calculation_type}
-                onValueChange={(v: "fixed" | "daily" | "per_occurrence") =>
+                onValueChange={(v: "fixed" | "daily" | "per_occurrence" | "percentage") =>
                   setFormData({ ...formData, calculation_type: v })
                 }
               >
@@ -435,6 +505,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                   <SelectItem value="fixed">Cố định/tháng</SelectItem>
                   <SelectItem value="daily">Theo ngày công</SelectItem>
                   <SelectItem value="per_occurrence">Theo lần vi phạm</SelectItem>
+                  <SelectItem value="percentage">Theo % lương</SelectItem>
                 </SelectContent>
               </Select>
             </div>

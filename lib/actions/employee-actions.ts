@@ -19,7 +19,8 @@ export async function getMyEmployee(): Promise<EmployeeWithRelations | null> {
       *,
       department:departments(*),
       position:positions(*),
-      manager:employees!manager_id(id, full_name, email)
+      manager:employees!manager_id(id, full_name, email),
+      shift:work_shifts(*)
     `)
     .eq("user_id", user.id)
     .single()

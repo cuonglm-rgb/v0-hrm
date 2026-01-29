@@ -60,6 +60,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
   const [formData, setFormData] = useState({
     base_salary: "",
     allowance: "",
+    insurance_salary: "",
     effective_date: new Date().toISOString().split("T")[0],
     note: "",
   })
@@ -105,6 +106,9 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
         employee_id: employeeId,
         base_salary: parseFloat(formData.base_salary.replace(/[^\d]/g, "")) || 0,
         allowance: parseFloat(formData.allowance.replace(/[^\d]/g, "")) || 0,
+        insurance_salary: formData.insurance_salary 
+          ? parseFloat(formData.insurance_salary.replace(/[^\d]/g, ""))
+          : undefined,
         effective_date: formData.effective_date,
         note: formData.note || undefined,
       })
@@ -115,6 +119,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
         setFormData({
           base_salary: "",
           allowance: "",
+          insurance_salary: "",
           effective_date: new Date().toISOString().split("T")[0],
           note: "",
         })
@@ -338,6 +343,20 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                   />
                 </div>
                 <div className="grid gap-2">
+                  <Label htmlFor="insurance_salary">Lương BHXH (VND)</Label>
+                  <Input
+                    id="insurance_salary"
+                    value={formData.insurance_salary}
+                    onChange={(e) =>
+                      setFormData({ ...formData, insurance_salary: formatInputCurrency(e.target.value) })
+                    }
+                    placeholder="10,000,000"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Để trống nếu dùng lương cơ bản
+                  </p>
+                </div>
+                <div className="grid gap-2">
                   <Label htmlFor="allowance">Phụ cấp (VND)</Label>
                   <Input
                     id="allowance"
@@ -395,6 +414,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
               <TableRow>
                 <TableHead>Ngày hiệu lực</TableHead>
                 <TableHead className="text-right">Lương cơ bản</TableHead>
+                <TableHead className="text-right">Lương BHXH</TableHead>
                 <TableHead className="text-right">Phụ cấp</TableHead>
                 <TableHead className="text-right">Tổng</TableHead>
                 <TableHead>Ghi chú</TableHead>
@@ -410,6 +430,9 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                     )}
                   </TableCell>
                   <TableCell className="text-right">{formatCurrency(record.base_salary)}</TableCell>
+                  <TableCell className="text-right">
+                    {record.insurance_salary ? formatCurrency(record.insurance_salary) : "-"}
+                  </TableCell>
                   <TableCell className="text-right">{formatCurrency(record.allowance)}</TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(record.base_salary + record.allowance)}

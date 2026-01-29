@@ -247,8 +247,18 @@ export function ProfileView({
                     <Input value={employee.position?.name || "-"} disabled />
                   </div>
                   <div className="space-y-2">
-                    <Label>Ca làm việc</Label>
-                    <Input value={employee.shift?.name || "-"} disabled />
+                    <Label>
+                      <Clock className="h-4 w-4 inline mr-1" />
+                      Ca làm việc
+                    </Label>
+                    <Input 
+                      value={
+                        employee.shift 
+                          ? `${employee.shift.name} (${employee.shift.start_time?.slice(0, 5)} - ${employee.shift.end_time?.slice(0, 5)})`
+                          : "-"
+                      } 
+                      disabled 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Trạng thái</Label>

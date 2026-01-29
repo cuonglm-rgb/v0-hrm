@@ -15,6 +15,7 @@ File Excel/CSV cần có các cột sau (tên cột phải khớp chính xác):
 | NGÀY VÀO LÀM | Không | Ngày bắt đầu làm việc | 1/12/2018 |
 | NGÀY CHÍNH THỨC VÀO LÀM | Không | Ngày chính thức | 1/12/2018 |
 | **MỨC LƯƠNG THÁNG** | Không | Lương cơ bản (VNĐ) | 5000000 |
+| **LƯƠNG BHXH** | Không | Lương đóng BHXH (VNĐ) - để trống nếu dùng lương cơ bản | 3000000 |
 | CA LÀM VIỆC | Không | Tên ca làm việc (phải tồn tại trong hệ thống) | Ca 8h |
 
 ## Quy tắc Import
@@ -73,11 +74,18 @@ Hệ thống sẽ tìm phòng ban theo thứ tự ưu tiên:
    - Nếu có `MỨC LƯƠNG THÁNG` > 0, hệ thống sẽ tự động tạo bản ghi lương trong bảng `salary_structure`
    - `effective_date` = `NGÀY CHÍNH THỨC VÀO LÀM` hoặc `NGÀY VÀO LÀM` hoặc ngày hiện tại
    - `allowance` = 0 (mặc định)
+   - `insurance_salary` = giá trị từ cột `LƯƠNG BHXH` (nếu có)
 
 2. **Khi cập nhật nhân viên đã tồn tại:**
    - Hệ thống kiểm tra xem đã có bản ghi lương cho ngày `effective_date` chưa
-   - Nếu có: **cập nhật** lương hiện tại
+   - Nếu có: **cập nhật** lương hiện tại (bao gồm cả lương BHXH)
    - Nếu chưa: **tạo mới** bản ghi lương
+
+### Lương BHXH:
+- Cột `LƯƠNG BHXH` là **không bắt buộc**
+- Nếu để trống hoặc = 0, hệ thống sẽ dùng lương cơ bản để tính BHXH
+- Nếu có giá trị, hệ thống sẽ lưu vào trường `insurance_salary`
+- Dùng để tính các khấu trừ BHXH, BHYT, BHTN theo % lương BHXH
 
 ### Format số được hỗ trợ:
 - `5000000` ✅

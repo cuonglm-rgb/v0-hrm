@@ -50,7 +50,7 @@ export async function createAdjustmentType(input: {
   code?: string
   category: AdjustmentCategory
   amount: number
-  calculation_type: "fixed" | "daily" | "per_occurrence"
+  calculation_type: "fixed" | "daily" | "per_occurrence" | "percentage"
   is_auto_applied: boolean
   auto_rules?: AdjustmentAutoRules
   description?: string
@@ -85,7 +85,7 @@ export async function updateAdjustmentType(
     code?: string
     category?: AdjustmentCategory
     amount?: number
-    calculation_type?: "fixed" | "daily" | "per_occurrence"
+    calculation_type?: "fixed" | "daily" | "per_occurrence" | "percentage"
     is_auto_applied?: boolean
     auto_rules?: AdjustmentAutoRules | null
     description?: string

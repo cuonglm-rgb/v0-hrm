@@ -151,6 +151,7 @@ export interface SalaryStructure {
   employee_id: string
   base_salary: number
   allowance: number
+  insurance_salary: number | null // Lương đóng BHXH (nếu null thì dùng base_salary)
   effective_date: string
   note: string | null
   created_at: string
@@ -182,7 +183,7 @@ export interface PayrollItemWithRelations extends PayrollItem {
 // =============================================
 
 export type AdjustmentCategory = "allowance" | "deduction" | "penalty"
-export type AdjustmentCalculationType = "fixed" | "daily" | "per_occurrence"
+export type AdjustmentCalculationType = "fixed" | "daily" | "per_occurrence" | "percentage"
 export type ExemptRequestType = string // Lấy từ request_types.code trong database
 
 export type PenaltyCondition = "late_arrival" | "early_leave" | "forgot_checkin" | "forgot_checkout"
@@ -199,7 +200,7 @@ export interface AdjustmentAutoRules {
   exempt_with_request?: boolean
   exempt_request_types?: ExemptRequestType[] // Loại phiếu được miễn
   multiplier?: number
-  calculate_from?: "base_salary"
+  calculate_from?: "base_salary" | "insurance_salary" // Tính từ lương cơ bản hay lương BHXH
   percentage?: number
 }
 
