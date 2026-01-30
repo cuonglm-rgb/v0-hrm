@@ -24,10 +24,15 @@ export async function getMyAttendance(from?: string, to?: string): Promise<Atten
     .from("attendance_logs")
     .select("*")
     .eq("employee_id", employee.id)
-    .order("check_in", { ascending: false })
+    .order("check_in", { ascending: false, nullsFirst: false })
 
-  if (from) query = query.gte("check_in", from)
-  if (to) query = query.lte("check_in", to)
+  // Filter theo check_in hoặc check_out (trường hợp check_in null)
+  if (from) {
+    query = query.or(`check_in.gte.${from},and(check_in.is.null,check_out.gte.${from})`)
+  }
+  if (to) {
+    query = query.or(`check_in.lte.${to},and(check_in.is.null,check_out.lte.${to})`)
+  }
 
   const { data, error } = await query
 
@@ -190,11 +195,17 @@ export async function listAttendance(filters?: {
         shift:work_shifts(id, name, start_time, end_time, break_start, break_end, break_minutes)
       )
     `)
-    .order("check_in", { ascending: false })
+    .order("check_in", { ascending: false, nullsFirst: false })
 
   if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id)
-  if (filters?.from) query = query.gte("check_in", filters.from)
-  if (filters?.to) query = query.lte("check_in", filters.to)
+  
+  // Filter theo check_in hoặc check_out (trường hợp check_in null - quên chấm công vào)
+  if (filters?.from) {
+    query = query.or(`check_in.gte.${filters.from},and(check_in.is.null,check_out.gte.${filters.from})`)
+  }
+  if (filters?.to) {
+    query = query.or(`check_in.lte.${filters.to},and(check_in.is.null,check_out.lte.${filters.to})`)
+  }
 
   // Tăng limit để hiển thị đủ dữ liệu (1 tháng x 30 ngày x 50 nhân viên = 1500)
   const { data, error } = await query.limit(5000)

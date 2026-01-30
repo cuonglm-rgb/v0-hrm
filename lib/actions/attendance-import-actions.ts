@@ -13,6 +13,11 @@ interface ImportResult {
   errors: string[]
 }
 
+interface ShiftInfo {
+  startTime: string
+  endTime: string
+}
+
 /**
  * Import chấm công từ file Excel
  * Format file mới:
@@ -104,13 +109,33 @@ export async function importAttendanceFromExcel(
     let imported = 0
     let skipped = 0
 
-    // Lấy danh sách employee để map employee_code -> id
+    // Lấy danh sách employee để map employee_code -> id và shift_id
     const { data: employees } = await supabase
       .from("employees")
-      .select("id, employee_code")
+      .select("id, employee_code, shift_id")
 
     const employeeMap = new Map(
       employees?.map((e) => [String(e.employee_code || "").toLowerCase().trim(), e.id]) || []
+    )
+    
+    // Map employee_id -> shift_id
+    const employeeShiftMap = new Map(
+      employees?.map((e) => [e.id, e.shift_id]) || []
+    )
+    
+    // Lấy danh sách ca làm việc
+    const { data: shifts } = await supabase
+      .from("work_shifts")
+      .select("id, start_time, end_time")
+    
+    const shiftMap = new Map<string, ShiftInfo>(
+      shifts?.map((s) => [
+        s.id, 
+        { 
+          startTime: s.start_time?.slice(0, 5) || "08:00", 
+          endTime: s.end_time?.slice(0, 5) || "17:00" 
+        }
+      ]) || []
     )
 
     // Thu thập và gộp dữ liệu theo employee + date
@@ -189,15 +214,21 @@ export async function importAttendanceFromExcel(
     }
 
     // Phase 2: Tạo validRows từ grouped data (lấy giờ vào sớm nhất, giờ ra muộn nhất)
+    // Xử lý đặc biệt: nếu chỉ có 1 lần chấm công và giờ >= giờ tan ca → đó là check-out
     const allDates = new Set<string>()
     const validRows: Array<{
       employeeId: string
       dateStr: string
-      checkInTimestamp: string
+      checkInTimestamp: string | null
       checkOutTimestamp: string | null
     }> = []
 
     for (const group of groupedData.values()) {
+      // Lấy thông tin ca làm việc của nhân viên
+      const shiftId = employeeShiftMap.get(group.employeeId)
+      const shiftInfo = shiftId ? shiftMap.get(shiftId) : null
+      const shiftEndTime = shiftInfo?.endTime || "17:00"
+      
       // Sắp xếp và lấy giờ vào sớm nhất
       const sortedCheckIns = group.checkInTimes.sort()
       const earliestCheckIn = sortedCheckIns[0]
@@ -206,12 +237,46 @@ export async function importAttendanceFromExcel(
       const sortedCheckOuts = group.checkOutTimes.sort()
       const latestCheckOut = sortedCheckOuts[sortedCheckOuts.length - 1]
 
-      if (!earliestCheckIn) {
+      // Trường hợp đặc biệt: chỉ có 1 lần chấm công (chỉ có giờ vào HOẶC chỉ có giờ ra)
+      // Nếu giờ chấm công >= giờ tan ca → đó là check-out, check-in thiếu
+      if (earliestCheckIn && !latestCheckOut && group.checkInTimes.length === 1) {
+        // Chỉ có 1 giờ vào, không có giờ ra
+        // So sánh với giờ tan ca
+        if (earliestCheckIn >= shiftEndTime) {
+          // Giờ chấm công >= giờ tan ca → đây là check-out, check-in thiếu
+          const checkOutTimestamp = createVNTimestamp(group.dateStr, earliestCheckIn)
+          allDates.add(group.dateStr)
+          validRows.push({
+            employeeId: group.employeeId,
+            dateStr: group.dateStr,
+            checkInTimestamp: null, // Check-in thiếu
+            checkOutTimestamp,
+          })
+          continue
+        }
+      }
+      
+      // Trường hợp chỉ có giờ ra (từ cột "Ra" trong Excel)
+      if (!earliestCheckIn && latestCheckOut) {
+        // Chỉ có giờ ra → check-in thiếu
+        const checkOutTimestamp = createVNTimestamp(group.dateStr, latestCheckOut)
+        allDates.add(group.dateStr)
+        validRows.push({
+          employeeId: group.employeeId,
+          dateStr: group.dateStr,
+          checkInTimestamp: null, // Check-in thiếu
+          checkOutTimestamp,
+        })
+        continue
+      }
+
+      // Trường hợp bình thường: có cả giờ vào và giờ ra, hoặc chỉ có giờ vào (trước giờ tan ca)
+      if (!earliestCheckIn && !latestCheckOut) {
         skipped++
         continue
       }
 
-      const checkInTimestamp = createVNTimestamp(group.dateStr, earliestCheckIn)
+      const checkInTimestamp = earliestCheckIn ? createVNTimestamp(group.dateStr, earliestCheckIn) : null
       const checkOutTimestamp = latestCheckOut ? createVNTimestamp(group.dateStr, latestCheckOut) : null
 
       allDates.add(group.dateStr)
@@ -234,21 +299,28 @@ export async function importAttendanceFromExcel(
     }
 
     // Phase 3: Query existing records một lần
+    // Query theo employee_id và date range
     const dateArray = Array.from(allDates)
     const minDate = dateArray.sort()[0]
     const maxDate = dateArray.sort()[dateArray.length - 1]
 
+    // Query tất cả attendance logs trong khoảng thời gian
     const { data: existingLogs } = await supabase
       .from("attendance_logs")
-      .select("id, employee_id, check_in")
-      .gte("check_in", `${minDate}T00:00:00`)
-      .lte("check_in", `${maxDate}T23:59:59`)
+      .select("id, employee_id, check_in, check_out")
 
     // Tạo map để tra cứu nhanh: "employeeId_date" -> log id
     const existingMap = new Map<string, string>()
     existingLogs?.forEach((log) => {
+      // Lấy date từ check_in hoặc check_out
+      let logDate: string | null = null
       if (log.check_in) {
-        const logDate = log.check_in.split("T")[0]
+        logDate = log.check_in.split("T")[0]
+      } else if (log.check_out) {
+        logDate = log.check_out.split("T")[0]
+      }
+      
+      if (logDate && logDate >= minDate && logDate <= maxDate) {
         const key = `${log.employee_id}_${logDate}`
         existingMap.set(key, log.id)
       }
@@ -257,14 +329,14 @@ export async function importAttendanceFromExcel(
     // Phase 4: Phân loại insert vs update
     const toInsert: Array<{
       employee_id: string
-      check_in: string
+      check_in: string | null
       check_out: string | null
       source: string
     }> = []
 
     const toUpdate: Array<{
       id: string
-      check_in: string
+      check_in: string | null
       check_out: string | null
       source: string
     }> = []

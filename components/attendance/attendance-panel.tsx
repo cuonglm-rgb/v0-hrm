@@ -42,7 +42,8 @@ interface AttendanceViolation {
 function checkViolations(
   checkInTime: string | null,
   checkOutTime: string | null,
-  shift: WorkShift | null | undefined
+  shift: WorkShift | null | undefined,
+  options?: { isAfternoonOnly?: boolean; isMorningOnly?: boolean }
 ): AttendanceViolation[] {
   const violations: AttendanceViolation[] = []
 
@@ -50,6 +51,8 @@ function checkViolations(
 
   const shiftStart = shift.start_time?.slice(0, 5)
   const shiftEnd = shift.end_time?.slice(0, 5)
+  const breakStart = shift.break_start?.slice(0, 5) || "12:00"
+  const breakEnd = shift.break_end?.slice(0, 5) || "13:00"
 
   if (!shiftStart || !shiftEnd) return violations
 
@@ -58,7 +61,9 @@ function checkViolations(
     const checkIn = new Date(checkInTime)
     const checkInHHMM = `${String(checkIn.getHours()).padStart(2, "0")}:${String(checkIn.getMinutes()).padStart(2, "0")}`
 
-    const [shiftH, shiftM] = shiftStart.split(":").map(Number)
+    // Nếu là làm buổi chiều (nghỉ buổi sáng), so sánh với giờ kết thúc nghỉ trưa thay vì giờ bắt đầu ca
+    const compareTime = options?.isAfternoonOnly ? breakEnd : shiftStart
+    const [shiftH, shiftM] = compareTime.split(":").map(Number)
     const [checkH, checkM] = checkInHHMM.split(":").map(Number)
 
     const shiftMinutes = shiftH * 60 + shiftM
@@ -69,7 +74,9 @@ function checkViolations(
       violations.push({
         type: "late",
         minutes: lateMinutes,
-        message: `Đi muộn ${lateMinutes} phút (vào lúc ${checkInHHMM}, ca bắt đầu ${shiftStart})`,
+        message: options?.isAfternoonOnly
+          ? `Đi muộn ${lateMinutes} phút (vào lúc ${checkInHHMM}, ca chiều bắt đầu ${breakEnd})`
+          : `Đi muộn ${lateMinutes} phút (vào lúc ${checkInHHMM}, ca bắt đầu ${shiftStart})`,
       })
     }
   } else {
@@ -84,7 +91,9 @@ function checkViolations(
     const checkOut = new Date(checkOutTime)
     const checkOutHHMM = `${String(checkOut.getHours()).padStart(2, "0")}:${String(checkOut.getMinutes()).padStart(2, "0")}`
 
-    const [shiftH, shiftM] = shiftEnd.split(":").map(Number)
+    // Nếu là làm buổi sáng (nghỉ buổi chiều), so sánh với giờ bắt đầu nghỉ trưa thay vì giờ kết thúc ca
+    const compareTime = options?.isMorningOnly ? breakStart : shiftEnd
+    const [shiftH, shiftM] = compareTime.split(":").map(Number)
     const [checkH, checkM] = checkOutHHMM.split(":").map(Number)
 
     const shiftMinutes = shiftH * 60 + shiftM
@@ -95,7 +104,9 @@ function checkViolations(
       violations.push({
         type: "early_leave",
         minutes: earlyMinutes,
-        message: `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca kết thúc ${shiftEnd})`,
+        message: options?.isMorningOnly
+          ? `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca sáng kết thúc ${breakStart})`
+          : `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca kết thúc ${shiftEnd})`,
       })
     }
   } else if (checkInTime) {
@@ -220,9 +231,11 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
   // Lọc dữ liệu chấm công
   const filteredLogs = useMemo(() => {
     return attendanceLogs.filter((log) => {
-      if (!log.check_in) return false
+      // Lấy date từ check_in hoặc check_out (trường hợp check_in null - quên chấm công vào)
+      const dateSource = log.check_in || log.check_out
+      if (!dateSource) return false
 
-      const logDate = new Date(log.check_in)
+      const logDate = new Date(dateSource)
       const logMonth = logDate.getMonth() + 1
       const logYear = logDate.getFullYear()
 
@@ -355,7 +368,10 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
 
     // Kết hợp với attendance logs
     const combined = workingDays.map((date) => {
-      const log = filteredLogs.find((l) => l.check_in?.startsWith(date))
+      // Tìm log theo check_in hoặc check_out (trường hợp check_in null - quên chấm công vào)
+      const log = filteredLogs.find((l) => 
+        l.check_in?.startsWith(date) || l.check_out?.startsWith(date)
+      )
       const leaveRequest = getLeaveRequestForDate(date, leaveRequests)
       const holiday = getHolidayForDate(date, holidays)
 
@@ -592,7 +608,42 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                   </TableRow>
                 ) : (
                   workingDaysWithAttendance.map(({ date, log, leaveRequest, holiday }) => {
-                    const violations = log ? checkViolations(log.check_in, log.check_out, shift) : []
+                    // Kiểm tra nếu là làm nửa ngày (check in/out trong giờ nghỉ trưa) - cần xác định trước khi gọi checkViolations
+                    let isHalfDayWork = false
+                    let isAfternoonOnly = false // Nghỉ buổi sáng, làm buổi chiều
+                    let isMorningOnly = false // Làm buổi sáng, nghỉ buổi chiều
+                    if (log && log.check_in && log.check_out && shift) {
+                      const checkInDate = new Date(log.check_in)
+                      const checkOutDate = new Date(log.check_out)
+                      const checkInMinutes = checkInDate.getHours() * 60 + checkInDate.getMinutes()
+                      const checkOutMinutes = checkOutDate.getHours() * 60 + checkOutDate.getMinutes()
+
+                      const breakStart = shift.break_start?.slice(0, 5) || "12:00"
+                      const breakEnd = shift.break_end?.slice(0, 5) || "13:00"
+                      const [bsH, bsM] = breakStart.split(":").map(Number)
+                      const [beH, beM] = breakEnd.split(":").map(Number)
+                      const breakStartMinutes = bsH * 60 + bsM
+                      const breakEndMinutes = beH * 60 + beM
+
+                      // Trường hợp 1: Nghỉ buổi chiều - check in trước nghỉ trưa và check out trong/trước nghỉ trưa
+                      if (checkInMinutes < breakStartMinutes && checkOutMinutes <= breakEndMinutes) {
+                        isHalfDayWork = true
+                        isMorningOnly = true
+                      }
+                      // Trường hợp 2: Nghỉ buổi sáng - check in trong giờ nghỉ trưa và check out sau giờ nghỉ trưa (làm buổi chiều)
+                      else if (checkInMinutes >= breakStartMinutes && checkInMinutes <= breakEndMinutes + 15 &&
+                        checkOutMinutes > breakEndMinutes) {
+                        isHalfDayWork = true
+                        isAfternoonOnly = true
+                      }
+                      // Trường hợp 3: Check in và check out đều trong giờ nghỉ trưa (hiếm gặp)
+                      else if (checkInMinutes >= breakStartMinutes && checkInMinutes <= breakEndMinutes + 15 &&
+                        checkOutMinutes >= breakStartMinutes && checkOutMinutes <= breakEndMinutes + 15) {
+                        isHalfDayWork = true
+                      }
+                    }
+
+                    const violations = log ? checkViolations(log.check_in, log.check_out, shift, { isAfternoonOnly, isMorningOnly }) : []
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
                     const isEarlyLeave = violations.some((v) => v.type === "early_leave")
@@ -611,30 +662,6 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                     // Kiểm tra xem có phải ngày nghỉ cuối tuần không
                     const dateObj = new Date(date)
                     const isWeekendDay = isWeekend(dateObj)
-
-                    // Kiểm tra nếu là làm nửa ngày (check in/out trong giờ nghỉ trưa)
-                    let isHalfDayWork = false
-                    if (log && log.check_in && log.check_out && shift) {
-                      const checkInDate = new Date(log.check_in)
-                      const checkOutDate = new Date(log.check_out)
-                      const checkInMinutes = checkInDate.getHours() * 60 + checkInDate.getMinutes()
-                      const checkOutMinutes = checkOutDate.getHours() * 60 + checkOutDate.getMinutes()
-
-                      const breakStart = shift.break_start?.slice(0, 5) || "12:00"
-                      const breakEnd = shift.break_end?.slice(0, 5) || "13:00"
-                      const [bsH, bsM] = breakStart.split(":").map(Number)
-                      const [beH, beM] = breakEnd.split(":").map(Number)
-                      const breakStartMinutes = bsH * 60 + bsM
-                      const breakEndMinutes = beH * 60 + beM
-
-                      // Check in trong giờ nghỉ trưa và check out cũng trong giờ nghỉ trưa
-                      // hoặc check in trước nghỉ trưa và check out trong/trước nghỉ trưa
-                      if ((checkInMinutes >= breakStartMinutes && checkInMinutes <= breakEndMinutes + 15 &&
-                        checkOutMinutes >= breakStartMinutes && checkOutMinutes <= breakEndMinutes + 15) ||
-                        (checkInMinutes < breakStartMinutes && checkOutMinutes <= breakEndMinutes)) {
-                        isHalfDayWork = true
-                      }
-                    }
 
                     // Kiểm tra ngày tương lai
                     const isFutureDate = dateObj > new Date()
