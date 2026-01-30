@@ -1106,24 +1106,49 @@ export async function generatePayroll(month: number, year: number) {
           if (adjType.calculation_type === "daily") {
             console.log(`[Allowance] ${emp.full_name}: ----- Tính phụ cấp "${adjType.name}" -----`)
             
-            // Bắt đầu từ số ngày đủ giờ (có check_in VÀ check_out, không vi phạm)
-            let eligibleDays = fullAttendanceDays
-            console.log(`[Allowance] ${emp.full_name}: Bắt đầu với ${eligibleDays} ngày đủ giờ`)
+            // Lấy ngưỡng muộn từ cấu hình (mặc định 0 = muộn 1 phút cũng tính)
+            const lateThresholdMinutes = rules?.late_threshold_minutes ?? 0
+            console.log(`[Allowance] ${emp.full_name}: Ngưỡng muộn: ${lateThresholdMinutes} phút`)
+            
+            // Tính lại ngày đủ giờ và vi phạm dựa trên ngưỡng của phụ cấp này
+            const allowanceFullDays = violationsWithoutOT.filter((v) => 
+              v.hasCheckIn && 
+              v.hasCheckOut && 
+              !v.isHalfDay && 
+              !v.isAbsent &&
+              v.lateMinutes <= lateThresholdMinutes && // Dùng ngưỡng từ cấu hình
+              v.earlyMinutes === 0
+            ).length
+            
+            // Đếm vi phạm theo ngưỡng của phụ cấp này
+            const allowanceViolations = violationsWithoutOT.filter((v) => 
+              v.lateMinutes > lateThresholdMinutes ||  // Đi muộn vượt ngưỡng
+              v.earlyMinutes > 0 ||                    // Về sớm
+              v.forgotCheckOut ||                      // Quên chấm công về
+              v.isHalfDay ||                           // Nghỉ nửa ngày
+              v.isAbsent                               // Không tính công
+            ).length
+            
+            console.log(`[Allowance] ${emp.full_name}: Ngày đủ giờ (theo ngưỡng ${lateThresholdMinutes}p): ${allowanceFullDays}`)
+            console.log(`[Allowance] ${emp.full_name}: Tổng vi phạm (theo ngưỡng ${lateThresholdMinutes}p): ${allowanceViolations}`)
+            
+            // Bắt đầu từ số ngày đủ giờ
+            let eligibleDays = allowanceFullDays
 
             if (rules) {
               // Áp dụng quy tắc miễn vi phạm (grace count)
-              // Ví dụ: miễn 4 lần vi phạm, trừ từ lần thứ 5
+              // Logic: Ngày đủ giờ LUÔN được hưởng + được miễn tối đa N ngày vi phạm
+              // Ví dụ: miễn 4 lần → được hưởng phụ cấp cho ngày đủ giờ + 4 ngày vi phạm đầu tiên
               if (rules.late_grace_count !== undefined) {
-                // Tính số vi phạm vượt quá số lần được miễn
-                const excessViolations = Math.max(0, totalViolations - rules.late_grace_count)
+                // Số ngày vi phạm được miễn (tối đa = late_grace_count)
+                const gracedViolationDays = Math.min(allowanceViolations, rules.late_grace_count)
+                
+                // Tổng ngày được hưởng = ngày đủ giờ + ngày vi phạm được miễn
+                eligibleDays = allowanceFullDays + gracedViolationDays
                 
                 console.log(`[Allowance] ${emp.full_name}: Quy tắc miễn vi phạm: ${rules.late_grace_count} lần`)
-                console.log(`[Allowance] ${emp.full_name}: Vi phạm vượt quá: ${excessViolations} lần (${totalViolations} - ${rules.late_grace_count})`)
-                
-                // Trừ số ngày bị vi phạm vượt quá
-                eligibleDays = Math.max(0, eligibleDays - excessViolations)
-                
-                console.log(`[Allowance] ${emp.full_name}: Sau khi trừ vi phạm: ${eligibleDays} ngày`)
+                console.log(`[Allowance] ${emp.full_name}: Tổng vi phạm: ${allowanceViolations}, Được miễn: ${gracedViolationDays} ngày`)
+                console.log(`[Allowance] ${emp.full_name}: Ngày được hưởng = ${allowanceFullDays} (đủ giờ) + ${gracedViolationDays} (miễn) = ${eligibleDays} ngày`)
               }
 
               // Trừ ngày nghỉ không lương (nếu có rule)
@@ -1146,21 +1171,21 @@ export async function generatePayroll(month: number, year: number) {
               adjustmentDetails.push({
                 adjustment_type_id: adjType.id,
                 category: "allowance",
-                base_amount: fullAttendanceDays * adjType.amount,
-                adjusted_amount: (fullAttendanceDays - eligibleDays) * adjType.amount,
+                base_amount: allowanceFullDays * adjType.amount,
+                adjusted_amount: (eligibleDays - allowanceFullDays) > 0 ? 0 : (allowanceFullDays - eligibleDays) * adjType.amount,
                 final_amount: amount,
                 reason: `${eligibleDays} ngày x ${adjType.amount.toLocaleString()}đ`,
                 occurrence_count: eligibleDays,
               })
             } else {
-              // Không có phụ cấp
+              // Không có phụ cấp (không có ngày đủ giờ và không có ngày vi phạm được miễn)
               adjustmentDetails.push({
                 adjustment_type_id: adjType.id,
                 category: "allowance",
-                base_amount: fullAttendanceDays * adjType.amount,
-                adjusted_amount: fullAttendanceDays * adjType.amount,
+                base_amount: 0,
+                adjusted_amount: 0,
                 final_amount: 0,
-                reason: `0 ngày (vi phạm quá nhiều)`,
+                reason: `0 ngày (không có ngày đi làm)`,
                 occurrence_count: 0,
               })
             }
@@ -1348,12 +1373,13 @@ export async function generatePayroll(month: number, year: number) {
           // 3. Quên chấm công đến
           if (penaltyConditions.includes("forgot_checkin")) {
             // Lấy tất cả attendance logs để kiểm tra ngày nào thiếu check_in
+            // Query cả records có check_in null (chỉ có check_out)
             const { data: allLogs } = await supabase
               .from("attendance_logs")
               .select("check_in, check_out")
               .eq("employee_id", emp.id)
-              .gte("check_in", startDate)
-              .lte("check_in", endDate + "T23:59:59")
+              .or(`check_in.gte.${startDate},and(check_in.is.null,check_out.gte.${startDate})`)
+              .or(`check_in.lte.${endDate}T23:59:59,and(check_in.is.null,check_out.lte.${endDate}T23:59:59)`)
 
             // Lấy danh sách phiếu forgot_checkin đã approved (để miễn phạt)
             const { data: approvedForgotCheckin } = await supabase
@@ -1375,10 +1401,18 @@ export async function generatePayroll(month: number, year: number) {
               }
             }
 
-            // Kiểm tra từng ngày có attendance log
+            // Kiểm tra từng ngày có attendance log nhưng thiếu check_in
             for (const log of allLogs || []) {
-              if (!log.check_in) continue
-              const logDate = toDateStringVN(log.check_in)
+              // Lấy ngày từ check_out nếu check_in null
+              const dateSource = log.check_in || log.check_out
+              if (!dateSource) continue
+              
+              const logDate = toDateStringVN(dateSource)
+              
+              // Chỉ phạt nếu KHÔNG có check_in (có check_out nhưng thiếu check_in)
+              if (log.check_in) continue // Có check_in → không phạt quên chấm công đến
+              
+              console.log(`[Payroll] ${emp.full_name}: Ngày ${logDate} - check_in: THIẾU, check_out: ${log.check_out}`)
 
               // Nếu có phiếu approved và cấu hình miễn phạt → bỏ qua
               if (exemptWithRequest && approvedForgotCheckinDates.has(logDate)) {
@@ -1386,51 +1420,26 @@ export async function generatePayroll(month: number, year: number) {
                 continue
               }
 
-              // Nếu KHÔNG có phiếu approved → Phạt
-              // (Logic này cần được mở rộng để phát hiện thực sự quên chấm công)
-              // Hiện tại chỉ phạt nếu có phiếu pending/rejected
-              const { data: pendingRequests } = await supabase
-                .from("employee_requests")
-                .select(`
-                  request_date,
-                  status,
-                  request_type:request_types!request_type_id(code)
-                `)
-                .eq("employee_id", emp.id)
-                .eq("request_date", logDate)
-                .in("status", ["pending", "rejected"])
-
-              let hasForgotCheckinRequest = false
-              for (const req of pendingRequests || []) {
-                const reqType = req.request_type as any
-                if (reqType?.code === "forgot_checkin") {
-                  hasForgotCheckinRequest = true
-                  break
+              // Phạt quên chấm công đến (CHỈ THÊM NẾU CHƯA CÓ PHẠT CHO NGÀY NÀY)
+              const existing = globalPenaltyByDate.get(logDate)
+              if (!existing) {
+                let penaltyAmount = 0
+                if (rules.penalty_type === "half_day_salary") {
+                  penaltyAmount = dailySalary / 2
+                } else if (rules.penalty_type === "full_day_salary") {
+                  penaltyAmount = dailySalary
+                } else if (rules.penalty_type === "fixed_amount") {
+                  penaltyAmount = adjType.amount
                 }
-              }
-
-              if (hasForgotCheckinRequest) {
-                // CHỈ THÊM NẾU CHƯA CÓ PHẠT CHO NGÀY NÀY (DÙNG GLOBAL MAP)
-                const existing = globalPenaltyByDate.get(logDate)
-                if (!existing) {
-                  let penaltyAmount = 0
-                  if (rules.penalty_type === "half_day_salary") {
-                    penaltyAmount = dailySalary / 2
-                  } else if (rules.penalty_type === "full_day_salary") {
-                    penaltyAmount = dailySalary
-                  } else if (rules.penalty_type === "fixed_amount") {
-                    penaltyAmount = adjType.amount
-                  }
-                  console.log(`[Payroll] ${emp.full_name}: Phạt quên chấm công đến ngày ${logDate} (phiếu chưa duyệt) - ${penaltyAmount}đ`)
-                  globalPenaltyByDate.set(logDate, {
-                    date: logDate,
-                    reason: "Quên chấm công đến",
-                    amount: penaltyAmount,
-                    adjustmentTypeId: adjType.id,
-                  })
-                } else {
-                  console.log(`[Payroll] ${emp.full_name}: Ngày ${logDate} đã có phạt "${existing.reason}" - bỏ qua phạt quên chấm công đến`)
-                }
+                console.log(`[Payroll] ${emp.full_name}: Phạt quên chấm công đến ngày ${logDate} - ${penaltyAmount}đ`)
+                globalPenaltyByDate.set(logDate, {
+                  date: logDate,
+                  reason: "Quên chấm công đến",
+                  amount: penaltyAmount,
+                  adjustmentTypeId: adjType.id,
+                })
+              } else {
+                console.log(`[Payroll] ${emp.full_name}: Ngày ${logDate} đã có phạt "${existing.reason}" - bỏ qua phạt quên chấm công đến`)
               }
             }
           }
@@ -1440,14 +1449,16 @@ export async function generatePayroll(month: number, year: number) {
             console.log(`[Payroll] ${emp.full_name}: Kiểm tra phạt quên chấm công về...`)
 
             // Lấy tất cả attendance logs để kiểm tra ngày nào thiếu check_out
+            // Chỉ query records có check_in (records có check_in null đã xử lý ở phần quên chấm công đến)
             const { data: allLogs } = await supabase
               .from("attendance_logs")
               .select("check_in, check_out")
               .eq("employee_id", emp.id)
+              .not("check_in", "is", null)
               .gte("check_in", startDate)
               .lte("check_in", endDate + "T23:59:59")
 
-            console.log(`[Payroll] ${emp.full_name}: Tìm thấy ${allLogs?.length || 0} attendance logs`)
+            console.log(`[Payroll] ${emp.full_name}: Tìm thấy ${allLogs?.length || 0} attendance logs (có check_in)`)
 
             // Lấy danh sách phiếu forgot_checkout đã approved (để miễn phạt)
             const { data: approvedForgotCheckout } = await supabase
@@ -1472,7 +1483,7 @@ export async function generatePayroll(month: number, year: number) {
 
             // Kiểm tra từng ngày có attendance log nhưng thiếu check_out
             for (const log of allLogs || []) {
-              if (!log.check_in) continue
+              if (!log.check_in) continue // Đã filter ở query nhưng double check
               const logDate = toDateStringVN(log.check_in)
 
               console.log(`[Payroll] ${emp.full_name}: Ngày ${logDate} - check_in: ${log.check_in}, check_out: ${log.check_out || 'THIẾU'}`)
@@ -2209,13 +2220,13 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .select("*")
     .eq("is_active", true)
 
-  // Lấy attendance logs
+  // Lấy attendance logs (bao gồm cả records có check_in null - quên chấm công đến)
   const { data: allAttendanceLogs } = await supabase
     .from("attendance_logs")
     .select("check_in, check_out")
     .eq("employee_id", emp.id)
-    .gte("check_in", startDate)
-    .lte("check_in", endDate + "T23:59:59")
+    .or(`check_in.gte.${startDate},and(check_in.is.null,check_out.gte.${startDate})`)
+    .or(`check_in.lte.${endDate}T23:59:59,and(check_in.is.null,check_out.lte.${endDate}T23:59:59)`)
 
   // Lấy phiếu tăng ca
   const { data: overtimeRequestDates } = await supabase
@@ -2279,11 +2290,13 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     }
   }
 
-  // Đếm ngày công
+  // Đếm ngày công (xử lý cả trường hợp check_in null)
   let workingDaysCount = 0
   if (allAttendanceLogs) {
     for (const log of allAttendanceLogs) {
-      const logDate = toDateStringVN(log.check_in)
+      const dateSource = log.check_in || log.check_out
+      if (!dateSource) continue
+      const logDate = toDateStringVN(dateSource)
       if (!overtimeDates.has(logDate)) {
         workingDaysCount++
       }
@@ -2575,6 +2588,127 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
           : adjType.name,
         occurrence_count: 1,
       })
+    }
+  }
+
+  // Xử lý phạt quên chấm công đến/về (auto-applied penalties)
+  const penaltyAdjTypes = (adjustmentTypes as PayrollAdjustmentType[] | null)?.filter(
+    (t) => t.category === "penalty" && t.is_auto_applied
+  ) || []
+
+  for (const adjType of penaltyAdjTypes) {
+    const rules = adjType.auto_rules as AdjustmentAutoRules | null
+    if (!rules) continue
+
+    const penaltyConditions = rules.penalty_conditions || []
+    const exemptWithRequest = rules.exempt_with_request !== false
+
+    // Xử lý phạt quên chấm công đến
+    if (penaltyConditions.includes("forgot_checkin")) {
+      // Lấy danh sách phiếu forgot_checkin đã approved
+      const { data: approvedForgotCheckin } = await supabase
+        .from("employee_requests")
+        .select(`request_date, request_type:request_types!request_type_id(code)`)
+        .eq("employee_id", emp.id)
+        .eq("status", "approved")
+        .gte("request_date", startDate)
+        .lte("request_date", endDate)
+
+      const approvedForgotCheckinDates = new Set<string>()
+      for (const req of approvedForgotCheckin || []) {
+        const reqType = req.request_type as any
+        if (reqType?.code === "forgot_checkin") {
+          approvedForgotCheckinDates.add(req.request_date)
+        }
+      }
+
+      // Kiểm tra từng attendance log có check_in null
+      for (const log of allAttendanceLogs || []) {
+        if (log.check_in) continue // Có check_in → không phạt quên chấm công đến
+        if (!log.check_out) continue // Không có cả check_in và check_out → bỏ qua
+
+        const logDate = toDateStringVN(log.check_out)
+
+        // Nếu có phiếu approved và cấu hình miễn phạt → bỏ qua
+        if (exemptWithRequest && approvedForgotCheckinDates.has(logDate)) continue
+
+        // Tính tiền phạt
+        let penaltyAmount = 0
+        if (rules.penalty_type === "half_day_salary") {
+          penaltyAmount = dailySalary / 2
+        } else if (rules.penalty_type === "full_day_salary") {
+          penaltyAmount = dailySalary
+        } else if (rules.penalty_type === "fixed_amount") {
+          penaltyAmount = adjType.amount
+        }
+
+        if (penaltyAmount > 0) {
+          totalPenalties += penaltyAmount
+          adjustmentDetails.push({
+            adjustment_type_id: adjType.id,
+            category: "penalty",
+            base_amount: penaltyAmount,
+            adjusted_amount: 0,
+            final_amount: penaltyAmount,
+            reason: `Quên chấm công đến ngày ${logDate}`,
+            occurrence_count: 1,
+          })
+        }
+      }
+    }
+
+    // Xử lý phạt quên chấm công về
+    if (penaltyConditions.includes("forgot_checkout")) {
+      // Lấy danh sách phiếu forgot_checkout đã approved
+      const { data: approvedForgotCheckout } = await supabase
+        .from("employee_requests")
+        .select(`request_date, request_type:request_types!request_type_id(code)`)
+        .eq("employee_id", emp.id)
+        .eq("status", "approved")
+        .gte("request_date", startDate)
+        .lte("request_date", endDate)
+
+      const approvedForgotCheckoutDates = new Set<string>()
+      for (const req of approvedForgotCheckout || []) {
+        const reqType = req.request_type as any
+        if (reqType?.code === "forgot_checkout") {
+          approvedForgotCheckoutDates.add(req.request_date)
+        }
+      }
+
+      // Kiểm tra từng attendance log có check_in nhưng thiếu check_out
+      for (const log of allAttendanceLogs || []) {
+        if (!log.check_in) continue // Không có check_in → đã xử lý ở phần quên chấm công đến
+        if (log.check_out) continue // Có check_out → không phạt
+
+        const logDate = toDateStringVN(log.check_in)
+
+        // Nếu có phiếu approved và cấu hình miễn phạt → bỏ qua
+        if (exemptWithRequest && approvedForgotCheckoutDates.has(logDate)) continue
+
+        // Tính tiền phạt
+        let penaltyAmount = 0
+        if (rules.penalty_type === "half_day_salary") {
+          penaltyAmount = dailySalary / 2
+        } else if (rules.penalty_type === "full_day_salary") {
+          penaltyAmount = dailySalary
+        } else if (rules.penalty_type === "fixed_amount") {
+          penaltyAmount = adjType.amount
+        }
+
+        if (penaltyAmount > 0) {
+          totalPenalties += penaltyAmount
+          adjustmentDetails.push({
+            adjustment_type_id: adjType.id,
+            category: "penalty",
+            base_amount: penaltyAmount,
+            adjusted_amount: 0,
+            final_amount: penaltyAmount,
+            reason: `Quên chấm công về ngày ${logDate}`,
+            occurrence_count: 1,
+          })
+        }
+      }
     }
   }
 
