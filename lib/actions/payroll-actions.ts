@@ -1084,14 +1084,71 @@ export async function generatePayroll(month: number, year: number) {
           // Nếu có override từ nhân viên
           if (empOverride) {
             if (empOverride.custom_percentage) {
-              finalAmount = (baseSalary * empOverride.custom_percentage) / 100
+              finalAmount = Math.round((baseSalary * empOverride.custom_percentage) / 100)
               reason = `${adjType.name} (${empOverride.custom_percentage}% lương)`
             } else if (empOverride.custom_amount) {
               finalAmount = empOverride.custom_amount
             }
+          } else if (adjType.calculation_type === "percentage") {
+            // Tính theo % lương (BHXH, etc.)
+            const deductRules = adjType.auto_rules as AdjustmentAutoRules | null
+            const calculateFrom = deductRules?.calculate_from || "base_salary"
+            const percentage = adjType.amount // percentage được lưu trong amount
+            
+            console.log(`[BHXH] ${emp.full_name}: ===== TÍNH ${adjType.name} (${adjType.code}) =====`)
+            console.log(`[BHXH] ${emp.full_name}: calculation_type = ${adjType.calculation_type}`)
+            console.log(`[BHXH] ${emp.full_name}: calculate_from = ${calculateFrom}`)
+            console.log(`[BHXH] ${emp.full_name}: percentage = ${percentage}%`)
+            console.log(`[BHXH] ${emp.full_name}: auto_rules = ${JSON.stringify(deductRules)}`)
+            
+            let salaryForCalculation = baseSalary
+            let shouldSkip = false
+            
+            if (calculateFrom === "insurance_salary") {
+              // Lấy insurance_salary từ salary_structure
+              const { data: salaryData, error: salaryError } = await supabase
+                .from("salary_structure")
+                .select("insurance_salary, base_salary")
+                .eq("employee_id", emp.id)
+                .lte("effective_date", `${year}-${String(month).padStart(2, "0")}-01`)
+                .order("effective_date", { ascending: false })
+                .limit(1)
+                .single()
+              
+              console.log(`[BHXH] ${emp.full_name}: Query salary_structure cho employee_id=${emp.id}`)
+              console.log(`[BHXH] ${emp.full_name}: salaryData = ${JSON.stringify(salaryData)}`)
+              if (salaryError) {
+                console.log(`[BHXH] ${emp.full_name}: salaryError = ${JSON.stringify(salaryError)}`)
+              }
+              
+              const insuranceSalary = salaryData?.insurance_salary
+              console.log(`[BHXH] ${emp.full_name}: insurance_salary = ${insuranceSalary}`)
+              
+              if (!insuranceSalary || insuranceSalary <= 0) {
+                console.log(`[BHXH] ${emp.full_name}: Bỏ qua "${adjType.name}" - Chưa có lương BHXH`)
+                shouldSkip = true
+              } else {
+                salaryForCalculation = insuranceSalary
+                console.log(`[BHXH] ${emp.full_name}: Sử dụng lương BHXH = ${insuranceSalary.toLocaleString()}đ`)
+              }
+            } else {
+              console.log(`[BHXH] ${emp.full_name}: Sử dụng lương cơ bản = ${baseSalary.toLocaleString()}đ`)
+            }
+            
+            if (!shouldSkip) {
+              finalAmount = Math.round((salaryForCalculation * percentage) / 100)
+              reason = `${percentage}% ${calculateFrom === "insurance_salary" ? "lương BHXH" : "lương cơ bản"}`
+              console.log(`[BHXH] ${emp.full_name}: Công thức: ${salaryForCalculation} x ${percentage} / 100 = ${(salaryForCalculation * percentage) / 100}`)
+              console.log(`[BHXH] ${emp.full_name}: Sau làm tròn: ${finalAmount}`)
+              console.log(`[BHXH] ${emp.full_name}: KẾT QUẢ: ${percentage}% x ${salaryForCalculation.toLocaleString()}đ = ${finalAmount.toLocaleString()}đ`)
+            } else {
+              console.log(`[BHXH] ${emp.full_name}: SKIP - không tính ${adjType.name}`)
+              continue
+            }
+            console.log(`[BHXH] ${emp.full_name}: =========================================`)
           } else if (rules?.calculate_from === "base_salary" && rules?.percentage) {
-            // Tính BHXH theo % lương cơ bản nếu có rule
-            finalAmount = (baseSalary * rules.percentage) / 100
+            // Tính BHXH theo % lương cơ bản nếu có rule (legacy)
+            finalAmount = Math.round((baseSalary * rules.percentage) / 100)
           }
 
           totalDeductions += finalAmount
@@ -1245,13 +1302,19 @@ export async function generatePayroll(month: number, year: number) {
             const rules = adjType.auto_rules as AdjustmentAutoRules | null
             const calculateFrom = rules?.calculate_from || "base_salary"
             
+            console.log(`[BHXH] ${emp.full_name}: ===== TÍNH ${adjType.name} (${adjType.code}) =====`)
+            console.log(`[BHXH] ${emp.full_name}: calculation_type = ${adjType.calculation_type}`)
+            console.log(`[BHXH] ${emp.full_name}: calculate_from = ${calculateFrom}`)
+            console.log(`[BHXH] ${emp.full_name}: percentage = ${adjType.amount}%`)
+            console.log(`[BHXH] ${emp.full_name}: auto_rules = ${JSON.stringify(rules)}`)
+            
             // Lấy lương để tính %
             let salaryForCalculation = baseSalary
             let shouldSkip = false
             
             if (calculateFrom === "insurance_salary") {
               // Lấy insurance_salary từ salary_structure
-              const { data: salaryData } = await supabase
+              const { data: salaryData, error: salaryError } = await supabase
                 .from("salary_structure")
                 .select("insurance_salary, base_salary")
                 .eq("employee_id", emp.id)
@@ -1260,25 +1323,38 @@ export async function generatePayroll(month: number, year: number) {
                 .limit(1)
                 .single()
               
+              console.log(`[BHXH] ${emp.full_name}: Query salary_structure cho employee_id=${emp.id}`)
+              console.log(`[BHXH] ${emp.full_name}: salaryData = ${JSON.stringify(salaryData)}`)
+              if (salaryError) {
+                console.log(`[BHXH] ${emp.full_name}: salaryError = ${JSON.stringify(salaryError)}`)
+              }
+              
               const insuranceSalary = salaryData?.insurance_salary
+              console.log(`[BHXH] ${emp.full_name}: insurance_salary = ${insuranceSalary}`)
               
               // Nếu không có lương BHXH hoặc = 0, bỏ qua không tính
               if (!insuranceSalary || insuranceSalary <= 0) {
-                console.log(`[Allowance] ${emp.full_name}: Bỏ qua "${adjType.name}" - Chưa có lương BHXH`)
+                console.log(`[BHXH] ${emp.full_name}: Bỏ qua "${adjType.name}" - Chưa có lương BHXH`)
                 shouldSkip = true
               } else {
                 salaryForCalculation = insuranceSalary
+                console.log(`[BHXH] ${emp.full_name}: Sử dụng lương BHXH = ${insuranceSalary.toLocaleString()}đ`)
               }
+            } else {
+              console.log(`[BHXH] ${emp.full_name}: Sử dụng lương cơ bản = ${baseSalary.toLocaleString()}đ`)
             }
             
             // Bỏ qua nếu không có lương BHXH
             if (shouldSkip) {
+              console.log(`[BHXH] ${emp.full_name}: SKIP - không tính ${adjType.name}`)
               continue
             }
             
-            const percentageAmount = (salaryForCalculation * adjType.amount) / 100
-            console.log(`[Allowance] ${emp.full_name}: Tính ${adjType.category} "${adjType.name}" theo % lương`)
-            console.log(`[Allowance] ${emp.full_name}: ${adjType.amount}% x ${salaryForCalculation.toLocaleString()}đ (${calculateFrom}) = ${percentageAmount.toLocaleString()}đ`)
+            const percentageAmount = Math.round((salaryForCalculation * adjType.amount) / 100)
+            console.log(`[BHXH] ${emp.full_name}: Công thức: ${salaryForCalculation} x ${adjType.amount} / 100 = ${(salaryForCalculation * adjType.amount) / 100}`)
+            console.log(`[BHXH] ${emp.full_name}: Sau làm tròn: ${percentageAmount}`)
+            console.log(`[BHXH] ${emp.full_name}: KẾT QUẢ: ${adjType.amount}% x ${salaryForCalculation.toLocaleString()}đ = ${percentageAmount.toLocaleString()}đ`)
+            console.log(`[BHXH] ${emp.full_name}: =========================================`)
             
             if (adjType.category === "allowance") {
               totalAllowances += percentageAmount
@@ -1563,11 +1639,11 @@ export async function generatePayroll(month: number, year: number) {
         if (adjType.category === "allowance") {
           // Phụ cấp: ưu tiên custom_percentage > custom_amount > auto_rules.percentage > amount
           if (empAdj.custom_percentage) {
-            finalAmount = (baseSalary * empAdj.custom_percentage) / 100
+            finalAmount = Math.round((baseSalary * empAdj.custom_percentage) / 100)
           } else if (empAdj.custom_amount) {
             finalAmount = empAdj.custom_amount
           } else if (adjType.auto_rules?.calculate_from === "base_salary" && adjType.auto_rules?.percentage) {
-            finalAmount = (baseSalary * adjType.auto_rules.percentage) / 100
+            finalAmount = Math.round((baseSalary * adjType.auto_rules.percentage) / 100)
           }
           totalAllowances += finalAmount
           adjustmentDetails.push({
@@ -1584,11 +1660,11 @@ export async function generatePayroll(month: number, year: number) {
         } else if (adjType.category === "deduction") {
           // Khấu trừ: ưu tiên custom_percentage > custom_amount > auto_rules.percentage > amount
           if (empAdj.custom_percentage) {
-            finalAmount = (baseSalary * empAdj.custom_percentage) / 100
+            finalAmount = Math.round((baseSalary * empAdj.custom_percentage) / 100)
           } else if (empAdj.custom_amount) {
             finalAmount = empAdj.custom_amount
           } else if (adjType.auto_rules?.calculate_from === "base_salary" && adjType.auto_rules?.percentage) {
-            finalAmount = (baseSalary * adjType.auto_rules.percentage) / 100
+            finalAmount = Math.round((baseSalary * adjType.auto_rules.percentage) / 100)
           }
           totalDeductions += finalAmount
           adjustmentDetails.push({
@@ -1605,7 +1681,7 @@ export async function generatePayroll(month: number, year: number) {
         } else if (adjType.category === "penalty") {
           // Phạt: ưu tiên custom_percentage > custom_amount > amount
           if (empAdj.custom_percentage) {
-            finalAmount = (baseSalary * empAdj.custom_percentage) / 100
+            finalAmount = Math.round((baseSalary * empAdj.custom_percentage) / 100)
           } else if (empAdj.custom_amount) {
             finalAmount = empAdj.custom_amount
           }
@@ -2433,13 +2509,13 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         // Nếu có override từ nhân viên
         if (empOverride) {
           if (empOverride.custom_percentage) {
-            finalAmount = (baseSalary * empOverride.custom_percentage) / 100
+            finalAmount = Math.round((baseSalary * empOverride.custom_percentage) / 100)
             reason = `${adjType.name} (${empOverride.custom_percentage}% lương)`
           } else if (empOverride.custom_amount) {
             finalAmount = empOverride.custom_amount
           }
         } else if (rules?.calculate_from === "base_salary" && rules?.percentage) {
-          finalAmount = (baseSalary * rules.percentage) / 100
+          finalAmount = Math.round((baseSalary * rules.percentage) / 100)
         }
 
         totalDeductions += finalAmount
@@ -2543,7 +2619,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
             continue
           }
           
-          const percentageAmount = (salaryForCalculation * adjType.amount) / 100
+          const percentageAmount = Math.round((salaryForCalculation * adjType.amount) / 100)
           if (adjType.category === "allowance") {
             totalAllowances += percentageAmount
           } else if (adjType.category === "deduction") {
@@ -2573,7 +2649,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
 
       let finalAmount = empAdj.custom_amount || adjType.amount
       if (empAdj.custom_percentage) {
-        finalAmount = (baseSalary * empAdj.custom_percentage) / 100
+        finalAmount = Math.round((baseSalary * empAdj.custom_percentage) / 100)
       }
 
       if (adjType.category === "allowance") {
