@@ -867,10 +867,35 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                         </div>
                         <div className="flex items-center gap-1">
                           {getApproverStatusIcon(approver.status)}
-                          <span className="text-xs">{getApproverStatusText(approver.status)}</span>
+                          <span className={`text-xs ${approver.status === 'approved' ? 'text-green-600' : approver.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
+                            {getApproverStatusText(approver.status)}
+                          </span>
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Hiển thị người duyệt cuối cùng nếu phiếu đã được xử lý */}
+                {(viewingRequest.status === "approved" || viewingRequest.status === "rejected") && viewingRequest.originalData.approver && (
+                  <div className={`mt-3 p-3 rounded-lg ${viewingRequest.status === "approved" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+                    <div className="flex items-center gap-2">
+                      {viewingRequest.status === "approved" ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      )}
+                      <div>
+                        <p className={`text-sm font-medium ${viewingRequest.status === "approved" ? "text-green-800" : "text-red-800"}`}>
+                          {viewingRequest.status === "approved" ? "Đã duyệt bởi" : "Đã từ chối bởi"}: {viewingRequest.originalData.approver.full_name}
+                        </p>
+                        {viewingRequest.originalData.approved_at && (
+                          <p className={`text-xs ${viewingRequest.status === "approved" ? "text-green-600" : "text-red-600"}`}>
+                            Lúc: {new Date(viewingRequest.originalData.approved_at).toLocaleString("vi-VN")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

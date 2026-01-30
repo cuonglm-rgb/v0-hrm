@@ -695,6 +695,23 @@ export async function approveEmployeeRequest(id: string) {
         }
       }
 
+      // Nếu là HR/Admin, cập nhật tất cả người duyệt còn pending thành approved
+      // (vì HR/Admin có quyền duyệt thay cho tất cả)
+      if (isHrOrAdmin) {
+        const { error: updateAllApproversError } = await supabase
+          .from("request_assigned_approvers")
+          .update({
+            status: "approved",
+            approved_at: getNowVN()
+          })
+          .eq("request_id", id)
+          .eq("status", "pending")
+
+        if (updateAllApproversError) {
+          console.error("Error updating all approvers status:", updateAllApproversError)
+        }
+      }
+
       // Kiểm tra xem tất cả người duyệt đã duyệt chưa
       const { data: updatedApprovers } = await supabase
         .from("request_assigned_approvers")
@@ -1089,6 +1106,19 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
           })
           .eq("request_id", id)
           .eq("approver_id", approverEmployee.id)
+      }
+
+      // Nếu là HR/Admin, cập nhật tất cả người duyệt còn pending thành rejected
+      // (vì HR/Admin có quyền từ chối thay cho tất cả)
+      if (isHrOrAdmin) {
+        await supabase
+          .from("request_assigned_approvers")
+          .update({
+            status: "rejected",
+            approved_at: getNowVN()
+          })
+          .eq("request_id", id)
+          .eq("status", "pending")
       }
     }
   }
