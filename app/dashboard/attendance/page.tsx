@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
-import { getMyAttendance, getMyApprovedLeaveRequests } from "@/lib/actions/attendance-actions"
+import { getMyAttendance, getMyApprovedLeaveRequests, getHolidays } from "@/lib/actions/attendance-actions"
 import { getMyShift } from "@/lib/actions/shift-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { AttendancePanel } from "@/components/attendance/attendance-panel"
@@ -15,14 +15,19 @@ export default async function AttendancePage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, attendanceLogs, shift, canApproveRequests, leaveRequests] = await Promise.all([
+  const currentYear = new Date().getFullYear()
+  const [employee, userRoles, attendanceLogs, shift, canApproveRequests, leaveRequests, holidaysCurrentYear, holidaysPrevYear] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     getMyAttendance(),
     getMyShift(),
     checkCanApproveRequests(),
     getMyApprovedLeaveRequests(),
+    getHolidays(currentYear),
+    getHolidays(currentYear - 1),
   ])
+  
+  const holidays = [...holidaysCurrentYear, ...holidaysPrevYear]
 
   return (
     <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests}>
@@ -36,6 +41,7 @@ export default async function AttendancePage() {
           shift={shift}
           leaveRequests={leaveRequests}
           officialDate={employee?.official_date || null}
+          holidays={holidays}
         />
       </div>
     </DashboardLayout>

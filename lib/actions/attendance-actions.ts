@@ -206,3 +206,63 @@ export async function listAttendance(filters?: {
 
   return (data || []) as AttendanceLogWithRelations[]
 }
+
+
+// =============================================
+// HOLIDAY ACTIONS
+// =============================================
+
+export interface Holiday {
+  id: string
+  name: string
+  holiday_date: string
+  year: number
+  is_recurring: boolean
+  description?: string
+}
+
+export async function getHolidays(year?: number): Promise<Holiday[]> {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from("holidays")
+    .select("*")
+    .order("holiday_date", { ascending: true })
+
+  if (year) {
+    query = query.eq("year", year)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    // Bảng có thể chưa tồn tại
+    if (error.code === "42P01" || error.message?.includes("does not exist")) {
+      console.warn("Bảng holidays chưa tồn tại. Vui lòng chạy script 022-overtime-settings.sql")
+    } else {
+      console.error("Error fetching holidays:", error)
+    }
+    return []
+  }
+
+  return data || []
+}
+
+// Kiểm tra một ngày có phải ngày lễ không
+export async function isHoliday(date: string): Promise<{ isHoliday: boolean; holidayName?: string }> {
+  const supabase = await createClient()
+  const year = new Date(date).getFullYear()
+
+  const { data, error } = await supabase
+    .from("holidays")
+    .select("name")
+    .eq("holiday_date", date)
+    .eq("year", year)
+    .single()
+
+  if (error || !data) {
+    return { isHoliday: false }
+  }
+
+  return { isHoliday: true, holidayName: data.name }
+}
