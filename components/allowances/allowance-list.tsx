@@ -588,14 +588,14 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                           <Label>Muộn từ (phút)</Label>
                           <Input
                             type="number"
-                            min={1}
-                            value={formData.auto_rules.late_threshold_minutes || 15}
+                            min={0}
+                            value={formData.auto_rules.late_threshold_minutes ?? 15}
                             onChange={(e) =>
                               setFormData({
                                 ...formData,
                                 auto_rules: {
                                   ...formData.auto_rules,
-                                  late_threshold_minutes: parseInt(e.target.value) || 15,
+                                  late_threshold_minutes: parseInt(e.target.value) || 0,
                                 },
                               })
                             }
@@ -693,19 +693,19 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                       <Label>Muộn từ (phút)</Label>
                       <Input
                         type="number"
-                        min={1}
-                        value={formData.auto_rules.late_threshold_minutes || 30}
+                        min={0}
+                        value={formData.auto_rules.late_threshold_minutes ?? 30}
                         onChange={(e) =>
                           setFormData({
                             ...formData,
                             auto_rules: {
                               ...formData.auto_rules,
-                              late_threshold_minutes: parseInt(e.target.value) || 30,
+                              late_threshold_minutes: parseInt(e.target.value) || 0,
                             },
                           })
                         }
                       />
-                      <p className="text-xs text-muted-foreground">Áp dụng cho điều kiện đi muộn/về sớm</p>
+                      <p className="text-xs text-muted-foreground">Áp dụng cho điều kiện đi muộn/về sớm. Nhập 0 để tính từ phút đầu tiên.</p>
                     </div>
                     <div className="space-y-2">
                       <Label>Loại phạt</Label>
