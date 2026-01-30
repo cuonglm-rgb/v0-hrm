@@ -18,8 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { checkIn, checkOut, getMyApprovedLeaveRequests } from "@/lib/actions/attendance-actions"
+import { checkIn, checkOut } from "@/lib/actions/attendance-actions"
 import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations } from "@/lib/types/database"
+import type { Holiday } from "@/lib/actions/attendance-actions"
 import {
   formatDateVN,
   formatTimeVN,
@@ -177,17 +178,23 @@ function getLeaveRequestForDate(date: string, leaveRequests: EmployeeRequestWith
   })
 }
 
+// Hàm kiểm tra xem ngày có phải ngày lễ không
+function getHolidayForDate(date: string, holidays: Holiday[]): Holiday | undefined {
+  return holidays.find((h) => h.holiday_date === date)
+}
+
 interface AttendancePanelProps {
   attendanceLogs: AttendanceLog[]
   shift?: WorkShift | null
   leaveRequests?: EmployeeRequestWithRelations[]
   officialDate?: string | null
+  holidays?: Holiday[]
 }
 
 // Tạm ẩn phần chấm công hôm nay - có thể bật lại sau
 const SHOW_TODAY_CHECKIN = false
 
-export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null }: AttendancePanelProps) {
+export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null, holidays = [] }: AttendancePanelProps) {
   const [loading, setLoading] = useState<"checkin" | "checkout" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -350,17 +357,19 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
     const combined = workingDays.map((date) => {
       const log = filteredLogs.find((l) => l.check_in?.startsWith(date))
       const leaveRequest = getLeaveRequestForDate(date, leaveRequests)
+      const holiday = getHolidayForDate(date, holidays)
 
       return {
         date,
         log,
         leaveRequest,
+        holiday,
       }
     })
 
     // Sắp xếp theo ngày giảm dần
     return combined.reverse()
-  }, [filteredLogs, filterMonth, filterYear, leaveRequests])
+  }, [filteredLogs, filterMonth, filterYear, leaveRequests, holidays])
 
   // Lấy danh sách năm từ dữ liệu
   const availableYears = useMemo(() => {
@@ -582,7 +591,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                     </TableCell>
                   </TableRow>
                 ) : (
-                  workingDaysWithAttendance.map(({ date, log, leaveRequest }) => {
+                  workingDaysWithAttendance.map(({ date, log, leaveRequest, holiday }) => {
                     const violations = log ? checkViolations(log.check_in, log.check_out, shift) : []
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
@@ -594,6 +603,10 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                     const hasNoAttendance = !log
                     const hasApprovedLeave = !!leaveRequest
                     const leaveTypeName = leaveRequest?.request_type?.name || "Nghỉ phép"
+
+                    // Kiểm tra xem có phải ngày lễ không
+                    const isHolidayDay = !!holiday
+                    const holidayName = holiday?.name || "Nghỉ lễ"
 
                     // Kiểm tra xem có phải ngày nghỉ cuối tuần không
                     const dateObj = new Date(date)
@@ -632,7 +645,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                         className={
                           isHalfDayWork
                             ? "bg-yellow-50"
-                            : hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay && !isFutureDate)
+                            : hasViolation || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay && !isHolidayDay && !isFutureDate)
                               ? "bg-red-50"
                               : ""
                         }
@@ -716,7 +729,17 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                         </TableCell>
                         <TableCell>
                           {hasNoAttendance ? (
-                            isWeekendDay ? (
+                            isHolidayDay ? (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Badge className="bg-purple-100 text-purple-800 gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    Nghỉ lễ
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>{holidayName}</TooltipContent>
+                              </Tooltip>
+                            ) : isWeekendDay ? (
                               <Badge variant="secondary" className="bg-gray-100 text-gray-700">
                                 Ngày nghỉ
                               </Badge>
