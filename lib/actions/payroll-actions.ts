@@ -531,6 +531,13 @@ export async function generatePayroll(month: number, year: number) {
       .maybeSingle()
 
     const baseSalary = salary?.base_salary || 0
+    
+    // Bỏ qua nhân viên chưa có lương cơ bản
+    if (baseSalary <= 0) {
+      console.log(`[Payroll] ${emp.full_name}: Bỏ qua - chưa có lương cơ bản`)
+      continue
+    }
+    
     const dailySalary = baseSalary / STANDARD_WORKING_DAYS
 
     // Lấy danh sách ngày có phiếu tăng ca được duyệt
