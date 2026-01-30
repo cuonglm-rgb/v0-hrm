@@ -823,6 +823,24 @@ export async function approveEmployeeRequest(id: string) {
   }
 
   // Nếu approval_mode = "any" -> Duyệt trực tiếp
+  // Nhưng vẫn cần cập nhật trạng thái người duyệt trong request_assigned_approvers
+  const { data: assignedApproversAny } = await supabase
+    .from("request_assigned_approvers")
+    .select("*")
+    .eq("request_id", id)
+
+  if (assignedApproversAny && assignedApproversAny.length > 0) {
+    // Cập nhật trạng thái người duyệt hiện tại
+    await supabase
+      .from("request_assigned_approvers")
+      .update({
+        status: "approved",
+        approved_at: getNowVN()
+      })
+      .eq("request_id", id)
+      .eq("approver_id", approverEmployee.id)
+  }
+
   const { error } = await supabase
     .from("employee_requests")
     .update({
@@ -1120,6 +1138,23 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
           .eq("request_id", id)
           .eq("status", "pending")
       }
+    }
+  } else {
+    // Nếu approval_mode = "any", vẫn cần cập nhật trạng thái người duyệt
+    const { data: assignedApproversAny } = await supabase
+      .from("request_assigned_approvers")
+      .select("*")
+      .eq("request_id", id)
+
+    if (assignedApproversAny && assignedApproversAny.length > 0) {
+      await supabase
+        .from("request_assigned_approvers")
+        .update({
+          status: "rejected",
+          approved_at: getNowVN()
+        })
+        .eq("request_id", id)
+        .eq("approver_id", approverEmployee.id)
     }
   }
 
