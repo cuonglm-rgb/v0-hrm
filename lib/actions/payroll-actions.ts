@@ -617,27 +617,30 @@ export async function generatePayroll(month: number, year: number) {
     console.log(`[Payroll] ${emp.full_name}: OT dates (replace work): ${overtimeDates.size}, OT within shift: ${overtimeWithinShift.size}`)
 
     // Lấy tất cả attendance logs để lọc
+    // Bao gồm cả records có check_in HOẶC chỉ có check_out (quên chấm công đến)
     const { data: allAttendanceLogs } = await supabase
       .from("attendance_logs")
-      .select("check_in")
+      .select("check_in, check_out")
       .eq("employee_id", emp.id)
-      .gte("check_in", startDate)
-      .lte("check_in", endDate + "T23:59:59")
+      .or(`and(check_in.gte.${startDate},check_in.lte.${endDate}T23:59:59),and(check_in.is.null,check_out.gte.${startDate},check_out.lte.${endDate}T23:59:59)`)
 
     // Đếm ngày công (LOẠI TRỪ các ngày có phiếu tăng ca THAY THẾ ca làm)
     // KHÔNG loại trừ các ngày tăng ca ngoài giờ làm việc (overtimeWithinShift)
     let workingDaysCount = 0
+    const countedDates = new Set<string>() // Tránh đếm trùng ngày
     if (allAttendanceLogs) {
       for (const log of allAttendanceLogs) {
-        const logDate = toDateStringVN(log.check_in)
+        // Lấy ngày từ check_in hoặc check_out (nếu quên chấm công đến)
+        const logDate = log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out)
         // Chỉ loại trừ nếu là OT thay thế ca làm (không phải OT ngoài giờ)
-        if (!overtimeDates.has(logDate)) {
+        if (!overtimeDates.has(logDate) && !countedDates.has(logDate)) {
           workingDaysCount++
+          countedDates.add(logDate)
         }
       }
     }
 
-    console.log(`[Payroll] ${emp.full_name}: Total attendance logs: ${allAttendanceLogs?.length || 0}`)
+    console.log(`[Payroll] ${emp.full_name}: Total attendance logs: ${allAttendanceLogs?.length || 0}, Unique working days: ${countedDates.size}`)
 
     // =============================================
     // XỬ LÝ CÁC PHIẾU TỪ EMPLOYEE_REQUESTS
@@ -1995,6 +1998,23 @@ export async function createSalaryStructure(input: {
   return { success: true }
 }
 
+export async function deleteSalaryStructure(id: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from("salary_structure")
+    .delete()
+    .eq("id", id)
+
+  if (error) {
+    console.error("Error deleting salary structure:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/employees")
+  return { success: true }
+}
+
 export async function getMySalary(): Promise<SalaryStructure | null> {
   const supabase = await createClient()
 
@@ -2408,6 +2428,51 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   let unpaidLeaveDays = 0
   let workFromHomeDays = 0
 
+  // Helper: Tính số ngày nghỉ cho 1 ngày dựa trên from_time và to_time
+  const calculateDayFraction = (fromTime: string | null, toTime: string | null): number => {
+    if (!fromTime || !toTime) return 1 // Không có giờ → cả ngày
+
+    // Parse time to minutes
+    const parseTimeToMin = (t: string) => {
+      const [h, m] = t.split(":").map(Number)
+      return h * 60 + (m || 0)
+    }
+
+    const fromMinutes = parseTimeToMin(fromTime)
+    const toMinutes = parseTimeToMin(toTime)
+    const shiftStartMin = parseTimeToMin(shiftStart)
+    const shiftEndMin = parseTimeToMin(shiftEnd)
+    const breakStartMin = parseTimeToMin(breakStart)
+    const breakEndMin = parseTimeToMin(breakEnd)
+
+    // Tính tổng giờ làm việc trong ngày (trừ nghỉ trưa)
+    const morningHours = (breakStartMin - shiftStartMin) / 60 // Ca sáng
+    const afternoonHours = (shiftEndMin - breakEndMin) / 60 // Ca chiều
+    const totalWorkHours = morningHours + afternoonHours
+
+    // Tính số giờ nghỉ
+    let leaveHours = (toMinutes - fromMinutes) / 60
+    if (leaveHours <= 0) leaveHours = totalWorkHours // Fallback nếu giờ không hợp lệ
+
+    // Nghỉ buổi sáng: từ đầu ca đến giờ nghỉ trưa
+    if (fromMinutes <= shiftStartMin + 30 && toMinutes >= breakStartMin - 30 && toMinutes <= breakEndMin + 30) {
+      return 0.5
+    }
+
+    // Nghỉ buổi chiều: từ sau nghỉ trưa đến cuối ca
+    if (fromMinutes >= breakStartMin - 30 && fromMinutes <= breakEndMin + 30 && toMinutes >= shiftEndMin - 30) {
+      return 0.5
+    }
+
+    // Nếu số giờ nghỉ <= một nửa tổng giờ làm việc → nửa ngày
+    if (leaveHours <= totalWorkHours / 2 + 0.5) {
+      return 0.5
+    }
+
+    // Mặc định: cả ngày
+    return 1
+  }
+
   if (employeeRequests) {
     for (const request of employeeRequests) {
       const reqType = request.request_type as any
@@ -2422,8 +2487,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       let days = 0
       if (reqType.requires_date_range && request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
-          const [year, month, day] = dateStr.split('-').map(Number)
-          return new Date(Date.UTC(year, month - 1, day))
+          const [y, m, d] = dateStr.split('-').map(Number)
+          return new Date(Date.UTC(y, m - 1, d))
         }
         const reqFromDate = parseDate(request.from_date)
         const reqToDate = parseDate(request.to_date)
@@ -2432,13 +2497,21 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
         const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
         const diffTime = reqEnd.getTime() - reqStart.getTime()
-        days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+        const fullDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+        
+        // Nếu chỉ 1 ngày và có from_time/to_time → kiểm tra nửa buổi
+        if (fullDays === 1 && request.from_time && request.to_time) {
+          days = calculateDayFraction(request.from_time, request.to_time)
+        } else {
+          days = fullDays
+        }
       } else if (reqType.requires_single_date && request.request_date) {
-        days = 1
+        // Phiếu 1 ngày - kiểm tra nửa buổi
+        days = calculateDayFraction(request.from_time, request.to_time)
       } else if (request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
-          const [year, month, day] = dateStr.split('-').map(Number)
-          return new Date(Date.UTC(year, month - 1, day))
+          const [y, m, d] = dateStr.split('-').map(Number)
+          return new Date(Date.UTC(y, m - 1, d))
         }
         const reqFromDate = parseDate(request.from_date)
         const reqToDate = parseDate(request.to_date)
@@ -2447,7 +2520,14 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
         const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
         const diffTime = reqEnd.getTime() - reqStart.getTime()
-        days = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+        const fullDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+        
+        // Nếu chỉ 1 ngày và có from_time/to_time → kiểm tra nửa buổi
+        if (fullDays === 1 && request.from_time && request.to_time) {
+          days = calculateDayFraction(request.from_time, request.to_time)
+        } else {
+          days = fullDays
+        }
       }
 
       if (days <= 0) continue
@@ -2514,7 +2594,43 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
           } else if (empOverride.custom_amount) {
             finalAmount = empOverride.custom_amount
           }
+        } else if (adjType.calculation_type === "percentage") {
+          // Tính theo % lương (BHXH, etc.)
+          const deductRules = adjType.auto_rules as AdjustmentAutoRules | null
+          const calculateFrom = deductRules?.calculate_from || "base_salary"
+          const percentage = adjType.amount // percentage được lưu trong amount
+          
+          let salaryForCalculation = baseSalary
+          let shouldSkip = false
+          
+          if (calculateFrom === "insurance_salary") {
+            // Lấy insurance_salary từ salary_structure
+            const { data: salaryData } = await supabase
+              .from("salary_structure")
+              .select("insurance_salary, base_salary")
+              .eq("employee_id", emp.id)
+              .lte("effective_date", `${year}-${String(month).padStart(2, "0")}-01`)
+              .order("effective_date", { ascending: false })
+              .limit(1)
+              .single()
+            
+            const insuranceSalary = salaryData?.insurance_salary
+            
+            if (!insuranceSalary || insuranceSalary <= 0) {
+              shouldSkip = true
+            } else {
+              salaryForCalculation = insuranceSalary
+            }
+          }
+          
+          if (shouldSkip) {
+            continue
+          }
+          
+          finalAmount = Math.round((salaryForCalculation * percentage) / 100)
+          reason = `${percentage}% ${calculateFrom === "insurance_salary" ? "lương BHXH" : "lương cơ bản"}`
         } else if (rules?.calculate_from === "base_salary" && rules?.percentage) {
+          // Legacy: Tính theo % lương cơ bản nếu có rule
           finalAmount = Math.round((baseSalary * rules.percentage) / 100)
         }
 

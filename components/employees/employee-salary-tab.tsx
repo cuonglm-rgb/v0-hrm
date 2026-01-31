@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { Plus, Wallet, TrendingUp, Shield, Trash2, Receipt, Pencil } from "lucide-react"
-import { createSalaryStructure } from "@/lib/actions/payroll-actions"
+import { createSalaryStructure, deleteSalaryStructure } from "@/lib/actions/payroll-actions"
 import {
   listAdjustmentTypes,
   listEmployeeAdjustments,
@@ -71,6 +71,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
   const [adjustmentOpen, setAdjustmentOpen] = useState(false)
   const [adjustmentSaving, setAdjustmentSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteSalaryId, setDeleteSalaryId] = useState<string | null>(null)
   const [editingAdjustment, setEditingAdjustment] = useState<EmployeeAdjustmentWithType | null>(null)
   const [adjustmentForm, setAdjustmentForm] = useState({
     adjustment_type_id: "",
@@ -255,6 +256,23 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
     }
   }
 
+  // Xử lý xóa lịch sử lương
+  const handleDeleteSalary = async () => {
+    if (!deleteSalaryId) return
+
+    try {
+      const result = await deleteSalaryStructure(deleteSalaryId)
+      if (result.success) {
+        toast.success("Đã xóa mức lương")
+        router.refresh()
+      } else {
+        toast.error(result.error || "Không thể xóa")
+      }
+    } finally {
+      setDeleteSalaryId(null)
+    }
+  }
+
   // Lấy thông tin loại điều chỉnh đã chọn
   const selectedAdjType = adjustmentTypes.find((t) => t.id === adjustmentForm.adjustment_type_id)
 
@@ -418,6 +436,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                 <TableHead className="text-right">Phụ cấp</TableHead>
                 <TableHead className="text-right">Tổng</TableHead>
                 <TableHead>Ghi chú</TableHead>
+                {isHROrAdmin && <TableHead className="w-[50px]"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -438,6 +457,18 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                     {formatCurrency(record.base_salary + record.allowance)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{record.note || "-"}</TableCell>
+                  {isHROrAdmin && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => setDeleteSalaryId(record.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
@@ -665,7 +696,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
         )}
       </div>
 
-      {/* Alert Dialog xác nhận xóa */}
+      {/* Alert Dialog xác nhận xóa khấu trừ/phụ cấp */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -677,6 +708,24 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
           <AlertDialogFooter>
             <AlertDialogCancel>Hủy</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteAdjustment} className="bg-destructive text-destructive-foreground">
+              Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Alert Dialog xác nhận xóa lương */}
+      <AlertDialog open={!!deleteSalaryId} onOpenChange={(open) => !open && setDeleteSalaryId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc muốn xóa mức lương này? Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSalary} className="bg-destructive text-destructive-foreground">
               Xóa
             </AlertDialogAction>
           </AlertDialogFooter>
