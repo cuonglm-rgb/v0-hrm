@@ -1,17 +1,17 @@
 "use server"
 
 // =============================================
-// PAYROLL ACTIONS
+// PAYROLL ACTIONS - INDEX
 // Wrapper functions that call modular implementations
 // =============================================
 
-import * as workingDays from "./payroll/working-days"
-import * as payrollRuns from "./payroll/payroll-runs"
-import * as generatePayrollModule from "./payroll/generate-payroll"
-import * as recalculateSingleModule from "./payroll/recalculate-single"
-import * as salaryStructure from "./payroll/salary-structure"
-import * as adjustments from "./payroll/adjustments"
-import * as exportModule from "./payroll/export"
+import * as workingDays from "./working-days"
+import * as payrollRuns from "./payroll-runs"
+import * as generatePayrollModule from "./generate-payroll"
+import * as recalculateSingleModule from "./recalculate-single"
+import * as salaryStructure from "./salary-structure"
+import * as adjustments from "./adjustments"
+import * as exportModule from "./export"
 
 // Working Days
 export async function calculateStandardWorkingDays(month: number, year: number) {
