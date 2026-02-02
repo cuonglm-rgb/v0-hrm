@@ -411,9 +411,43 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
       }
     })
 
+    // Lọc theo trạng thái
+    const filtered = combined.filter(({ date, log, leaveRequest, holiday, specialDay }) => {
+      if (filterStatus === "all") return true
+
+      const dateObj = new Date(date)
+      const isWeekendDay = isWeekend(dateObj, saturdaySchedules)
+      const hasApprovedLeave = !!leaveRequest
+      const isHolidayDay = !!holiday
+      const isCompanyHoliday = specialDay?.is_company_holiday
+
+      // Nếu filter "Hoàn thành", loại bỏ ngày nghỉ
+      if (filterStatus === "complete") {
+        // Loại bỏ ngày lễ, cuối tuần, ngày nghỉ công ty
+        if (isHolidayDay || isWeekendDay || isCompanyHoliday) return false
+        // Loại bỏ ngày có phiếu nghỉ được duyệt (nghỉ cả ngày)
+        if (hasApprovedLeave && !log) return false
+        // Chỉ hiển thị ngày có checkout và không có vi phạm
+        const violations = log ? checkViolations(log.check_in, log.check_out, shift) : []
+        return log && log.check_out && violations.length === 0
+      }
+
+      // Logic lọc khác giữ nguyên
+      if (filterStatus === "incomplete") {
+        return log && !log.check_out
+      }
+
+      if (filterStatus === "violation") {
+        const violations = log ? checkViolations(log.check_in, log.check_out, shift) : []
+        return violations.length > 0
+      }
+
+      return true
+    })
+
     // Sắp xếp theo ngày giảm dần
-    return combined.reverse()
-  }, [filteredLogs, filterMonth, filterYear, leaveRequests, holidays, specialDays])
+    return filtered.reverse()
+  }, [filteredLogs, filterMonth, filterYear, leaveRequests, holidays, specialDays, saturdaySchedules, filterStatus, shift])
 
   // Lấy danh sách năm từ dữ liệu
   const availableYears = useMemo(() => {

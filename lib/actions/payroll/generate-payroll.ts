@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { PayrollAdjustmentType, AdjustmentAutoRules } from "@/lib/types/database"
-import { calculateOvertimePay } from "../overtime-actions"
+import { calculateOvertimePay, listHolidays } from "../overtime-actions"
 import { getEmployeeKPI } from "../kpi-actions"
 import { toDateStringVN } from "@/lib/utils/date-utils"
 import { calculateLeaveEntitlement } from "@/lib/utils/leave-utils"
@@ -11,6 +11,15 @@ import { calculateLeaveDays } from "@/lib/utils/date-utils"
 import { calculateStandardWorkingDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import type { ShiftInfo } from "./types"
+import { isSaturdayOff } from "./working-days-utils"
+
+// Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
+function isWorkingDay(date: Date): boolean {
+  const dayOfWeek = date.getUTCDay()
+  if (dayOfWeek === 0) return false // Chủ nhật
+  if (dayOfWeek === 6 && isSaturdayOff(date)) return false // Thứ 7 nghỉ
+  return true
+}
 
 // =============================================
 // GENERATE PAYROLL
@@ -160,6 +169,10 @@ async function processEmployeePayroll(
   
   const dailySalary = baseSalary / STANDARD_WORKING_DAYS
 
+  console.log(`\n========== TÍNH LƯƠNG: ${emp.full_name} (${emp.employee_code}) - Tháng ${month}/${year} ==========`)
+  console.log(`Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
+  console.log(`Lương cơ bản: ${baseSalary.toLocaleString()} VNĐ -> Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
+
   // Lấy shift của nhân viên
   const empShift = emp.shift_id ? shiftMap.get(emp.shift_id) : null
   const shiftStart = empShift?.start_time?.slice(0, 5) || "08:00"
@@ -234,10 +247,125 @@ async function processEmployeePayroll(
     }
   }
 
+  console.log(`📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
+  console.log(`📊 Ngày công từ chấm công: ${workingDaysCount} ngày`)
+  console.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
+
+  // Lấy danh sách ngày lễ và ngày nghỉ công ty
+  const holidays = await listHolidays(year)
+  const holidayDates = new Set(holidays.map(h => h.holiday_date))
+  
+  const { data: specialDays } = await supabase
+    .from("special_work_days")
+    .select("work_date, is_company_holiday")
+    .eq("is_company_holiday", true)
+    .gte("work_date", startDate)
+    .lte("work_date", endDate)
+  
+  const companyHolidayDates = new Set((specialDays || []).map(s => s.work_date))
+
   // Xử lý phiếu nghỉ
   const leaveResult = await processLeaveRequests(
     supabase, emp.id, startDate, endDate, year, emp.official_date, shiftMap, emp.shift_id
   )
+
+  // Query lại employeeRequests để lấy leaveDates
+  const { data: employeeRequests } = await supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types!request_type_id(code)
+    `)
+    .eq("employee_id", emp.id)
+    .eq("status", "approved")
+    .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
+
+  // Tạo Set các ngày có leave request
+  const leaveDates = new Set<string>()
+  if (employeeRequests) {
+    for (const request of employeeRequests) {
+      const reqType = request.request_type as any
+      if (!reqType || reqType.code === "overtime") continue
+      
+      if (request.from_date && request.to_date) {
+        const parseDate = (dateStr: string) => {
+          const [y, m, d] = dateStr.split('-').map(Number)
+          return new Date(Date.UTC(y, m - 1, d))
+        }
+        const reqFromDate = parseDate(request.from_date)
+        const reqToDate = parseDate(request.to_date)
+        const periodStart = parseDate(startDate)
+        const periodEnd = parseDate(endDate)
+        const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+        const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+        
+        const current = new Date(reqStart)
+        while (current <= reqEnd) {
+          const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+          leaveDates.add(dateStr)
+          current.setDate(current.getDate() + 1)
+        }
+      } else if (request.request_date) {
+        leaveDates.add(request.request_date)
+      }
+    }
+  }
+
+  // Tính số ngày lễ và ngày nghỉ công ty mà nhân viên không đi làm và không có leave request
+  let holidayWorkDays = 0
+  let companyHolidayWorkDays = 0
+  const parseDate = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d))
+  }
+  const periodStart = parseDate(startDate)
+  const periodEnd = parseDate(endDate)
+  
+  const current = new Date(periodStart)
+  while (current <= periodEnd) {
+    const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+    
+    // Chỉ xét ngày làm việc theo lịch (không phải CN, T7 nghỉ)
+    if (isWorkingDay(current)) {
+      const isHoliday = holidayDates.has(dateStr)
+      const isCompanyHoliday = companyHolidayDates.has(dateStr)
+      
+      // NGÀY LỄ: Chỉ tính lương nếu không đi làm HOẶC có đi làm nhưng có phiếu OT
+      if (isHoliday) {
+        const hasAttendance = countedDates.has(dateStr)
+        const hasOT = overtimeDates.has(dateStr) || overtimeWithinShift.has(dateStr)
+        const hasLeave = leaveDates.has(dateStr)
+        
+        // Nếu không đi làm và không có phiếu nghỉ -> tính lương tự động
+        if (!hasAttendance && !hasLeave) {
+          holidayWorkDays++
+        }
+        // Nếu có đi làm nhưng không có OT -> loại khỏi working days
+        else if (hasAttendance && !hasOT) {
+          workingDaysCount--
+        }
+      }
+      // NGÀY NGHỈ CÔNG TY: Nếu không đi làm -> tính lương, nếu đi làm -> đã được tính
+      else if (isCompanyHoliday) {
+        const hasAttendance = countedDates.has(dateStr)
+        const hasLeave = leaveDates.has(dateStr)
+        
+        if (!hasAttendance && !hasLeave) {
+          companyHolidayWorkDays++
+        }
+      }
+    }
+    
+    current.setDate(current.getDate() + 1)
+  }
+  
+  workingDaysCount += holidayWorkDays + companyHolidayWorkDays
+
+  console.log(`🎉 Ngày lễ trong tháng: ${holidayDates.size} ngày`)
+  console.log(`🏢 Ngày nghỉ công ty: ${companyHolidayDates.size} ngày`)
+  console.log(`🎁 Ngày lễ được cộng (ngày làm việc, không đi & không nghỉ): ${holidayWorkDays} ngày`)
+  console.log(`🎁 Ngày nghỉ công ty được cộng: ${companyHolidayWorkDays} ngày`)
+  console.log(`📊 Tổng working days sau cộng: ${workingDaysCount} ngày`)
 
   // Lấy vi phạm chấm công
   const shiftInfo: ShiftInfo = {
@@ -253,6 +381,16 @@ async function processEmployeePayroll(
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
   const actualAttendanceDays = workingDaysCount - (halfDays * 0.5)
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
+
+  console.log(`\n📝 PHIẾU NGHỈ:`)
+  console.log(`  - Nghỉ phép có lương: ${leaveResult.paidLeaveDays} ngày`)
+  console.log(`  - Nghỉ không lương: ${leaveResult.unpaidLeaveDays} ngày`)
+  console.log(`  - Work from home: ${leaveResult.workFromHomeDays} ngày`)
+  console.log(`\n⚠️  VI PHẠM:`)
+  console.log(`  - Vắng mặt: ${absentDays} ngày`)
+  console.log(`  - Làm nửa ngày: ${halfDays} lần`)
+  console.log(`  - Đi muộn: ${lateCount} lần`)
+  console.log(`  - Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} - ${halfDays * 0.5})`)
 
   // Tính ngày đủ giờ cho phụ cấp
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
@@ -320,6 +458,19 @@ async function processEmployeePayroll(
     adjustmentResult.totalAllowances + otResult.totalOTPay + kpiBonus
   const totalDeduction = adjustmentResult.totalDeductions + adjustmentResult.totalPenalties
   const netSalary = grossSalary - totalDeduction
+
+  console.log(`\n💰 TÍNH LƯƠNG:`)
+  console.log(`  - Ngày công tính lương: ${actualWorkingDays} ngày`)
+  console.log(`  - Phép có lương: ${leaveResult.paidLeaveDays} ngày`)
+  console.log(`  - Lương theo công: ${(dailySalary * (actualWorkingDays + leaveResult.paidLeaveDays)).toLocaleString()} VNĐ`)
+  console.log(`  - Phụ cấp: ${adjustmentResult.totalAllowances.toLocaleString()} VNĐ`)
+  console.log(`  - OT: ${otResult.totalOTPay.toLocaleString()} VNĐ (${otResult.details.length} lần)`)
+  console.log(`  - KPI Bonus: ${kpiBonus.toLocaleString()} VNĐ`)
+  console.log(`  - Tổng thu nhập: ${grossSalary.toLocaleString()} VNĐ`)
+  console.log(`  - Khấu trừ: ${adjustmentResult.totalDeductions.toLocaleString()} VNĐ`)
+  console.log(`  - Phạt: ${adjustmentResult.totalPenalties.toLocaleString()} VNĐ`)
+  console.log(`  - Thực lĩnh: ${netSalary.toLocaleString()} VNĐ`)
+  console.log(`========== KẾT THÚC TÍNH LƯƠNG: ${emp.full_name} ==========\n`)
 
   // Tạo ghi chú
   let noteItems: string[] = []

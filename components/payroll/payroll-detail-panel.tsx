@@ -413,7 +413,7 @@ export function PayrollDetailPanel({
                 <span className="font-bold text-blue-600">{workingDaysInfo.standardDays} ngày</span>
               </div>
               <div className="text-muted-foreground">
-                ({workingDaysInfo.totalDays} ngày - {workingDaysInfo.sundays} CN - {workingDaysInfo.saturdaysOff} T7 nghỉ - {workingDaysInfo.holidays} lễ)
+                ({workingDaysInfo.totalDays} ngày - {workingDaysInfo.sundays} CN - {workingDaysInfo.saturdaysOff} T7 nghỉ)
               </div>
             </div>
           </CardContent>

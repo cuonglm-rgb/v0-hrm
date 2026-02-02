@@ -63,7 +63,8 @@ export async function calculateStandardWorkingDays(month: number, year: number):
     }
   }
 
-  const standardDays = lastDay - sundays - saturdaysOff - holidayCount - companyHolidayCount
+  // Không trừ ngày lễ và ngày nghỉ công ty nữa - được tính lương luôn
+  const standardDays = lastDay - sundays - saturdaysOff
 
   return {
     totalDays: lastDay,
