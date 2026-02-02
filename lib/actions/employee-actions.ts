@@ -65,9 +65,10 @@ export async function listEmployees(): Promise<EmployeeWithRelations[]> {
     .select(`
       *,
       department:departments(*),
-      position:positions(*)
+      position:positions(*),
+      shift:work_shifts(*)
     `)
-    .order("created_at", { ascending: false })
+    .order("employee_code", { ascending: true })
 
   if (error) {
     console.error("Error listing employees:", error)

@@ -88,6 +88,44 @@ export async function getMyApprovedLeaveRequests(from?: string, to?: string) {
   return data || []
 }
 
+// Lấy tất cả phiếu nghỉ được duyệt (cho HR/Admin)
+export async function getAllApprovedLeaveRequests(from?: string, to?: string) {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types(
+        id,
+        name,
+        code,
+        affects_attendance,
+        affects_payroll,
+        deduct_leave_balance
+      ),
+      employee:employees!employee_requests_employee_id_fkey(
+        id,
+        employee_code,
+        full_name
+      )
+    `)
+    .eq("status", "approved")
+    .not("from_date", "is", null)
+
+  if (from) query = query.gte("from_date", from)
+  if (to) query = query.lte("to_date", to)
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("Error fetching all leave requests:", error)
+    return []
+  }
+
+  return data || []
+}
+
 export async function checkIn() {
   const supabase = await createClient()
 
