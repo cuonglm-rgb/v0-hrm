@@ -19,8 +19,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { checkIn, checkOut } from "@/lib/actions/attendance-actions"
-import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations } from "@/lib/types/database"
+import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, SpecialWorkDay } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
+import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
 import {
   formatDateVN,
   formatTimeVN,
@@ -140,7 +141,25 @@ function getISOWeekNumber(date: Date): number {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
 }
 
-function isSaturdayOff(date: Date): boolean {
+function isSaturdayOff(date: Date, saturdaySchedules: SaturdaySchedule[] = []): boolean {
+  // Format date để so sánh
+  const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  
+  // Kiểm tra xem có schedule cho ngày này không
+  const schedule = saturdaySchedules.find(s => s.work_date === dateStr)
+  
+  if (schedule) {
+    // Nếu có schedule: is_working = true -> làm việc, is_working = false -> nghỉ
+    return !schedule.is_working
+  }
+  
+  // Nếu không có schedule cho ngày này, kiểm tra xem nhân viên có được setup không
+  // Nếu có bất kỳ record nào trong saturdaySchedules -> nhân viên được setup -> các thứ 7 khác là nghỉ
+  if (saturdaySchedules.length > 0) {
+    return true // Nghỉ (vì không có trong danh sách được setup)
+  }
+  
+  // Không có schedule nào -> theo logic xen kẽ mặc định
   const refWeek = getISOWeekNumber(REFERENCE_DATE)
   const currentWeek = getISOWeekNumber(date)
 
@@ -154,12 +173,12 @@ function isSaturdayOff(date: Date): boolean {
   }
 }
 
-function isWeekend(date: Date): boolean {
+function isWeekend(date: Date, saturdaySchedules: SaturdaySchedule[] = []): boolean {
   const day = date.getDay()
   // Chủ nhật luôn nghỉ
   if (day === 0) return true
-  // Thứ 7 xen kẽ
-  if (day === 6) return isSaturdayOff(date)
+  // Thứ 7 xen kẽ hoặc theo lịch tùy chỉnh
+  if (day === 6) return isSaturdayOff(date, saturdaySchedules)
   return false
 }
 
@@ -194,18 +213,25 @@ function getHolidayForDate(date: string, holidays: Holiday[]): Holiday | undefin
   return holidays.find((h) => h.holiday_date === date)
 }
 
+// Hàm kiểm tra xem ngày có phải ngày đặc biệt không
+function getSpecialDayForDate(date: string, specialDays: SpecialWorkDay[]): SpecialWorkDay | undefined {
+  return specialDays.find((s) => s.work_date === date)
+}
+
 interface AttendancePanelProps {
   attendanceLogs: AttendanceLog[]
   shift?: WorkShift | null
   leaveRequests?: EmployeeRequestWithRelations[]
   officialDate?: string | null
   holidays?: Holiday[]
+  specialDays?: SpecialWorkDay[]
+  saturdaySchedules?: SaturdaySchedule[]
 }
 
 // Tạm ẩn phần chấm công hôm nay - có thể bật lại sau
 const SHOW_TODAY_CHECKIN = false
 
-export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null, holidays = [] }: AttendancePanelProps) {
+export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null, holidays = [], specialDays = [], saturdaySchedules = [] }: AttendancePanelProps) {
   const [loading, setLoading] = useState<"checkin" | "checkout" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -374,18 +400,20 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
       )
       const leaveRequest = getLeaveRequestForDate(date, leaveRequests)
       const holiday = getHolidayForDate(date, holidays)
+      const specialDay = getSpecialDayForDate(date, specialDays)
 
       return {
         date,
         log,
         leaveRequest,
         holiday,
+        specialDay,
       }
     })
 
     // Sắp xếp theo ngày giảm dần
     return combined.reverse()
-  }, [filteredLogs, filterMonth, filterYear, leaveRequests, holidays])
+  }, [filteredLogs, filterMonth, filterYear, leaveRequests, holidays, specialDays])
 
   // Lấy danh sách năm từ dữ liệu
   const availableYears = useMemo(() => {
@@ -607,7 +635,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                     </TableCell>
                   </TableRow>
                 ) : (
-                  workingDaysWithAttendance.map(({ date, log, leaveRequest, holiday }) => {
+                  workingDaysWithAttendance.map(({ date, log, leaveRequest, holiday, specialDay }) => {
                     // Kiểm tra nếu là làm nửa ngày (check in/out trong giờ nghỉ trưa) - cần xác định trước khi gọi checkViolations
                     let isHalfDayWork = false
                     let isAfternoonOnly = false // Nghỉ buổi sáng, làm buổi chiều
@@ -661,7 +689,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
 
                     // Kiểm tra xem có phải ngày nghỉ cuối tuần không
                     const dateObj = new Date(date)
-                    const isWeekendDay = isWeekend(dateObj)
+                    const isWeekendDay = isWeekend(dateObj, saturdaySchedules)
 
                     // Kiểm tra ngày tương lai
                     const isFutureDate = dateObj > new Date()
@@ -756,7 +784,17 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                         </TableCell>
                         <TableCell>
                           {hasNoAttendance ? (
-                            isHolidayDay ? (
+                            specialDay?.is_company_holiday ? (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Badge className="bg-purple-100 text-purple-800 gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    Ngày nghỉ công ty
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>{specialDay.reason}</TooltipContent>
+                              </Tooltip>
+                            ) : isHolidayDay ? (
                               <Tooltip>
                                 <TooltipTrigger>
                                   <Badge className="bg-purple-100 text-purple-800 gap-1">

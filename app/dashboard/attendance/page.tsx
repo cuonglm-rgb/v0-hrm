@@ -5,6 +5,8 @@ import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { getMyAttendance, getMyApprovedLeaveRequests, getHolidays } from "@/lib/actions/attendance-actions"
 import { getMyShift } from "@/lib/actions/shift-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
+import { listSpecialWorkDays } from "@/lib/actions/special-work-day-actions"
+import { listSaturdaySchedules } from "@/lib/actions/saturday-schedule-actions"
 import { AttendancePanel } from "@/components/attendance/attendance-panel"
 
 export default async function AttendancePage() {
@@ -16,8 +18,11 @@ export default async function AttendancePage() {
   }
 
   const currentYear = new Date().getFullYear()
-  const [employee, userRoles, attendanceLogs, shift, canApproveRequests, leaveRequests, holidaysCurrentYear, holidaysPrevYear] = await Promise.all([
-    getMyEmployee(),
+  
+  // Get employee first to use employee_id
+  const employee = await getMyEmployee()
+  
+  const [userRoles, attendanceLogs, shift, canApproveRequests, leaveRequests, holidaysCurrentYear, holidaysPrevYear, specialDays, saturdaySchedules] = await Promise.all([
     getMyRoles(),
     getMyAttendance(),
     getMyShift(),
@@ -25,6 +30,8 @@ export default async function AttendancePage() {
     getMyApprovedLeaveRequests(),
     getHolidays(currentYear),
     getHolidays(currentYear - 1),
+    listSpecialWorkDays(),
+    employee ? listSaturdaySchedules({ employeeId: employee.id }) : Promise.resolve([]),
   ])
   
   const holidays = [...holidaysCurrentYear, ...holidaysPrevYear]
@@ -42,6 +49,8 @@ export default async function AttendancePage() {
           leaveRequests={leaveRequests}
           officialDate={employee?.official_date || null}
           holidays={holidays}
+          specialDays={specialDays}
+          saturdaySchedules={saturdaySchedules}
         />
       </div>
     </DashboardLayout>

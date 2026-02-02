@@ -72,6 +72,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
     reason: "",
     allow_early_leave: true,
     allow_late_arrival: false,
+    is_company_holiday: false,
     custom_start_time: "",
     custom_end_time: "",
     note: "",
@@ -85,6 +86,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
         reason: day.reason,
         allow_early_leave: day.allow_early_leave,
         allow_late_arrival: day.allow_late_arrival,
+        is_company_holiday: day.is_company_holiday,
         custom_start_time: day.custom_start_time || "",
         custom_end_time: day.custom_end_time || "",
         note: day.note || "",
@@ -96,6 +98,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
         reason: "",
         allow_early_leave: true,
         allow_late_arrival: false,
+        is_company_holiday: false,
         custom_start_time: "",
         custom_end_time: "",
         note: "",
@@ -117,6 +120,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
             reason: formData.reason,
             allow_early_leave: formData.allow_early_leave,
             allow_late_arrival: formData.allow_late_arrival,
+            is_company_holiday: formData.is_company_holiday,
             custom_start_time: formData.custom_start_time || null,
             custom_end_time: formData.custom_end_time || null,
             note: formData.note || null,
@@ -126,6 +130,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
             reason: formData.reason,
             allow_early_leave: formData.allow_early_leave,
             allow_late_arrival: formData.allow_late_arrival,
+            is_company_holiday: formData.is_company_holiday,
             custom_start_time: formData.custom_start_time || null,
             custom_end_time: formData.custom_end_time || null,
             note: formData.note || null,
@@ -232,15 +237,23 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                   <TableCell>{day.reason}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
-                      {day.allow_early_leave && (
-                        <Badge variant="outline" className="w-fit text-xs">
-                          Được về sớm
+                      {day.is_company_holiday ? (
+                        <Badge variant="outline" className="w-fit text-xs bg-purple-50 text-purple-700">
+                          Ngày nghỉ công ty
                         </Badge>
-                      )}
-                      {day.allow_late_arrival && (
-                        <Badge variant="outline" className="w-fit text-xs">
-                          Được đi muộn
-                        </Badge>
+                      ) : (
+                        <>
+                          {day.allow_early_leave && (
+                            <Badge variant="outline" className="w-fit text-xs">
+                              Được về sớm
+                            </Badge>
+                          )}
+                          {day.allow_late_arrival && (
+                            <Badge variant="outline" className="w-fit text-xs">
+                              Được đi muộn
+                            </Badge>
+                          )}
+                        </>
                       )}
                     </div>
                   </TableCell>
@@ -323,34 +336,53 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
               <h4 className="font-medium text-sm">Quy định cho ngày này:</h4>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="allow_early_leave">Cho phép về sớm</Label>
+                  <Label htmlFor="is_company_holiday">Ngày nghỉ công ty</Label>
                   <p className="text-xs text-muted-foreground">
-                    Nhân viên về sớm sẽ không bị tính vi phạm
+                    Nhân viên nghỉ toàn bộ, trừ 1 ngày công chuẩn trong payroll
                   </p>
                 </div>
                 <Switch
-                  id="allow_early_leave"
-                  checked={formData.allow_early_leave}
+                  id="is_company_holiday"
+                  checked={formData.is_company_holiday}
                   onCheckedChange={(checked) =>
-                    setFormData({ ...formData, allow_early_leave: checked })
+                    setFormData({ ...formData, is_company_holiday: checked })
                   }
                 />
               </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="allow_late_arrival">Cho phép đi muộn</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Nhân viên đi muộn sẽ không bị tính vi phạm
-                  </p>
-                </div>
-                <Switch
-                  id="allow_late_arrival"
-                  checked={formData.allow_late_arrival}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, allow_late_arrival: checked })
-                  }
-                />
-              </div>
+              {!formData.is_company_holiday && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="allow_early_leave">Cho phép về sớm</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Nhân viên về sớm sẽ không bị tính vi phạm
+                      </p>
+                    </div>
+                    <Switch
+                      id="allow_early_leave"
+                      checked={formData.allow_early_leave}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, allow_early_leave: checked })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="allow_late_arrival">Cho phép đi muộn</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Nhân viên đi muộn sẽ không bị tính vi phạm
+                      </p>
+                    </div>
+                    <Switch
+                      id="allow_late_arrival"
+                      checked={formData.allow_late_arrival}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, allow_late_arrival: checked })
+                      }
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">

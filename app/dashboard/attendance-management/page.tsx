@@ -5,10 +5,12 @@ import { getMyEmployee, getMyRoles, listEmployees } from "@/lib/actions/employee
 import { listAttendance, getHolidays, getAllApprovedLeaveRequests } from "@/lib/actions/attendance-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { listSpecialWorkDays } from "@/lib/actions/special-work-day-actions"
+import { checkSaturdaySchedulePermission, listSaturdaySchedules } from "@/lib/actions/saturday-schedule-actions"
 import { AttendanceManagementView } from "@/components/attendance/attendance-management-view"
 import { SpecialWorkDaysPanel } from "@/components/attendance/special-work-days-panel"
+import { SaturdaySchedulePanel } from "@/components/attendance/saturday-schedule-panel"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, CloudRain } from "lucide-react"
+import { Calendar, CloudRain, CalendarClock } from "lucide-react"
 
 export default async function AttendanceManagementPage() {
   const supabase = await createClient()
@@ -22,7 +24,7 @@ export default async function AttendanceManagementPage() {
   }
 
   const currentYear = new Date().getFullYear()
-  const [employee, userRoles, employees, attendanceLogs, canApproveRequests, specialDays, holidaysCurrentYear, holidaysPrevYear, leaveRequests] = await Promise.all([
+  const [employee, userRoles, employees, attendanceLogs, canApproveRequests, specialDays, holidaysCurrentYear, holidaysPrevYear, leaveRequests, saturdayPermission] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listEmployees(),
@@ -32,6 +34,7 @@ export default async function AttendanceManagementPage() {
     getHolidays(currentYear),
     getHolidays(currentYear - 1),
     getAllApprovedLeaveRequests(),
+    checkSaturdaySchedulePermission(),
   ])
   
   const holidays = [...holidaysCurrentYear, ...holidaysPrevYear]
@@ -41,6 +44,19 @@ export default async function AttendanceManagementPage() {
 
   if (!isHROrAdmin) {
     redirect("/dashboard")
+  }
+
+  // Load saturday schedules if has permission
+  let saturdaySchedules: any[] = []
+  let filteredEmployees = employees
+  
+  if (saturdayPermission.allowed) {
+    saturdaySchedules = await listSaturdaySchedules()
+    
+    // Filter employees based on level
+    if (saturdayPermission.level === 3 && saturdayPermission.departmentId) {
+      filteredEmployees = employees.filter(emp => emp.department_id === saturdayPermission.departmentId)
+    }
   }
 
   return (
@@ -61,6 +77,12 @@ export default async function AttendanceManagementPage() {
               <CloudRain className="h-4 w-4" />
               Ngày đặc biệt
             </TabsTrigger>
+            {saturdayPermission.allowed && (
+              <TabsTrigger value="saturday-schedule" className="gap-2">
+                <CalendarClock className="h-4 w-4" />
+                Lịch làm thứ 7
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="attendance">
@@ -69,12 +91,24 @@ export default async function AttendanceManagementPage() {
               attendanceLogs={attendanceLogs}
               leaveRequests={leaveRequests}
               holidays={holidays}
+              specialDays={specialDays}
+              saturdaySchedules={saturdaySchedules}
             />
           </TabsContent>
 
           <TabsContent value="special-days">
             <SpecialWorkDaysPanel specialDays={specialDays} />
           </TabsContent>
+
+          {saturdayPermission.allowed && (
+            <TabsContent value="saturday-schedule">
+              <SaturdaySchedulePanel
+                employees={filteredEmployees}
+                schedules={saturdaySchedules}
+                canManageAll={saturdayPermission.level !== null && saturdayPermission.level > 3}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </DashboardLayout>

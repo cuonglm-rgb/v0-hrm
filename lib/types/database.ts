@@ -476,8 +476,24 @@ export interface SpecialWorkDay {
   reason: string
   allow_early_leave: boolean
   allow_late_arrival: boolean
+  is_company_holiday: boolean
   custom_start_time: string | null
   custom_end_time: string | null
+  note: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+// =============================================
+// SATURDAY WORK SCHEDULE (Lịch làm thứ 7)
+// =============================================
+
+export interface SaturdaySchedule {
+  id: string
+  employee_id: string
+  work_date: string
+  is_working: boolean
   note: string | null
   created_by: string | null
   created_at: string

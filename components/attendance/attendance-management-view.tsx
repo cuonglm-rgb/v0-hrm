@@ -19,6 +19,8 @@ import {
 import { AttendancePanel } from "@/components/attendance/attendance-panel"
 import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, Employee } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
+import type { SpecialWorkDay } from "@/lib/types/database"
+import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
 import { Users, Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -31,6 +33,8 @@ interface AttendanceManagementViewProps {
   attendanceLogs: AttendanceLog[]
   leaveRequests: EmployeeRequestWithRelations[]
   holidays: Holiday[]
+  specialDays: SpecialWorkDay[]
+  saturdaySchedules: SaturdaySchedule[]
 }
 
 export function AttendanceManagementView({
@@ -38,6 +42,8 @@ export function AttendanceManagementView({
   attendanceLogs,
   leaveRequests,
   holidays,
+  specialDays,
+  saturdaySchedules,
 }: AttendanceManagementViewProps) {
   const [open, setOpen] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(
@@ -56,6 +62,10 @@ export function AttendanceManagementView({
   const filteredLeaveRequests = useMemo(() => {
     return leaveRequests.filter((req) => req.employee_id === selectedEmployeeId)
   }, [leaveRequests, selectedEmployeeId])
+
+  const filteredSaturdaySchedules = useMemo(() => {
+    return saturdaySchedules.filter((sch) => sch.employee_id === selectedEmployeeId)
+  }, [saturdaySchedules, selectedEmployeeId])
 
   return (
     <div className="space-y-6">
@@ -175,6 +185,8 @@ export function AttendanceManagementView({
           leaveRequests={filteredLeaveRequests}
           officialDate={selectedEmployee.official_date}
           holidays={holidays}
+          specialDays={specialDays}
+          saturdaySchedules={filteredSaturdaySchedules}
         />
       )}
     </div>

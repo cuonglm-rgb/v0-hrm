@@ -50,6 +50,7 @@ export async function createSpecialWorkDay(data: {
   reason: string
   allow_early_leave?: boolean
   allow_late_arrival?: boolean
+  is_company_holiday?: boolean
   custom_start_time?: string | null
   custom_end_time?: string | null
   note?: string | null
@@ -73,6 +74,7 @@ export async function createSpecialWorkDay(data: {
     reason: data.reason,
     allow_early_leave: data.allow_early_leave ?? true,
     allow_late_arrival: data.allow_late_arrival ?? false,
+    is_company_holiday: data.is_company_holiday ?? false,
     custom_start_time: data.custom_start_time || null,
     custom_end_time: data.custom_end_time || null,
     note: data.note || null,
@@ -94,6 +96,7 @@ export async function updateSpecialWorkDay(
     reason?: string
     allow_early_leave?: boolean
     allow_late_arrival?: boolean
+    is_company_holiday?: boolean
     custom_start_time?: string | null
     custom_end_time?: string | null
     note?: string | null
