@@ -255,14 +255,32 @@ async function processEmployeePayroll(
   const holidays = await listHolidays(year)
   const holidayDates = new Set(holidays.map(h => h.holiday_date))
   
+  // Query ngày nghỉ công ty kèm danh sách nhân viên được áp dụng
   const { data: specialDays } = await supabase
     .from("special_work_days")
-    .select("work_date, is_company_holiday")
+    .select(`
+      work_date, 
+      is_company_holiday,
+      assigned_employees:special_work_day_employees(employee_id)
+    `)
     .eq("is_company_holiday", true)
     .gte("work_date", startDate)
     .lte("work_date", endDate)
   
-  const companyHolidayDates = new Set((specialDays || []).map(s => s.work_date))
+  // Lọc ngày nghỉ công ty áp dụng cho nhân viên này
+  // Quy tắc: Nếu không có assigned_employees -> áp dụng toàn công ty
+  //          Nếu có assigned_employees -> chỉ áp dụng nếu nhân viên nằm trong danh sách
+  const companyHolidayDates = new Set(
+    (specialDays || [])
+      .filter(s => {
+        const assignedEmps = s.assigned_employees || []
+        // Nếu không có ai được chọn -> áp dụng toàn công ty
+        if (assignedEmps.length === 0) return true
+        // Nếu có danh sách -> kiểm tra nhân viên có trong danh sách không
+        return assignedEmps.some((ae: any) => ae.employee_id === emp.id)
+      })
+      .map(s => s.work_date)
+  )
 
   // Xử lý phiếu nghỉ
   const leaveResult = await processLeaveRequests(

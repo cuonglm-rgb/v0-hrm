@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,14 +28,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plus, Edit, Trash2, Calendar, CloudRain, Clock, Filter } from "lucide-react"
+import { Plus, Edit, Trash2, Calendar, CloudRain, Clock, Filter, Users } from "lucide-react"
 import { toast } from "sonner"
-import type { SpecialWorkDay } from "@/lib/types/database"
+import type { SpecialWorkDayWithEmployees, EmployeeWithRelations } from "@/lib/types/database"
 import {
   createSpecialWorkDay,
   updateSpecialWorkDay,
   deleteSpecialWorkDay,
 } from "@/lib/actions/special-work-day-actions"
+import { listEmployees } from "@/lib/actions/employee-actions"
 import {
   Select,
   SelectContent,
@@ -44,18 +45,23 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { TimeInput } from "@/components/ui/time-input"
+import { EmployeeMultiSelect } from "@/components/ui/employee-multi-select"
 
 interface SpecialWorkDaysPanelProps {
-  specialDays: SpecialWorkDay[]
+  specialDays: SpecialWorkDayWithEmployees[]
 }
 
 export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps) {
   const router = useRouter()
   const [showDialog, setShowDialog] = useState(false)
-  const [editingDay, setEditingDay] = useState<SpecialWorkDay | null>(null)
+  const [editingDay, setEditingDay] = useState<SpecialWorkDayWithEmployees | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [filterYear, setFilterYear] = useState<string>("all")
+  
+  // Danh sách nhân viên để chọn
+  const [employees, setEmployees] = useState<EmployeeWithRelations[]>([])
+  const [loadingEmployees, setLoadingEmployees] = useState(false)
 
   // Lọc theo năm
   const filteredDays = filterYear === "all" 
@@ -73,20 +79,36 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
     allow_early_leave: true,
     allow_late_arrival: false,
     is_company_holiday: false,
+    apply_to_selected_employees: false, // Mới: toggle chọn nhân viên cụ thể
+    selected_employee_ids: [] as string[], // Mới: danh sách ID nhân viên được chọn
     custom_start_time: "",
     custom_end_time: "",
     note: "",
   })
+  
+  // Load danh sách nhân viên khi cần
+  useEffect(() => {
+    if (formData.is_company_holiday && formData.apply_to_selected_employees && employees.length === 0) {
+      setLoadingEmployees(true)
+      listEmployees()
+        .then(setEmployees)
+        .finally(() => setLoadingEmployees(false))
+    }
+  }, [formData.is_company_holiday, formData.apply_to_selected_employees, employees.length])
 
-  const handleOpenDialog = (day?: SpecialWorkDay) => {
+  const handleOpenDialog = (day?: SpecialWorkDayWithEmployees) => {
     if (day) {
       setEditingDay(day)
+      // Lấy danh sách employee_ids từ assigned_employees
+      const assignedIds = day.assigned_employees?.map(ae => ae.employee_id) || []
       setFormData({
         work_date: day.work_date,
         reason: day.reason,
         allow_early_leave: day.allow_early_leave,
         allow_late_arrival: day.allow_late_arrival,
         is_company_holiday: day.is_company_holiday,
+        apply_to_selected_employees: assignedIds.length > 0,
+        selected_employee_ids: assignedIds,
         custom_start_time: day.custom_start_time || "",
         custom_end_time: day.custom_end_time || "",
         note: day.note || "",
@@ -99,6 +121,8 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
         allow_early_leave: true,
         allow_late_arrival: false,
         is_company_holiday: false,
+        apply_to_selected_employees: false,
+        selected_employee_ids: [],
         custom_start_time: "",
         custom_end_time: "",
         note: "",
@@ -113,8 +137,19 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
       return
     }
 
+    // Validate: Nếu chọn áp dụng cho nhân viên cụ thể thì phải chọn ít nhất 1 nhân viên
+    if (formData.is_company_holiday && formData.apply_to_selected_employees && formData.selected_employee_ids.length === 0) {
+      toast.error("Vui lòng chọn ít nhất 1 nhân viên")
+      return
+    }
+
     setSaving(true)
     try {
+      // Nếu không áp dụng cho nhân viên cụ thể, gửi mảng rỗng (= toàn công ty)
+      const employeeIds = formData.is_company_holiday && formData.apply_to_selected_employees
+        ? formData.selected_employee_ids
+        : []
+
       const result = editingDay
         ? await updateSpecialWorkDay(editingDay.id, {
             reason: formData.reason,
@@ -124,6 +159,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
             custom_start_time: formData.custom_start_time || null,
             custom_end_time: formData.custom_end_time || null,
             note: formData.note || null,
+            employee_ids: employeeIds,
           })
         : await createSpecialWorkDay({
             work_date: formData.work_date,
@@ -134,6 +170,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
             custom_start_time: formData.custom_start_time || null,
             custom_end_time: formData.custom_end_time || null,
             note: formData.note || null,
+            employee_ids: employeeIds,
           })
 
       if (result.success) {
@@ -238,9 +275,21 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       {day.is_company_holiday ? (
-                        <Badge variant="outline" className="w-fit text-xs bg-purple-50 text-purple-700">
-                          Ngày nghỉ công ty
-                        </Badge>
+                        <>
+                          <Badge variant="outline" className="w-fit text-xs bg-purple-50 text-purple-700">
+                            Ngày nghỉ công ty
+                          </Badge>
+                          {day.assigned_employees && day.assigned_employees.length > 0 ? (
+                            <Badge variant="outline" className="w-fit text-xs bg-blue-50 text-blue-700 gap-1">
+                              <Users className="h-3 w-3" />
+                              {day.assigned_employees.length} nhân viên
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="w-fit text-xs bg-green-50 text-green-700">
+                              Toàn công ty
+                            </Badge>
+                          )}
+                        </>
                       ) : (
                         <>
                           {day.allow_early_leave && (
@@ -349,6 +398,68 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                   }
                 />
               </div>
+              
+              {/* Phần chọn phạm vi áp dụng - chỉ hiển thị khi is_company_holiday = true */}
+              {formData.is_company_holiday && (
+                <div className="pt-3 border-t space-y-3">
+                  <Label className="text-sm">Phạm vi áp dụng:</Label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name="apply_scope"
+                        checked={!formData.apply_to_selected_employees}
+                        onChange={() => setFormData({ 
+                          ...formData, 
+                          apply_to_selected_employees: false,
+                          selected_employee_ids: []
+                        })}
+                        className="h-4 w-4 text-primary"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">Toàn công ty</div>
+                        <p className="text-xs text-muted-foreground">Áp dụng cho tất cả nhân viên</p>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name="apply_scope"
+                        checked={formData.apply_to_selected_employees}
+                        onChange={() => setFormData({ 
+                          ...formData, 
+                          apply_to_selected_employees: true
+                        })}
+                        className="h-4 w-4 text-primary mt-0.5"
+                      />
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <div className="font-medium text-sm">Nhân viên cụ thể</div>
+                          <p className="text-xs text-muted-foreground">Chỉ áp dụng cho các nhân viên được chọn</p>
+                        </div>
+                        {formData.apply_to_selected_employees && (
+                          <div className="space-y-2">
+                            <EmployeeMultiSelect
+                              employees={employees}
+                              selected={formData.selected_employee_ids}
+                              onChange={(ids) => setFormData({ ...formData, selected_employee_ids: ids })}
+                              loading={loadingEmployees}
+                              placeholder="Tìm và chọn nhân viên..."
+                              maxHeight="150px"
+                            />
+                            {formData.selected_employee_ids.length > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Đã chọn {formData.selected_employee_ids.length} nhân viên
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+              
               {!formData.is_company_holiday && (
                 <>
                   <div className="flex items-center justify-between">

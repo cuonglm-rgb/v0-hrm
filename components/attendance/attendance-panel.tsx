@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { checkIn, checkOut } from "@/lib/actions/attendance-actions"
-import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, SpecialWorkDay } from "@/lib/types/database"
+import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, SpecialWorkDayWithEmployees } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
 import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
 import {
@@ -214,8 +214,23 @@ function getHolidayForDate(date: string, holidays: Holiday[]): Holiday | undefin
 }
 
 // Hàm kiểm tra xem ngày có phải ngày đặc biệt không
-function getSpecialDayForDate(date: string, specialDays: SpecialWorkDay[]): SpecialWorkDay | undefined {
-  return specialDays.find((s) => s.work_date === date)
+// Nếu là ngày nghỉ công ty và có chọn nhân viên cụ thể, chỉ trả về nếu nhân viên nằm trong danh sách
+function getSpecialDayForDate(
+  date: string, 
+  specialDays: SpecialWorkDayWithEmployees[], 
+  employeeId?: string
+): SpecialWorkDayWithEmployees | undefined {
+  const day = specialDays.find((s) => s.work_date === date)
+  if (!day) return undefined
+  
+  // Nếu là ngày nghỉ công ty và có chọn nhân viên cụ thể
+  if (day.is_company_holiday && day.assigned_employees && day.assigned_employees.length > 0) {
+    // Kiểm tra xem nhân viên có trong danh sách không
+    const isAssigned = day.assigned_employees.some(ae => ae.employee_id === employeeId)
+    if (!isAssigned) return undefined
+  }
+  
+  return day
 }
 
 interface AttendancePanelProps {
@@ -224,14 +239,15 @@ interface AttendancePanelProps {
   leaveRequests?: EmployeeRequestWithRelations[]
   officialDate?: string | null
   holidays?: Holiday[]
-  specialDays?: SpecialWorkDay[]
+  specialDays?: SpecialWorkDayWithEmployees[]
   saturdaySchedules?: SaturdaySchedule[]
+  employeeId?: string
 }
 
 // Tạm ẩn phần chấm công hôm nay - có thể bật lại sau
 const SHOW_TODAY_CHECKIN = false
 
-export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null, holidays = [], specialDays = [], saturdaySchedules = [] }: AttendancePanelProps) {
+export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null, holidays = [], specialDays = [], saturdaySchedules = [], employeeId }: AttendancePanelProps) {
   const [loading, setLoading] = useState<"checkin" | "checkout" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -400,7 +416,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
       )
       const leaveRequest = getLeaveRequestForDate(date, leaveRequests)
       const holiday = getHolidayForDate(date, holidays)
-      const specialDay = getSpecialDayForDate(date, specialDays)
+      const specialDay = getSpecialDayForDate(date, specialDays, employeeId)
 
       return {
         date,
@@ -447,7 +463,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
 
     // Sắp xếp theo ngày giảm dần
     return filtered.reverse()
-  }, [filteredLogs, filterMonth, filterYear, leaveRequests, holidays, specialDays, saturdaySchedules, filterStatus, shift])
+  }, [filteredLogs, filterMonth, filterYear, leaveRequests, holidays, specialDays, saturdaySchedules, filterStatus, shift, employeeId])
 
   // Lấy danh sách năm từ dữ liệu
   const availableYears = useMemo(() => {

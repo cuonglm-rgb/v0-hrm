@@ -485,6 +485,19 @@ export interface SpecialWorkDay {
   updated_at: string
 }
 
+// Nhân viên áp dụng ngày đặc biệt (junction table)
+export interface SpecialWorkDayEmployee {
+  id: string
+  special_work_day_id: string
+  employee_id: string
+  created_at: string
+}
+
+// Extended type với danh sách nhân viên
+export interface SpecialWorkDayWithEmployees extends SpecialWorkDay {
+  assigned_employees?: { employee_id: string; employee?: { id: string; full_name: string; employee_code: string | null } }[]
+}
+
 // =============================================
 // SATURDAY WORK SCHEDULE (Lịch làm thứ 7)
 // =============================================

@@ -51,6 +51,7 @@ export default async function AttendancePage() {
           holidays={holidays}
           specialDays={specialDays}
           saturdaySchedules={saturdaySchedules}
+          employeeId={employee?.id}
         />
       </div>
     </DashboardLayout>

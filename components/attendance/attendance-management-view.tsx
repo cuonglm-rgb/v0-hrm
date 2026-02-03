@@ -19,7 +19,7 @@ import {
 import { AttendancePanel } from "@/components/attendance/attendance-panel"
 import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, Employee } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
-import type { SpecialWorkDay } from "@/lib/types/database"
+import type { SpecialWorkDayWithEmployees } from "@/lib/types/database"
 import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
 import { Users, Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -33,7 +33,7 @@ interface AttendanceManagementViewProps {
   attendanceLogs: AttendanceLog[]
   leaveRequests: EmployeeRequestWithRelations[]
   holidays: Holiday[]
-  specialDays: SpecialWorkDay[]
+  specialDays: SpecialWorkDayWithEmployees[]
   saturdaySchedules: SaturdaySchedule[]
 }
 
@@ -187,6 +187,7 @@ export function AttendanceManagementView({
           holidays={holidays}
           specialDays={specialDays}
           saturdaySchedules={filteredSaturdaySchedules}
+          employeeId={selectedEmployeeId}
         />
       )}
     </div>
