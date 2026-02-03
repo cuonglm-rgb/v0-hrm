@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Progress } from "@/components/ui/progress"
 import {
   Dialog,
   DialogContent,
@@ -27,7 +28,7 @@ import {
 import { generatePayroll, deletePayrollRun, refreshPayroll } from "@/lib/actions/payroll-actions"
 import type { PayrollRun } from "@/lib/types/database"
 import { formatDateVN } from "@/lib/utils/date-utils"
-import { Plus, Eye, Trash2, Calculator, Wallet, RefreshCw } from "lucide-react"
+import { Plus, Eye, Trash2, Calculator, Wallet, RefreshCw, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 interface PayrollListPanelProps {
@@ -56,6 +57,29 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [selectedMonth, setSelectedMonth] = useState<string>("")
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString())
+  const [progressDialogOpen, setProgressDialogOpen] = useState(false)
+  const [progressStep, setProgressStep] = useState(0)
+  const [progressMessage, setProgressMessage] = useState("")
+
+  const progressSteps = [
+    { step: 1, message: "Đang tải danh sách nhân viên..." },
+    { step: 2, message: "Đang tính ngày công chuẩn..." },
+    { step: 3, message: "Đang tính chấm công và phụ cấp..." },
+    { step: 4, message: "Đang tính lương cơ bản..." },
+    { step: 5, message: "Đang tính khấu trừ và phạt..." },
+    { step: 6, message: "Đang lưu kết quả..." },
+  ]
+
+  // Check if any calculation is in progress
+  const isCalculating = loading || refreshingId !== null
+
+  const simulateProgress = async () => {
+    for (let i = 0; i < progressSteps.length; i++) {
+      setProgressStep(progressSteps[i].step)
+      setProgressMessage(progressSteps[i].message)
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+  }
 
   const handleGenerate = async () => {
     if (!selectedMonth || !selectedYear) {
@@ -65,19 +89,37 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
 
     setLoading(true)
     setError(null)
+    setOpen(false)
+    setProgressDialogOpen(true)
+    setProgressStep(0)
+    setProgressMessage("Bắt đầu tính lương...")
+
+    // Start progress simulation
+    const progressPromise = simulateProgress()
 
     try {
       const result = await generatePayroll(parseInt(selectedMonth), parseInt(selectedYear))
 
+      // Wait for progress animation to complete
+      await progressPromise
+      setProgressStep(progressSteps.length)
+      setProgressMessage("Hoàn thành!")
+
+      // Small delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       if (!result.success) {
         setError(result.error || "Không thể tạo bảng lương")
+        setProgressDialogOpen(false)
+        setOpen(true)
       } else {
-        setOpen(false)
         setSelectedMonth("")
+        setProgressDialogOpen(false)
         toast.success(result.message || "Đã tạo bảng lương thành công")
       }
     } catch (err) {
       setError("Lỗi không xác định khi tạo bảng lương")
+      setProgressDialogOpen(false)
       console.error(err)
     }
     setLoading(false)
@@ -97,14 +139,32 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
     if (!confirm("Tính lại bảng lương sẽ cập nhật tất cả dữ liệu. Tiếp tục?")) return
     
     setRefreshingId(id)
+    setProgressDialogOpen(true)
+    setProgressStep(0)
+    setProgressMessage("Bắt đầu tính lại lương...")
+
+    // Start progress simulation
+    const progressPromise = simulateProgress()
+
     try {
       const result = await refreshPayroll(id)
+      
+      // Wait for progress animation to complete
+      await progressPromise
+      setProgressStep(progressSteps.length)
+      setProgressMessage("Hoàn thành!")
+
+      // Small delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setProgressDialogOpen(false)
+
       if (!result.success) {
         toast.error(result.error || "Không thể tính lại bảng lương")
       } else {
         toast.success(result.message || "Đã tính lại bảng lương")
       }
     } catch (err) {
+      setProgressDialogOpen(false)
       toast.error("Lỗi khi tính lại bảng lương")
       console.error(err)
     }
@@ -264,7 +324,13 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
                     <TableCell>{formatDateVN(run.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" asChild>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          asChild 
+                          disabled={isCalculating}
+                          className={isCalculating ? "pointer-events-none opacity-50" : ""}
+                        >
                           <Link href={`/dashboard/payroll/${run.id}`}>
                             <Eye className="h-4 w-4 mr-1" />
                             Xem
@@ -276,7 +342,7 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
                               size="sm"
                               variant="outline"
                               onClick={() => handleRefresh(run.id)}
-                              disabled={refreshingId === run.id}
+                              disabled={isCalculating}
                               title="Tính lại bảng lương"
                             >
                               <RefreshCw className={`h-4 w-4 ${refreshingId === run.id ? 'animate-spin' : ''}`} />
@@ -286,6 +352,7 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
                               variant="ghost"
                               onClick={() => handleDelete(run.id)}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              disabled={isCalculating}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -300,6 +367,49 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Progress Dialog */}
+      <Dialog open={progressDialogOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              Đang tính lương
+            </DialogTitle>
+            <DialogDescription>
+              Vui lòng chờ trong khi hệ thống xử lý...
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Progress value={(progressStep / progressSteps.length) * 100} className="h-2" />
+            <div className="space-y-2">
+              {progressSteps.map((step) => (
+                <div 
+                  key={step.step} 
+                  className={`flex items-center gap-2 text-sm ${
+                    progressStep >= step.step 
+                      ? progressStep === step.step 
+                        ? "text-primary font-medium" 
+                        : "text-muted-foreground"
+                      : "text-muted-foreground/50"
+                  }`}
+                >
+                  {progressStep > step.step ? (
+                    <div className="h-4 w-4 rounded-full bg-green-500 flex items-center justify-center">
+                      <span className="text-white text-xs">✓</span>
+                    </div>
+                  ) : progressStep === step.step ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full border border-muted-foreground/30" />
+                  )}
+                  <span>{step.message}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
