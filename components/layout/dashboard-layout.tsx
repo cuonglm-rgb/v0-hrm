@@ -19,12 +19,13 @@ interface DashboardLayoutProps {
   userRoles: UserRoleWithRelations[]
   breadcrumbs?: { label: string; href?: string }[]
   canApproveRequests?: boolean
+  canAccessSaturdaySchedule?: boolean
 }
 
-export function DashboardLayout({ children, employee, userRoles, breadcrumbs = [], canApproveRequests }: DashboardLayoutProps) {
+export function DashboardLayout({ children, employee, userRoles, breadcrumbs = [], canApproveRequests, canAccessSaturdaySchedule }: DashboardLayoutProps) {
   return (
     <SidebarProvider>
-      <AppSidebar employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests} />
+      <AppSidebar employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests} canAccessSaturdaySchedule={canAccessSaturdaySchedule} />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4">
           <SidebarTrigger className="-ml-1" />

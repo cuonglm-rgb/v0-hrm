@@ -28,6 +28,7 @@ interface NavItem {
   icon: any
   roles?: string[]
   checkApproverLevel?: boolean // Kiểm tra level chức vụ có quyền duyệt phiếu
+  checkSaturdayScheduleLevel?: boolean // Kiểm tra level >= 3 cho lịch thứ 7
 }
 
 const mainNavItems: NavItem[] = [
@@ -62,6 +63,7 @@ const mainNavItems: NavItem[] = [
     url: "/dashboard/attendance-management",
     icon: FileSpreadsheet,
     roles: ["hr", "admin"],
+    checkSaturdayScheduleLevel: true, // Level 3+ cũng có thể truy cập
   },
   {
     title: "Bảng lương",
@@ -103,9 +105,10 @@ interface AppSidebarProps {
   employee: EmployeeWithRelations | null
   userRoles: UserRoleWithRelations[]
   canApproveRequests?: boolean // Có quyền duyệt phiếu dựa trên level
+  canAccessSaturdaySchedule?: boolean // Level >= 3 có thể truy cập lịch thứ 7
 }
 
-export function AppSidebar({ employee, userRoles, canApproveRequests }: AppSidebarProps) {
+export function AppSidebar({ employee, userRoles, canApproveRequests, canAccessSaturdaySchedule }: AppSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -131,6 +134,10 @@ export function AppSidebar({ employee, userRoles, canApproveRequests }: AppSideb
     // Kiểm tra quyền duyệt phiếu dựa trên level
     if (item.checkApproverLevel) {
       return canApproveRequests || isHROrAdmin
+    }
+    // Kiểm tra quyền truy cập lịch thứ 7 (level >= 3)
+    if (item.checkSaturdayScheduleLevel) {
+      return canAccessSaturdaySchedule || isHROrAdmin
     }
     // Kiểm tra roles
     if (item.roles) {

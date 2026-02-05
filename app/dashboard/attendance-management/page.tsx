@@ -42,7 +42,8 @@ export default async function AttendanceManagementPage() {
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const isHROrAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
 
-  if (!isHROrAdmin) {
+  // Cho phép HR/Admin hoặc level >= 3 truy cập
+  if (!isHROrAdmin && !saturdayPermission.allowed) {
     redirect("/dashboard")
   }
 
@@ -59,57 +60,72 @@ export default async function AttendanceManagementPage() {
     }
   }
 
+  // Level 3 (không phải HR/Admin) chỉ thấy tab Lịch làm thứ 7
+  const isLevel3Only = saturdayPermission.allowed && saturdayPermission.level === 3 && !isHROrAdmin
+
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests}>
+    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests} canAccessSaturdaySchedule={saturdayPermission.allowed}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Quản lý chấm công</h1>
-          <p className="text-muted-foreground">Xem lịch sử chấm công của nhân viên</p>
+          <p className="text-muted-foreground">
+            {isLevel3Only ? "Thiết lập lịch làm việc thứ 7" : "Xem lịch sử chấm công của nhân viên"}
+          </p>
         </div>
 
-        <Tabs defaultValue="attendance" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="attendance" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              Lịch sử chấm công
-            </TabsTrigger>
-            <TabsTrigger value="special-days" className="gap-2">
-              <CloudRain className="h-4 w-4" />
-              Ngày đặc biệt
-            </TabsTrigger>
-            {saturdayPermission.allowed && (
-              <TabsTrigger value="saturday-schedule" className="gap-2">
-                <CalendarClock className="h-4 w-4" />
-                Lịch làm thứ 7
+        {isLevel3Only ? (
+          // Level 3 chỉ thấy tab Lịch làm thứ 7
+          <SaturdaySchedulePanel
+            employees={filteredEmployees}
+            schedules={saturdaySchedules}
+            canManageAll={false}
+          />
+        ) : (
+          // HR/Admin thấy tất cả tabs
+          <Tabs defaultValue="attendance" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="attendance" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                Lịch sử chấm công
               </TabsTrigger>
-            )}
-          </TabsList>
+              <TabsTrigger value="special-days" className="gap-2">
+                <CloudRain className="h-4 w-4" />
+                Ngày đặc biệt
+              </TabsTrigger>
+              {saturdayPermission.allowed && (
+                <TabsTrigger value="saturday-schedule" className="gap-2">
+                  <CalendarClock className="h-4 w-4" />
+                  Lịch làm thứ 7
+                </TabsTrigger>
+              )}
+            </TabsList>
 
-          <TabsContent value="attendance">
-            <AttendanceManagementView
-              employees={employees}
-              attendanceLogs={attendanceLogs}
-              leaveRequests={leaveRequests}
-              holidays={holidays}
-              specialDays={specialDays}
-              saturdaySchedules={saturdaySchedules}
-            />
-          </TabsContent>
-
-          <TabsContent value="special-days">
-            <SpecialWorkDaysPanel specialDays={specialDays} />
-          </TabsContent>
-
-          {saturdayPermission.allowed && (
-            <TabsContent value="saturday-schedule">
-              <SaturdaySchedulePanel
-                employees={filteredEmployees}
-                schedules={saturdaySchedules}
-                canManageAll={saturdayPermission.level !== null && saturdayPermission.level > 3}
+            <TabsContent value="attendance">
+              <AttendanceManagementView
+                employees={employees}
+                attendanceLogs={attendanceLogs}
+                leaveRequests={leaveRequests}
+                holidays={holidays}
+                specialDays={specialDays}
+                saturdaySchedules={saturdaySchedules}
               />
             </TabsContent>
-          )}
-        </Tabs>
+
+            <TabsContent value="special-days">
+              <SpecialWorkDaysPanel specialDays={specialDays} />
+            </TabsContent>
+
+            {saturdayPermission.allowed && (
+              <TabsContent value="saturday-schedule">
+                <SaturdaySchedulePanel
+                  employees={filteredEmployees}
+                  schedules={saturdaySchedules}
+                  canManageAll={saturdayPermission.level !== null && saturdayPermission.level > 3}
+                />
+              </TabsContent>
+            )}
+          </Tabs>
+        )}
       </div>
     </DashboardLayout>
   )
