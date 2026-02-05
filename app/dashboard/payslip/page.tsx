@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { getMyPayslips } from "@/lib/actions/payroll-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
+import { checkSaturdaySchedulePermission } from "@/lib/actions/saturday-schedule-actions"
 import { PayslipPanel } from "@/components/payroll/payslip-panel"
 
 export default async function PayslipPage() {
@@ -17,15 +18,16 @@ export default async function PayslipPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, payslips, canApproveRequests] = await Promise.all([
+  const [employee, userRoles, payslips, canApproveRequests, saturdayPermission] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     getMyPayslips(),
     checkCanApproveRequests(),
+    checkSaturdaySchedulePermission(),
   ])
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests}>
+    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests} canAccessSaturdaySchedule={saturdayPermission.allowed}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Phiếu lương</h1>

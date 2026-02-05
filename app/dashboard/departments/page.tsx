@@ -5,6 +5,7 @@ import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { listDepartments, listPositions } from "@/lib/actions/department-actions"
 import { listWorkShifts } from "@/lib/actions/shift-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
+import { checkSaturdaySchedulePermission } from "@/lib/actions/saturday-schedule-actions"
 import { OrganizationPanel } from "@/components/departments/organization-panel"
 
 export default async function DepartmentsPage() {
@@ -18,20 +19,21 @@ export default async function DepartmentsPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, departments, positions, shifts, canApproveRequests] = await Promise.all([
+  const [employee, userRoles, departments, positions, shifts, canApproveRequests, saturdayPermission] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listDepartments(),
     listPositions(),
     listWorkShifts(),
     checkCanApproveRequests(),
+    checkSaturdaySchedulePermission(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const isHROrAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Tổ chức" }]} canApproveRequests={canApproveRequests}>
+    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Tổ chức" }]} canApproveRequests={canApproveRequests} canAccessSaturdaySchedule={saturdayPermission.allowed}>
       <OrganizationPanel
         departments={departments}
         positions={positions}

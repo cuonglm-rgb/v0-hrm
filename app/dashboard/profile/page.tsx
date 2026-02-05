@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { checkCanApproveRequests, getAnnualLeaveUsage } from "@/lib/actions/request-type-actions"
+import { checkSaturdaySchedulePermission } from "@/lib/actions/saturday-schedule-actions"
 import { ProfileView } from "@/components/profile/profile-view"
 import { listDepartments, listPositions } from "@/lib/actions/department-actions"
 import { listWorkShifts } from "@/lib/actions/shift-actions"
@@ -25,6 +26,7 @@ export default async function ProfilePage() {
     employee,
     userRoles,
     canApproveRequests,
+    saturdayPermission,
     departments,
     positions,
     shifts,
@@ -33,6 +35,7 @@ export default async function ProfilePage() {
     getMyEmployee(),
     getMyRoles(),
     checkCanApproveRequests(),
+    checkSaturdaySchedulePermission(),
     listDepartments(),
     listPositions(),
     listWorkShifts(),
@@ -54,7 +57,7 @@ export default async function ProfilePage() {
   ])
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Hồ sơ của tôi" }]} canApproveRequests={canApproveRequests}>
+    <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Hồ sơ của tôi" }]} canApproveRequests={canApproveRequests} canAccessSaturdaySchedule={saturdayPermission.allowed}>
       <ProfileView
         employee={employee}
         userRoles={userRoles}

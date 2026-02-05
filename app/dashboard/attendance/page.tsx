@@ -6,7 +6,7 @@ import { getMyAttendance, getMyApprovedLeaveRequests, getHolidays } from "@/lib/
 import { getMyShift } from "@/lib/actions/shift-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { listSpecialWorkDays } from "@/lib/actions/special-work-day-actions"
-import { listSaturdaySchedules } from "@/lib/actions/saturday-schedule-actions"
+import { listSaturdaySchedules, checkSaturdaySchedulePermission } from "@/lib/actions/saturday-schedule-actions"
 import { AttendancePanel } from "@/components/attendance/attendance-panel"
 
 export default async function AttendancePage() {
@@ -22,7 +22,7 @@ export default async function AttendancePage() {
   // Get employee first to use employee_id
   const employee = await getMyEmployee()
   
-  const [userRoles, attendanceLogs, shift, canApproveRequests, leaveRequests, holidaysCurrentYear, holidaysPrevYear, specialDays, saturdaySchedules] = await Promise.all([
+  const [userRoles, attendanceLogs, shift, canApproveRequests, leaveRequests, holidaysCurrentYear, holidaysPrevYear, specialDays, saturdaySchedules, saturdayPermission] = await Promise.all([
     getMyRoles(),
     getMyAttendance(),
     getMyShift(),
@@ -32,12 +32,13 @@ export default async function AttendancePage() {
     getHolidays(currentYear - 1),
     listSpecialWorkDays(),
     employee ? listSaturdaySchedules({ employeeId: employee.id }) : Promise.resolve([]),
+    checkSaturdaySchedulePermission(),
   ])
   
   const holidays = [...holidaysCurrentYear, ...holidaysPrevYear]
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests}>
+    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests} canAccessSaturdaySchedule={saturdayPermission.allowed}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Chấm công</h1>

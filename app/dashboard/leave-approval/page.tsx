@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { listRequestTypes, listEmployeeRequestsWithMyApprovalStatus, getCurrentApproverInfo, checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { listPositions } from "@/lib/actions/department-actions"
+import { checkSaturdaySchedulePermission } from "@/lib/actions/saturday-schedule-actions"
 import { LeaveApprovalPanel } from "@/components/leave/leave-approval-panel"
 import { RequestTypeManagement } from "@/components/leave/request-type-management"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -17,7 +18,7 @@ export default async function LeaveApprovalPage() {
   }
 
   // Lấy tất cả phiếu (không chỉ pending) để có thể xem lịch sử
-  const [employee, userRoles, requestTypes, employeeRequests, positions, approverInfo, canApproveRequests] = await Promise.all([
+  const [employee, userRoles, requestTypes, employeeRequests, positions, approverInfo, canApproveRequests, saturdayPermission] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listRequestTypes(false),
@@ -25,6 +26,7 @@ export default async function LeaveApprovalPage() {
     listPositions(),
     getCurrentApproverInfo(),
     checkCanApproveRequests(),
+    checkSaturdaySchedulePermission(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
@@ -39,7 +41,7 @@ export default async function LeaveApprovalPage() {
   const pendingCount = employeeRequests.filter(r => r.status === "pending").length
 
   return (
-    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests}>
+    <DashboardLayout employee={employee} userRoles={userRoles} canApproveRequests={canApproveRequests} canAccessSaturdaySchedule={saturdayPermission.allowed}>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Duyệt phiếu phép</h1>
