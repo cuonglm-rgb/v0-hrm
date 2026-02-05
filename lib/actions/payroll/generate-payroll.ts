@@ -843,23 +843,78 @@ export async function processAdjustments(
       if (adjType.category === "allowance") {
         if (adjType.calculation_type === "daily") {
           const lateThresholdMinutes = rules?.late_threshold_minutes ?? 0
+          const exemptWithRequest = rules?.exempt_with_request === true
+          const exemptRequestTypes = rules?.exempt_request_types || []
+          
+          // Lấy danh sách ngày có phiếu được duyệt (nếu bật miễn trừ)
+          let exemptDates = new Set<string>()
+          if (exemptWithRequest && exemptRequestTypes.length > 0) {
+            const { data: approvedRequests } = await supabase
+              .from("employee_requests")
+              .select(`
+                request_date, from_date, to_date,
+                request_type:request_types!request_type_id(code)
+              `)
+              .eq("employee_id", emp.id)
+              .eq("status", "approved")
+              .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
+
+            for (const req of approvedRequests || []) {
+              const reqType = req.request_type as any
+              if (!reqType || !exemptRequestTypes.includes(reqType.code)) continue
+              
+              // Xử lý phiếu có date range
+              if (req.from_date && req.to_date) {
+                const parseDate = (dateStr: string) => {
+                  const [y, m, d] = dateStr.split('-').map(Number)
+                  return new Date(Date.UTC(y, m - 1, d))
+                }
+                const reqFromDate = parseDate(req.from_date)
+                const reqToDate = parseDate(req.to_date)
+                const periodStart = parseDate(startDate)
+                const periodEnd = parseDate(endDate)
+                const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+                const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+                
+                const current = new Date(reqStart)
+                while (current <= reqEnd) {
+                  const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+                  exemptDates.add(dateStr)
+                  current.setDate(current.getDate() + 1)
+                }
+              } else if (req.request_date) {
+                exemptDates.add(req.request_date)
+              }
+            }
+          }
           
           const allowanceFullDays = violationsWithoutOT.filter((v) => 
             v.hasCheckIn && v.hasCheckOut && !v.isHalfDay && !v.isAbsent &&
             v.lateMinutes <= lateThresholdMinutes && v.earlyMinutes === 0
           ).length
           
+          // Đếm ngày vi phạm nhưng được miễn trừ do có phiếu
+          const violationDaysWithExempt = violationsWithoutOT.filter((v) => {
+            const isViolation = v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
+              v.forgotCheckOut || v.isHalfDay || v.isAbsent
+            if (!isViolation) return false
+            
+            // Nếu bật miễn trừ và ngày này có phiếu được duyệt -> được miễn
+            if (exemptWithRequest && exemptDates.has(v.date)) return true
+            return false
+          }).length
+          
           const allowanceViolations = violationsWithoutOT.filter((v) => 
             v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
             v.forgotCheckOut || v.isHalfDay || v.isAbsent
-          ).length
+          ).length - violationDaysWithExempt // Trừ đi số ngày được miễn
           
-          let eligibleDays = allowanceFullDays
+          let eligibleDays = allowanceFullDays + violationDaysWithExempt // Cộng ngày được miễn
 
           if (rules) {
-            if (rules.late_grace_count !== undefined) {
+            if (rules.late_grace_count !== undefined && allowanceViolations > 0) {
               const gracedViolationDays = Math.min(allowanceViolations, rules.late_grace_count)
-              eligibleDays = allowanceFullDays + gracedViolationDays
+              eligibleDays += gracedViolationDays
             }
             if (rules.deduct_on_absent && unpaidLeaveDays > 0) {
               eligibleDays -= unpaidLeaveDays
@@ -871,6 +926,11 @@ export async function processAdjustments(
           const amount = eligibleDays * adjType.amount
 
           if (amount > 0) {
+            let reasonParts = [`${eligibleDays} ngày x ${adjType.amount.toLocaleString()}đ`]
+            if (violationDaysWithExempt > 0) {
+              reasonParts.push(`(${violationDaysWithExempt} ngày miễn do có phiếu)`)
+            }
+            
             totalAllowances += amount
             adjustmentDetails.push({
               adjustment_type_id: adjType.id,
@@ -878,7 +938,7 @@ export async function processAdjustments(
               base_amount: allowanceFullDays * adjType.amount,
               adjusted_amount: (eligibleDays - allowanceFullDays) > 0 ? 0 : (allowanceFullDays - eligibleDays) * adjType.amount,
               final_amount: amount,
-              reason: `${eligibleDays} ngày x ${adjType.amount.toLocaleString()}đ`,
+              reason: reasonParts.join(' '),
               occurrence_count: eligibleDays,
             })
           } else {

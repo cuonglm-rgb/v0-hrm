@@ -603,6 +603,55 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                         </div>
                       </div>
                     )}
+                    
+                    {/* Miễn trừ nếu có phiếu xin phép */}
+                    <div className="flex items-center justify-between">
+                      <Label>Miễn trừ nếu có phiếu xin phép</Label>
+                      <Switch
+                        checked={formData.auto_rules.exempt_with_request}
+                        onCheckedChange={(v: boolean) =>
+                          setFormData({
+                            ...formData,
+                            auto_rules: { 
+                              ...formData.auto_rules, 
+                              exempt_with_request: v,
+                              exempt_request_types: v ? (formData.auto_rules.exempt_request_types || []) : undefined,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                    {formData.auto_rules.exempt_with_request && (
+                      <div className="space-y-2 pl-4 border-l-2 border-green-300">
+                        <Label className="text-sm">Loại phiếu được miễn:</Label>
+                        <p className="text-xs text-muted-foreground">
+                          Nếu nhân viên có phiếu được duyệt trong ngày, sẽ không bị trừ phụ cấp
+                        </p>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {requestTypes.map((rt) => (
+                            <div key={rt.id} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`allowance_exempt_${rt.code}`}
+                                checked={formData.auto_rules.exempt_request_types?.includes(rt.code as ExemptRequestType) ?? false}
+                                onChange={(e) => {
+                                  const types = formData.auto_rules.exempt_request_types || []
+                                  const newTypes: ExemptRequestType[] = e.target.checked
+                                    ? [...types.filter(t => t !== rt.code), rt.code as ExemptRequestType]
+                                    : types.filter(t => t !== rt.code)
+                                  setFormData({
+                                    ...formData,
+                                    auto_rules: { ...formData.auto_rules, exempt_request_types: newTypes },
+                                  })
+                                }}
+                                className="h-4 w-4 rounded border-gray-300"
+                              />
+                              <Label htmlFor={`allowance_exempt_${rt.code}`} className="text-sm font-normal">{rt.name}</Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 
