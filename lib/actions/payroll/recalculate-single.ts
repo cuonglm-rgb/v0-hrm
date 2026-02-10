@@ -414,10 +414,17 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const violations = await getEmployeeViolations(supabase, emp.id, startDate, endDate, shiftInfo)
   const violationsWithoutOT = violations.filter((v) => !overtimeDates.has(v.date))
 
+  console.log(`[Debug] Tổng violations: ${violations.length}`)
+  console.log(`[Debug] Violations without OT: ${violationsWithoutOT.length}`)
+  console.log(`[Debug] Violations có forgotCheckIn: ${violations.filter(v => v.forgotCheckIn).map(v => v.date).join(', ')}`)
+  console.log(`[Debug] Violations có forgotCheckOut: ${violations.filter(v => v.forgotCheckOut).map(v => v.date).join(', ')}`)
+
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
   const actualAttendanceDays = workingDaysCount - (halfDays * 0.5)
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
+  const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
+  const forgotCheckoutCount = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
 
   console.log(`\n📝 PHIẾU NGHỈ:`)
   console.log(`  - Nghỉ phép có lương: ${paidLeaveDays} ngày`)
@@ -427,12 +434,15 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   console.log(`  - Vắng mặt: ${absentDays} ngày`)
   console.log(`  - Làm nửa ngày: ${halfDays} lần`)
   console.log(`  - Đi muộn: ${lateCount} lần`)
+  console.log(`  - Quên chấm công đến: ${forgotCheckinCount} lần`)
+  console.log(`  - Quên chấm công về: ${forgotCheckoutCount} lần`)
   console.log(`  - Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} - ${halfDays * 0.5})`)
 
   // Tính ngày đủ giờ cho phụ cấp - giống hệt generate-payroll.ts
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
     v.hasCheckIn && v.hasCheckOut && !v.isHalfDay && !v.isAbsent &&
-    v.lateMinutes === 0 && v.earlyMinutes === 0
+    v.lateMinutes === 0 && v.earlyMinutes === 0 &&
+    !v.forgotCheckIn && !v.forgotCheckOut  // Loại trừ ngày có quên chấm công
   ).length
 
   const { data: empAdjustments } = await supabase

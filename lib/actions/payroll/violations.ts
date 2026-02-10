@@ -75,6 +75,8 @@ export async function getEmployeeViolations(
   }
 
   if (logs) {
+    console.log(`[Violations] Xử lý ${logs.length} attendance logs`)
+    
     let breakStartMinutes = 0
     let breakEndMinutes = 0
     if (shift.breakStart && shift.breakEnd) {
@@ -163,14 +165,34 @@ export async function getEmployeeViolations(
       let forgotCheckOut = false
       let forgotCheckIn = false
       
-      // Nếu không có check_in gốc và cũng không có phiếu forgot_checkin
-      if (!hasCheckIn) {
+      // Kiểm tra xem có phiếu quên chấm công không
+      const hasForgotCheckinRequest = forgotCheckinTimeByDate.has(dateStr)
+      const hasForgotCheckoutRequest = forgotCheckoutTimeByDate.has(dateStr)
+      
+      console.log(`[Violations] Ngày ${dateStr}: check_in=${log.check_in ? 'có' : 'không'}, check_out=${log.check_out ? 'có' : 'không'}, phiếu_checkin=${hasForgotCheckinRequest}, phiếu_checkout=${hasForgotCheckoutRequest}`)
+      
+      // ƯU TIÊN: Nếu có phiếu quên chấm công được duyệt → TÍNH LÀ VI PHẠM
+      if (hasForgotCheckinRequest) {
+        forgotCheckIn = true
+        console.log(`[Violations] Ngày ${dateStr}: Có phiếu quên chấm công đến - TÍNH LÀ VI PHẠM`)
+        lateMinutes = 0
+        earlyMinutes = 0
+        isHalfDay = false
+      } else if (hasForgotCheckoutRequest) {
+        forgotCheckOut = true
+        console.log(`[Violations] Ngày ${dateStr}: Có phiếu quên chấm công về - TÍNH LÀ VI PHẠM`)
+        lateMinutes = 0
+        earlyMinutes = 0
+        isHalfDay = false
+      }
+      // Nếu không có phiếu, kiểm tra check_in/check_out gốc
+      else if (!log.check_in) {
         forgotCheckIn = true
         lateMinutes = 0
         earlyMinutes = 0
         isHalfDay = false
-      } else if (!hasCheckOut) {
-        // Có check_in nhưng không có check_out và không có phiếu forgot_checkout
+      } 
+      else if (!log.check_out) {
         forgotCheckOut = true
         lateMinutes = 0
         earlyMinutes = 0
@@ -275,6 +297,7 @@ export async function getEmployeeViolations(
         isAbsent: finalIsAbsent,
         hasApprovedRequest,
         approvedRequestTypes,
+        forgotCheckIn,
         forgotCheckOut,
         hasCheckIn,
         hasCheckOut,

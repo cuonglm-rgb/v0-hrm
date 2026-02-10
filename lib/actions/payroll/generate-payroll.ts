@@ -399,6 +399,8 @@ async function processEmployeePayroll(
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
   const actualAttendanceDays = workingDaysCount - (halfDays * 0.5)
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
+  const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
+  const forgotCheckoutCount = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
 
   console.log(`\n📝 PHIẾU NGHỈ:`)
   console.log(`  - Nghỉ phép có lương: ${leaveResult.paidLeaveDays} ngày`)
@@ -408,12 +410,15 @@ async function processEmployeePayroll(
   console.log(`  - Vắng mặt: ${absentDays} ngày`)
   console.log(`  - Làm nửa ngày: ${halfDays} lần`)
   console.log(`  - Đi muộn: ${lateCount} lần`)
+  console.log(`  - Quên chấm công đến: ${forgotCheckinCount} lần`)
+  console.log(`  - Quên chấm công về: ${forgotCheckoutCount} lần`)
   console.log(`  - Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} - ${halfDays * 0.5})`)
 
   // Tính ngày đủ giờ cho phụ cấp
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
     v.hasCheckIn && v.hasCheckOut && !v.isHalfDay && !v.isAbsent &&
-    v.lateMinutes === 0 && v.earlyMinutes === 0
+    v.lateMinutes === 0 && v.earlyMinutes === 0 &&
+    !v.forgotCheckIn && !v.forgotCheckOut  // Loại trừ ngày có quên chấm công
   ).length
 
   // Lấy điều chỉnh được gán cho nhân viên
@@ -842,9 +847,17 @@ export async function processAdjustments(
       // ALLOWANCES
       if (adjType.category === "allowance") {
         if (adjType.calculation_type === "daily") {
+          console.log(`\n[Allowance] Tính phụ cấp: ${adjType.name} (${adjType.code})`)
+          
           const lateThresholdMinutes = rules?.late_threshold_minutes ?? 0
           const exemptWithRequest = rules?.exempt_with_request === true
           const exemptRequestTypes = rules?.exempt_request_types || []
+          
+          console.log(`[Allowance] - Ngưỡng đi muộn: ${lateThresholdMinutes} phút`)
+          console.log(`[Allowance] - Miễn trừ nếu có phiếu: ${exemptWithRequest ? 'Có' : 'Không'}`)
+          if (exemptWithRequest) {
+            console.log(`[Allowance] - Loại phiếu được miễn: ${exemptRequestTypes.join(', ')}`)
+          }
           
           // Lấy danh sách ngày có phiếu được duyệt (nếu bật miễn trừ)
           let exemptDates = new Set<string>()
@@ -886,17 +899,21 @@ export async function processAdjustments(
                 exemptDates.add(req.request_date)
               }
             }
+            console.log(`[Allowance] - Số ngày có phiếu miễn trừ: ${exemptDates.size} ngày`)
           }
           
           const allowanceFullDays = violationsWithoutOT.filter((v) => 
             v.hasCheckIn && v.hasCheckOut && !v.isHalfDay && !v.isAbsent &&
-            v.lateMinutes <= lateThresholdMinutes && v.earlyMinutes === 0
+            v.lateMinutes <= lateThresholdMinutes && v.earlyMinutes === 0 &&
+            !v.forgotCheckIn && !v.forgotCheckOut  // Loại trừ ngày có quên chấm công
           ).length
+          
+          console.log(`[Allowance] - Ngày đủ điều kiện (chấm công đầy đủ, không vi phạm): ${allowanceFullDays} ngày`)
           
           // Đếm ngày vi phạm nhưng được miễn trừ do có phiếu
           const violationDaysWithExempt = violationsWithoutOT.filter((v) => {
             const isViolation = v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
-              v.forgotCheckOut || v.isHalfDay || v.isAbsent
+              v.forgotCheckOut || v.forgotCheckIn || v.isHalfDay || v.isAbsent
             if (!isViolation) return false
             
             // Nếu bật miễn trừ và ngày này có phiếu được duyệt -> được miễn
@@ -904,19 +921,26 @@ export async function processAdjustments(
             return false
           }).length
           
+          console.log(`[Allowance] - Ngày vi phạm nhưng được miễn do có phiếu: ${violationDaysWithExempt} ngày`)
+          
           const allowanceViolations = violationsWithoutOT.filter((v) => 
             v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
-            v.forgotCheckOut || v.isHalfDay || v.isAbsent
+            v.forgotCheckOut || v.forgotCheckIn || v.isHalfDay || v.isAbsent
           ).length - violationDaysWithExempt // Trừ đi số ngày được miễn
           
+          console.log(`[Allowance] - Ngày vi phạm (không được miễn): ${allowanceViolations} ngày`)
+          
           let eligibleDays = allowanceFullDays + violationDaysWithExempt // Cộng ngày được miễn
+          console.log(`[Allowance] - Ngày đủ điều kiện ban đầu: ${eligibleDays} ngày (${allowanceFullDays} + ${violationDaysWithExempt})`)
 
           if (rules) {
             if (rules.late_grace_count !== undefined && allowanceViolations > 0) {
               const gracedViolationDays = Math.min(allowanceViolations, rules.late_grace_count)
+              console.log(`[Allowance] - Số lần vi phạm được miễn (grace): ${gracedViolationDays} ngày (tối đa ${rules.late_grace_count})`)
               eligibleDays += gracedViolationDays
             }
             if (rules.deduct_on_absent && unpaidLeaveDays > 0) {
+              console.log(`[Allowance] - Trừ ngày nghỉ không phép: ${unpaidLeaveDays} ngày`)
               eligibleDays -= unpaidLeaveDays
               eligibleDays = Math.max(0, eligibleDays)
             }
@@ -924,6 +948,9 @@ export async function processAdjustments(
 
           eligibleDays = Math.max(0, Math.floor(eligibleDays))
           const amount = eligibleDays * adjType.amount
+          
+          console.log(`[Allowance] - Tổng ngày được tính phụ cấp: ${eligibleDays} ngày`)
+          console.log(`[Allowance] - Số tiền phụ cấp: ${eligibleDays} x ${adjType.amount.toLocaleString()}đ = ${amount.toLocaleString()}đ`)
 
           if (amount > 0) {
             let reasonParts = [`${eligibleDays} ngày x ${adjType.amount.toLocaleString()}đ`]
@@ -955,8 +982,18 @@ export async function processAdjustments(
         }
 
         if (adjType.calculation_type === "fixed") {
+          console.log(`\n[Allowance] Tính phụ cấp cố định: ${adjType.name} (${adjType.code})`)
+          console.log(`[Allowance] - Số tiền cố định: ${adjType.amount.toLocaleString()}đ`)
+          
           if (rules?.full_deduct_threshold !== undefined) {
+            console.log(`[Allowance] - Ngưỡng trừ toàn bộ: ${rules.full_deduct_threshold} lần đi muộn`)
+            console.log(`[Allowance] - Số lần đi muộn: ${lateCount} lần`)
+            console.log(`[Allowance] - Nghỉ không phép: ${unpaidLeaveDays} ngày`)
+            console.log(`[Allowance] - Vắng mặt: ${absentDays} ngày`)
+            
             const shouldDeduct = lateCount > rules.full_deduct_threshold || unpaidLeaveDays > 0 || absentDays > 0
+            console.log(`[Allowance] - Kết quả: ${shouldDeduct ? 'MẤT phụ cấp' : 'ĐỦ điều kiện'}`)
+            
             if (!shouldDeduct) {
               totalAllowances += adjType.amount
               adjustmentDetails.push({
@@ -980,6 +1017,7 @@ export async function processAdjustments(
               })
             }
           } else {
+            console.log(`[Allowance] - Không có điều kiện trừ, tính toàn bộ`)
             totalAllowances += adjType.amount
             adjustmentDetails.push({
               adjustment_type_id: adjType.id,
@@ -994,7 +1032,11 @@ export async function processAdjustments(
         }
 
         if (adjType.calculation_type === "percentage") {
+          console.log(`\n[Allowance] Tính phụ cấp theo %: ${adjType.name} (${adjType.code})`)
+          
           const calculateFrom = rules?.calculate_from || "base_salary"
+          console.log(`[Allowance] - Tính từ: ${calculateFrom === "insurance_salary" ? "Lương BHXH" : "Lương cơ bản"}`)
+          console.log(`[Allowance] - Tỷ lệ: ${adjType.amount}%`)
           
           let salaryForCalculation = baseSalary
           let shouldSkip = false
@@ -1010,15 +1052,22 @@ export async function processAdjustments(
               .single()
             
             const insuranceSalary = salaryData?.insurance_salary
+            console.log(`[Allowance] - Lương BHXH: ${insuranceSalary ? insuranceSalary.toLocaleString() : 'Không có'}đ`)
+            
             if (!insuranceSalary || insuranceSalary <= 0) {
+              console.log(`[Allowance] - Bỏ qua vì không có lương BHXH`)
               shouldSkip = true
             } else {
               salaryForCalculation = insuranceSalary
             }
+          } else {
+            console.log(`[Allowance] - Lương cơ bản: ${baseSalary.toLocaleString()}đ`)
           }
           
           if (!shouldSkip) {
             const percentageAmount = Math.round((salaryForCalculation * adjType.amount) / 100)
+            console.log(`[Allowance] - Số tiền: ${salaryForCalculation.toLocaleString()} x ${adjType.amount}% = ${percentageAmount.toLocaleString()}đ`)
+            
             totalAllowances += percentageAmount
             adjustmentDetails.push({
               adjustment_type_id: adjType.id,
