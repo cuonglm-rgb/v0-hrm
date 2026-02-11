@@ -272,14 +272,14 @@ async function processEmployeePayroll(
   //          Nếu có assigned_employees -> chỉ áp dụng nếu nhân viên nằm trong danh sách
   const companyHolidayDates = new Set(
     (specialDays || [])
-      .filter(s => {
+      .filter((s: any) => {
         const assignedEmps = s.assigned_employees || []
         // Nếu không có ai được chọn -> áp dụng toàn công ty
         if (assignedEmps.length === 0) return true
         // Nếu có danh sách -> kiểm tra nhân viên có trong danh sách không
         return assignedEmps.some((ae: any) => ae.employee_id === emp.id)
       })
-      .map(s => s.work_date)
+      .map((s: any) => s.work_date)
   )
 
   // Xử lý phiếu nghỉ
@@ -860,7 +860,8 @@ export async function processAdjustments(
           }
           
           // Lấy danh sách ngày có phiếu được duyệt (nếu bật miễn trừ)
-          let exemptDates = new Set<string>()
+          // Map: date -> Set<request_type_code>
+          const exemptDatesByType = new Map<string, Set<string>>()
           if (exemptWithRequest && exemptRequestTypes.length > 0) {
             const { data: approvedRequests } = await supabase
               .from("employee_requests")
@@ -892,14 +893,20 @@ export async function processAdjustments(
                 const current = new Date(reqStart)
                 while (current <= reqEnd) {
                   const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
-                  exemptDates.add(dateStr)
+                  if (!exemptDatesByType.has(dateStr)) {
+                    exemptDatesByType.set(dateStr, new Set())
+                  }
+                  exemptDatesByType.get(dateStr)!.add(reqType.code)
                   current.setDate(current.getDate() + 1)
                 }
               } else if (req.request_date) {
-                exemptDates.add(req.request_date)
+                if (!exemptDatesByType.has(req.request_date)) {
+                  exemptDatesByType.set(req.request_date, new Set())
+                }
+                exemptDatesByType.get(req.request_date)!.add(reqType.code)
               }
             }
-            console.log(`[Allowance] - Số ngày có phiếu miễn trừ: ${exemptDates.size} ngày`)
+            console.log(`[Allowance] - Số ngày có phiếu miễn trừ: ${exemptDatesByType.size} ngày`)
           }
           
           const allowanceFullDays = violationsWithoutOT.filter((v) => 
@@ -912,12 +919,33 @@ export async function processAdjustments(
           
           // Đếm ngày vi phạm nhưng được miễn trừ do có phiếu
           const violationDaysWithExempt = violationsWithoutOT.filter((v) => {
-            const isViolation = v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
-              v.forgotCheckOut || v.forgotCheckIn || v.isHalfDay || v.isAbsent
+            // Kiểm tra các loại vi phạm
+            const hasLateViolation = v.lateMinutes > lateThresholdMinutes
+            const hasEarlyViolation = v.earlyMinutes > 0
+            const hasOtherViolation = v.forgotCheckOut || v.forgotCheckIn || v.isHalfDay || v.isAbsent
+            
+            const isViolation = hasLateViolation || hasEarlyViolation || hasOtherViolation
             if (!isViolation) return false
             
-            // Nếu bật miễn trừ và ngày này có phiếu được duyệt -> được miễn
-            if (exemptWithRequest && exemptDates.has(v.date)) return true
+            // Nếu bật miễn trừ và ngày này có phiếu được duyệt -> kiểm tra loại phiếu
+            if (exemptWithRequest && exemptDatesByType.has(v.date)) {
+              const requestTypes = exemptDatesByType.get(v.date)!
+              
+              // Nếu đi muộn -> cần phiếu late_arrival
+              if (hasLateViolation && requestTypes.has('late_arrival')) {
+                return true
+              }
+              
+              // Nếu về sớm -> cần phiếu early_leave
+              if (hasEarlyViolation && requestTypes.has('early_leave')) {
+                return true
+              }
+              
+              // Các vi phạm khác (quên chấm công, nửa ngày) -> chấp nhận bất kỳ loại phiếu nào
+              if (hasOtherViolation) {
+                return true
+              }
+            }
             return false
           }).length
           
@@ -1099,7 +1127,7 @@ export async function processAdjustments(
             if (!shouldPenalize) continue
 
             if (exemptWithRequest && v.hasApprovedRequest) {
-              const hasExemptRequest = v.approvedRequestTypes.some(t => exemptRequestTypes.includes(t))
+              const hasExemptRequest = v.approvedRequestTypes.some((t: string) => exemptRequestTypes.includes(t))
               if (hasExemptRequest) continue
             }
 

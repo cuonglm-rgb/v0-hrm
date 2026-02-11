@@ -10,6 +10,7 @@ export interface AttendanceViolation {
   isAbsent: boolean
   hasApprovedRequest: boolean
   approvedRequestTypes: string[]
+  forgotCheckIn: boolean
   forgotCheckOut: boolean
   hasCheckIn: boolean
   hasCheckOut: boolean
