@@ -27,6 +27,29 @@ export async function GET(request: Request) {
         console.log("User ID:", user.id)
         console.log("User Email:", user.email)
 
+        // Validate email domain
+        const email = user.email?.toLowerCase() || ""
+        if (!email.endsWith("@pamoteam.com")) {
+          console.log("❌ UNAUTHORIZED: Email domain not allowed:", email)
+          
+          // Delete the user from Supabase Auth using service client
+          const serviceClient = createServiceClient()
+          const { error: deleteError } = await serviceClient.auth.admin.deleteUser(user.id)
+          
+          if (deleteError) {
+            console.error("❌ ERROR deleting unauthorized user:", deleteError)
+          } else {
+            console.log("✅ Deleted unauthorized user from auth")
+          }
+          
+          // Sign out the current session
+          await supabase.auth.signOut()
+          
+          // Redirect to error page with message
+          return NextResponse.redirect(`${origin}/auth/error?message=unauthorized_domain`)
+        }
+        console.log("✅ AUTHORIZED: Email domain verified")
+
         // Use service client to bypass RLS for employee lookup/linking
         const serviceClient = createServiceClient()
 
