@@ -34,7 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
-import { Plus, Wallet, TrendingUp, Shield, Trash2, Receipt, Pencil } from "lucide-react"
+import { Plus, Wallet, TrendingUp, Shield, Trash2, Receipt, Pencil, Coins, Ban } from "lucide-react"
 import { createSalaryStructure, deleteSalaryStructure } from "@/lib/actions/payroll-actions"
 import {
   listAdjustmentTypes,
@@ -43,6 +43,7 @@ import {
   removeEmployeeAdjustment,
   updateEmployeeAdjustment,
 } from "@/lib/actions/allowance-actions"
+import { getEmployeeAppliedAdjustments } from "@/lib/actions/employee-adjustment-actions"
 import { formatCurrency } from "@/lib/utils/format-utils"
 import { formatDateVN } from "@/lib/utils/date-utils"
 import type { SalaryStructure, PayrollAdjustmentType, EmployeeAdjustmentWithType } from "@/lib/types/database"
@@ -68,6 +69,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
   // State cho phần khấu trừ/phụ cấp
   const [adjustmentTypes, setAdjustmentTypes] = useState<PayrollAdjustmentType[]>([])
   const [employeeAdjustments, setEmployeeAdjustments] = useState<EmployeeAdjustmentWithType[]>([])
+  const [autoAdjustments, setAutoAdjustments] = useState<PayrollAdjustmentType[]>([])
   const [adjustmentOpen, setAdjustmentOpen] = useState(false)
   const [adjustmentSaving, setAdjustmentSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -87,13 +89,15 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
   // Load adjustment types và employee adjustments
   useEffect(() => {
     const loadData = async () => {
-      const [types, empAdj] = await Promise.all([
+      const [types, empAdj, appliedAdj] = await Promise.all([
         listAdjustmentTypes(),
         listEmployeeAdjustments(employeeId),
+        getEmployeeAppliedAdjustments(employeeId),
       ])
       // Lấy tất cả các loại active (bao gồm cả auto-applied để override)
       setAdjustmentTypes(types.filter((t) => t.is_active))
       setEmployeeAdjustments(empAdj)
+      setAutoAdjustments(appliedAdj.autoAdjustments)
     }
     loadData()
   }, [employeeId])
@@ -478,10 +482,93 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
 
       {/* Khấu trừ / Phụ cấp thủ công */}
       <div className="border-t pt-6">
+        {/* Phụ cấp & Khấu trừ tự động */}
+        {autoAdjustments.length > 0 && (
+          <div className="mb-6">
+            <h4 className="font-medium mb-3 flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Phụ cấp & Khấu trừ tự động
+            </h4>
+            
+            {/* Nhóm theo category */}
+            <div className="space-y-4">
+              {['allowance', 'deduction', 'penalty'].map((category) => {
+                const items = autoAdjustments.filter((adj) => adj.category === category)
+                if (items.length === 0) return null
+                
+                return (
+                  <div key={category}>
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                      {category === 'allowance' && <Coins className="h-4 w-4 text-green-600" />}
+                      {category === 'deduction' && <Wallet className="h-4 w-4 text-blue-600" />}
+                      {category === 'penalty' && <Ban className="h-4 w-4 text-red-600" />}
+                      <h5 className="font-medium text-sm">
+                        {category === 'allowance' && 'Phụ cấp'}
+                        {category === 'deduction' && 'Khấu trừ'}
+                        {category === 'penalty' && 'Phạt'}
+                        {' '}({items.length})
+                      </h5>
+                    </div>
+                    <div className="border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm" style={{ tableLayout: 'fixed' }}>
+                        <thead>
+                          <tr className="border-b bg-muted/50">
+                            <th className="text-left font-medium text-muted-foreground h-12 px-4" style={{ width: '25%' }}>Tên</th>
+                            <th className="text-right font-medium text-muted-foreground h-12 px-4" style={{ width: '20%' }}>Số tiền</th>
+                            <th className="text-left font-medium text-muted-foreground h-12 px-4" style={{ width: '15%' }}>Cách tính</th>
+                            <th className="text-left font-medium text-muted-foreground h-12 px-4" style={{ width: '40%' }}>Mô tả</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((adj) => (
+                            <tr key={adj.id} className="border-b last:border-0 hover:bg-muted/50">
+                              <td className="h-12 px-4 align-middle font-medium">
+                                {adj.name}
+                              </td>
+                              <td className="h-12 px-4 align-middle text-right font-medium">
+                                {adj.amount > 0 ? (
+                                  <>
+                                    {adj.calculation_type === "percentage" ? (
+                                      <span className="text-blue-600">{adj.amount}%</span>
+                                    ) : (
+                                      formatCurrency(adj.amount)
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">Theo công thức</span>
+                                )}
+                              </td>
+                              <td className="h-12 px-4 align-middle">
+                                <Badge variant="outline" className="text-xs">
+                                  {adj.calculation_type === "fixed"
+                                    ? "Cố định"
+                                    : adj.calculation_type === "daily"
+                                    ? "Theo ngày"
+                                    : adj.calculation_type === "percentage"
+                                    ? "% lương"
+                                    : "Theo lần"}
+                                </Badge>
+                              </td>
+                              <td className="h-12 px-4 align-middle text-muted-foreground">
+                                {adj.description || "-"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Khấu trừ / Phụ cấp thủ công */}
         <div className="flex items-center justify-between mb-4">
           <h4 className="font-medium flex items-center gap-2">
             <Receipt className="h-4 w-4" />
-            Khấu trừ
+            Khấu trừ / Phụ cấp riêng
           </h4>
           {isHROrAdmin && (
             <Dialog open={adjustmentOpen} onOpenChange={setAdjustmentOpen}>

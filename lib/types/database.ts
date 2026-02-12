@@ -218,6 +218,11 @@ export interface PayrollAdjustmentType {
   created_at: string
 }
 
+// Extended type với danh sách nhân viên được chọn
+export interface PayrollAdjustmentTypeWithEmployees extends PayrollAdjustmentType {
+  assigned_employees?: { employee_id: string; employee?: { id: string; full_name: string; employee_code: string | null } }[]
+}
+
 export interface EmployeeAdjustment {
   id: string
   employee_id: string

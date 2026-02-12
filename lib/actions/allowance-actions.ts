@@ -21,7 +21,13 @@ export async function listAdjustmentTypes(
 
   let query = supabase
     .from("payroll_adjustment_types")
-    .select("*")
+    .select(`
+      *,
+      assigned_employees:adjustment_type_employees(
+        employee_id,
+        employee:employees(id, full_name, employee_code)
+      )
+    `)
     .order("category")
     .order("name")
 
@@ -54,24 +60,45 @@ export async function createAdjustmentType(input: {
   is_auto_applied: boolean
   auto_rules?: AdjustmentAutoRules
   description?: string
+  employee_ids?: string[] // Danh sách ID nhân viên được chọn (nếu rỗng = toàn công ty)
 }) {
   const supabase = await createClient()
 
-  const { error } = await supabase.from("payroll_adjustment_types").insert({
-    name: input.name,
-    code: input.code || null,
-    category: input.category,
-    amount: input.amount,
-    calculation_type: input.calculation_type,
-    is_auto_applied: input.is_auto_applied,
-    auto_rules: input.auto_rules || null,
-    description: input.description || null,
+  // Tách employee_ids ra khỏi input để không gửi vào insert
+  const { employee_ids, ...insertData } = input
+
+  const { data: newType, error } = await supabase.from("payroll_adjustment_types").insert({
+    name: insertData.name,
+    code: insertData.code || null,
+    category: insertData.category,
+    amount: insertData.amount,
+    calculation_type: insertData.calculation_type,
+    is_auto_applied: insertData.is_auto_applied,
+    auto_rules: insertData.auto_rules || null,
+    description: insertData.description || null,
     is_active: true,
-  })
+  }).select().single()
 
   if (error) {
     console.error("Error creating adjustment type:", error)
     return { success: false, error: error.message }
+  }
+
+  // Nếu có danh sách nhân viên được chọn, thêm vào bảng junction
+  if (employee_ids && employee_ids.length > 0 && newType) {
+    const assignments = employee_ids.map(emp_id => ({
+      adjustment_type_id: newType.id,
+      employee_id: emp_id,
+    }))
+    
+    const { error: assignError } = await supabase
+      .from("adjustment_type_employees")
+      .insert(assignments)
+    
+    if (assignError) {
+      console.error("Error assigning employees:", assignError)
+      // Không return error vì adjustment type đã tạo thành công
+    }
   }
 
   revalidatePath("/dashboard/allowances")
@@ -90,18 +117,47 @@ export async function updateAdjustmentType(
     auto_rules?: AdjustmentAutoRules | null
     description?: string
     is_active?: boolean
+    employee_ids?: string[] // Danh sách ID nhân viên được chọn (nếu rỗng = toàn công ty)
   }
 ) {
   const supabase = await createClient()
 
+  // Tách employee_ids ra khỏi input để không gửi vào update
+  const { employee_ids, ...updateData } = input
+
   const { error } = await supabase
     .from("payroll_adjustment_types")
-    .update(input)
+    .update(updateData)
     .eq("id", id)
 
   if (error) {
     console.error("Error updating adjustment type:", error)
     return { success: false, error: error.message }
+  }
+
+  // Nếu có employee_ids trong input, cập nhật danh sách nhân viên
+  if (employee_ids !== undefined) {
+    // Xóa tất cả assignments cũ
+    await supabase
+      .from("adjustment_type_employees")
+      .delete()
+      .eq("adjustment_type_id", id)
+    
+    // Thêm assignments mới (nếu có)
+    if (employee_ids.length > 0) {
+      const assignments = employee_ids.map(emp_id => ({
+        adjustment_type_id: id,
+        employee_id: emp_id,
+      }))
+      
+      const { error: assignError } = await supabase
+        .from("adjustment_type_employees")
+        .insert(assignments)
+      
+      if (assignError) {
+        console.error("Error assigning employees:", assignError)
+      }
+    }
   }
 
   revalidatePath("/dashboard/allowances")

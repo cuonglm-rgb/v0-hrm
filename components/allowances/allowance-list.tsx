@@ -18,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   Select,
@@ -37,7 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Coins, Plus, Pencil, Trash2, AlertTriangle, Wallet, Ban } from "lucide-react"
+import { Coins, Plus, Pencil, Trash2, AlertTriangle, Wallet, Ban, Users } from "lucide-react"
 import { toast } from "sonner"
 import {
   createAdjustmentType,
@@ -52,8 +51,11 @@ import type {
   ExemptRequestType,
   RequestType,
   PenaltyCondition,
+  EmployeeWithRelations,
 } from "@/lib/types/database"
 import { listRequestTypes } from "@/lib/actions/request-type-actions"
+import { listEmployees } from "@/lib/actions/employee-actions"
+import { EmployeeMultiSelect } from "@/components/ui/employee-multi-select"
 
 interface AllowanceListProps {
   adjustments: PayrollAdjustmentType[]
@@ -84,15 +86,10 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
   const [deleting, setDeleting] = useState<PayrollAdjustmentType | null>(null)
   const [saving, setSaving] = useState(false)
   const [requestTypes, setRequestTypes] = useState<RequestType[]>([])
-
-  // Load danh sách loại phiếu từ database
-  useEffect(() => {
-    const loadRequestTypes = async () => {
-      const types = await listRequestTypes(true)
-      setRequestTypes(types)
-    }
-    loadRequestTypes()
-  }, [])
+  
+  // Danh sách nhân viên để chọn
+  const [employees, setEmployees] = useState<EmployeeWithRelations[]>([])
+  const [loadingEmployees, setLoadingEmployees] = useState(false)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -103,7 +100,28 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
     is_auto_applied: false,
     description: "",
     auto_rules: { ...defaultAutoRules },
+    apply_to_selected_employees: false, // Mới: toggle chọn nhân viên cụ thể
+    selected_employee_ids: [] as string[], // Mới: danh sách ID nhân viên được chọn
   })
+
+  // Load danh sách loại phiếu từ database
+  useEffect(() => {
+    const loadRequestTypes = async () => {
+      const types = await listRequestTypes(true)
+      setRequestTypes(types)
+    }
+    loadRequestTypes()
+  }, [])
+  
+  // Load danh sách nhân viên khi cần
+  useEffect(() => {
+    if (formData.is_auto_applied && formData.apply_to_selected_employees && employees.length === 0) {
+      setLoadingEmployees(true)
+      listEmployees()
+        .then(setEmployees)
+        .finally(() => setLoadingEmployees(false))
+    }
+  }, [formData.is_auto_applied, formData.apply_to_selected_employees, employees.length])
 
   const allowances = adjustments.filter((a) => a.category === "allowance")
   const deductions = adjustments.filter((a) => a.category === "deduction")
@@ -120,6 +138,8 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
       is_auto_applied: false,
       description: "",
       auto_rules: { ...defaultAutoRules },
+      apply_to_selected_employees: false,
+      selected_employee_ids: [],
     })
     setOpen(true)
   }
@@ -127,6 +147,9 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
   const handleOpenEdit = (item: PayrollAdjustmentType) => {
     setEditing(item)
     const rules = (item.auto_rules as AdjustmentAutoRules) || { ...defaultAutoRules }
+    
+    // Lấy danh sách employee_ids từ assigned_employees
+    const assignedIds = (item as any).assigned_employees?.map((ae: any) => ae.employee_id) || []
     
     setFormData({
       name: item.name,
@@ -143,6 +166,8 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
         ...rules,
         calculate_from: rules.calculate_from || "base_salary", // Đảm bảo có giá trị mặc định
       },
+      apply_to_selected_employees: assignedIds.length > 0,
+      selected_employee_ids: assignedIds,
     })
     setOpen(true)
   }
@@ -150,6 +175,12 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
   const handleSave = async () => {
     if (!formData.name.trim()) {
       toast.error("Tên là bắt buộc")
+      return
+    }
+
+    // Validate: Nếu chọn áp dụng cho nhân viên cụ thể thì phải chọn ít nhất 1 nhân viên
+    if (formData.is_auto_applied && formData.apply_to_selected_employees && formData.selected_employee_ids.length === 0) {
+      toast.error("Vui lòng chọn ít nhất 1 nhân viên")
       return
     }
 
@@ -179,6 +210,11 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
         }
       }
 
+      // Nếu không áp dụng cho nhân viên cụ thể, gửi mảng rỗng (= toàn công ty)
+      const employeeIds = formData.is_auto_applied && formData.apply_to_selected_employees
+        ? formData.selected_employee_ids
+        : []
+
       const data = {
         name: formData.name,
         code: formData.code || undefined,
@@ -192,6 +228,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
         auto_rules: formData.is_auto_applied || formData.calculation_type === "percentage" 
           ? autoRules 
           : undefined,
+        employee_ids: employeeIds,
       }
 
       if (editing) {
@@ -259,6 +296,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
               <TableHead className="text-right">Số tiền</TableHead>
               <TableHead>Cách tính</TableHead>
               <TableHead>Tự động</TableHead>
+              <TableHead>Phạm vi</TableHead>
               <TableHead>Trạng thái</TableHead>
               {isHROrAdmin && <TableHead className="text-right">Thao tác</TableHead>}
             </TableRow>
@@ -266,94 +304,113 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isHROrAdmin ? 7 : 6} className="text-center py-6 text-muted-foreground">
+                <TableCell colSpan={isHROrAdmin ? 8 : 7} className="text-center py-6 text-muted-foreground">
                   Chưa có dữ liệu
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <div>
-                      <span className="font-medium">{item.name}</span>
-                      {item.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {item.code ? (
-                      <code className="text-xs bg-muted px-2 py-1 rounded">{item.code}</code>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {item.amount > 0 ? (
-                      <>
-                        {item.calculation_type === "percentage" ? (
-                          <>{item.amount}%</>
-                        ) : (
-                          formatCurrency(item.amount)
+              items.map((item) => {
+                const assignedEmployees = (item as any).assigned_employees || []
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell>
+                      <div>
+                        <span className="font-medium">{item.name}</span>
+                        {item.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
                         )}
-                        {item.calculation_type === "daily" && (
-                          <span className="text-xs text-muted-foreground">/ngày</span>
-                        )}
-                        {item.calculation_type === "per_occurrence" && (
-                          <span className="text-xs text-muted-foreground">/lần</span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-muted-foreground">Theo công thức</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">
-                      {item.calculation_type === "fixed"
-                        ? "Cố định"
-                        : item.calculation_type === "daily"
-                        ? "Theo ngày"
-                        : item.calculation_type === "percentage"
-                        ? "% lương"
-                        : "Theo lần"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {item.is_auto_applied ? (
-                      <Badge className="bg-amber-100 text-amber-700 text-xs">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        Tự động
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="text-xs">Thủ công</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.is_active ? (
-                      <Badge className="bg-green-100 text-green-700 text-xs">Hoạt động</Badge>
-                    ) : (
-                      <Badge variant="secondary" className="text-xs">Tạm dừng</Badge>
-                    )}
-                  </TableCell>
-                  {isHROrAdmin && (
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(item)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleting(item)}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     </TableCell>
-                  )}
-                </TableRow>
-              ))
+                    <TableCell>
+                      {item.code ? (
+                        <code className="text-xs bg-muted px-2 py-1 rounded">{item.code}</code>
+                      ) : (
+                        "-"
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {item.amount > 0 ? (
+                        <>
+                          {item.calculation_type === "percentage" ? (
+                            <>{item.amount}%</>
+                          ) : (
+                            formatCurrency(item.amount)
+                          )}
+                          {item.calculation_type === "daily" && (
+                            <span className="text-xs text-muted-foreground">/ngày</span>
+                          )}
+                          {item.calculation_type === "per_occurrence" && (
+                            <span className="text-xs text-muted-foreground">/lần</span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">Theo công thức</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {item.calculation_type === "fixed"
+                          ? "Cố định"
+                          : item.calculation_type === "daily"
+                          ? "Theo ngày"
+                          : item.calculation_type === "percentage"
+                          ? "% lương"
+                          : "Theo lần"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {item.is_auto_applied ? (
+                        <Badge className="bg-amber-100 text-amber-700 text-xs">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Tự động
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">Thủ công</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.is_auto_applied ? (
+                        assignedEmployees.length > 0 ? (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 gap-1">
+                            <Users className="h-3 w-3" />
+                            {assignedEmployees.length} NV
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                            Toàn công ty
+                          </Badge>
+                        )
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.is_active ? (
+                        <Badge className="bg-green-100 text-green-700 text-xs">Hoạt động</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">Tạm dừng</Badge>
+                      )}
+                    </TableCell>
+                    {isHROrAdmin && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(item)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleting(item)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>
@@ -538,6 +595,65 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
             {formData.is_auto_applied && (
               <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
                 <h4 className="font-medium">Quy tắc tự động</h4>
+                
+                {/* Phần chọn phạm vi áp dụng */}
+                <div className="pt-3 border-t space-y-3">
+                  <Label className="text-sm">Phạm vi áp dụng:</Label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name="apply_scope"
+                        checked={!formData.apply_to_selected_employees}
+                        onChange={() => setFormData({ 
+                          ...formData, 
+                          apply_to_selected_employees: false,
+                          selected_employee_ids: []
+                        })}
+                        className="h-4 w-4 text-primary"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">Toàn công ty</div>
+                        <p className="text-xs text-muted-foreground">Áp dụng cho tất cả nhân viên</p>
+                      </div>
+                    </label>
+                    <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name="apply_scope"
+                        checked={formData.apply_to_selected_employees}
+                        onChange={() => setFormData({ 
+                          ...formData, 
+                          apply_to_selected_employees: true
+                        })}
+                        className="h-4 w-4 text-primary mt-0.5"
+                      />
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <div className="font-medium text-sm">Nhân viên cụ thể</div>
+                          <p className="text-xs text-muted-foreground">Chỉ áp dụng cho các nhân viên được chọn</p>
+                        </div>
+                        {formData.apply_to_selected_employees && (
+                          <div className="space-y-2">
+                            <EmployeeMultiSelect
+                              employees={employees}
+                              selected={formData.selected_employee_ids}
+                              onChange={(ids) => setFormData({ ...formData, selected_employee_ids: ids })}
+                              loading={loadingEmployees}
+                              placeholder="Tìm và chọn nhân viên..."
+                              maxHeight="150px"
+                            />
+                            {formData.selected_employee_ids.length > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Đã chọn {formData.selected_employee_ids.length} nhân viên
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </div>
 
                 {formData.category === "allowance" && (
                   <>
