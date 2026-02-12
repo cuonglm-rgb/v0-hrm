@@ -96,7 +96,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
     code: "",
     category: "allowance" as AdjustmentCategory,
     amount: "",
-    calculation_type: "fixed" as "fixed" | "daily" | "per_occurrence" | "percentage",
+    calculation_type: "fixed" as "fixed" | "daily" | "per_occurrence" | "percentage" | "percentage_insurance",
     is_auto_applied: false,
     description: "",
     auto_rules: { ...defaultAutoRules },
@@ -151,6 +151,12 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
     // Lấy danh sách employee_ids từ assigned_employees
     const assignedIds = (item as any).assigned_employees?.map((ae: any) => ae.employee_id) || []
     
+    // Determine calculation_type display value based on calculate_from
+    let displayCalculationType = item.calculation_type
+    if (item.calculation_type === "percentage" && rules.calculate_from === "insurance_salary") {
+      displayCalculationType = "percentage_insurance" as any
+    }
+    
     setFormData({
       name: item.name,
       code: item.code || "",
@@ -158,7 +164,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
       amount: item.calculation_type === "percentage" 
         ? item.amount.toString() 
         : formatInputCurrency(item.amount.toString()),
-      calculation_type: item.calculation_type,
+      calculation_type: displayCalculationType,
       is_auto_applied: item.is_auto_applied,
       description: item.description || "",
       auto_rules: {
@@ -203,7 +209,17 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
       }
 
       // Đảm bảo calculate_from được set cho percentage type
-      if (formData.calculation_type === "percentage") {
+      // Xử lý calculation_type: nếu là percentage_insurance thì chuyển về percentage và set calculate_from
+      let actualCalculationType: "fixed" | "daily" | "per_occurrence" | "percentage" = formData.calculation_type === "percentage_insurance" 
+        ? "percentage" 
+        : formData.calculation_type as "fixed" | "daily" | "per_occurrence" | "percentage"
+      
+      if (formData.calculation_type === "percentage_insurance") {
+        autoRules = {
+          ...autoRules,
+          calculate_from: "insurance_salary"
+        }
+      } else if (formData.calculation_type === "percentage") {
         autoRules = {
           ...autoRules,
           calculate_from: formData.auto_rules.calculate_from || "base_salary"
@@ -219,13 +235,13 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
         name: formData.name,
         code: formData.code || undefined,
         category: formData.category,
-        amount: formData.calculation_type === "percentage" 
+        amount: actualCalculationType === "percentage" 
           ? parseFloat(formData.amount) || 0
           : parseFloat(formData.amount.replace(/[^\d]/g, "")) || 0,
-        calculation_type: formData.calculation_type,
+        calculation_type: actualCalculationType,
         is_auto_applied: formData.is_auto_applied,
         description: formData.description || undefined,
-        auto_rules: formData.is_auto_applied || formData.calculation_type === "percentage" 
+        auto_rules: formData.is_auto_applied || actualCalculationType === "percentage" 
           ? autoRules 
           : undefined,
         employee_ids: employeeIds,
@@ -354,7 +370,9 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                           : item.calculation_type === "daily"
                           ? "Theo ngày"
                           : item.calculation_type === "percentage"
-                          ? "% lương"
+                          ? (item.auto_rules as AdjustmentAutoRules)?.calculate_from === "insurance_salary"
+                            ? "% lương BHXH"
+                            : "% lương"
                           : "Theo lần"}
                       </Badge>
                     </TableCell>
@@ -480,51 +498,61 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label>Cách tính</Label>
+              <Select
+                value={formData.calculation_type}
+                onValueChange={(v: "fixed" | "daily" | "per_occurrence" | "percentage" | "percentage_insurance") => {
+                  setFormData({ ...formData, calculation_type: v })
+                  // Set calculate_from based on calculation_type
+                  if (v === "percentage") {
+                    setFormData(prev => ({
+                      ...prev,
+                      calculation_type: v,
+                      auto_rules: { ...prev.auto_rules, calculate_from: "base_salary" }
+                    }))
+                  } else if (v === "percentage_insurance") {
+                    setFormData(prev => ({
+                      ...prev,
+                      calculation_type: "percentage",
+                      auto_rules: { ...prev.auto_rules, calculate_from: "insurance_salary" }
+                    }))
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fixed">Cố định/tháng</SelectItem>
+                  <SelectItem value="daily">Theo ngày công</SelectItem>
+                  <SelectItem value="per_occurrence">Theo lần vi phạm</SelectItem>
+                  <SelectItem value="percentage">Theo % lương</SelectItem>
+                  <SelectItem value="percentage_insurance">Theo % lương BHXH</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Hiển thị field Số tiền hoặc % tùy theo calculation_type */}
-            {formData.calculation_type === "percentage" ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Phần trăm lương (%)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={formData.amount}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setFormData({ ...formData, amount: e.target.value })
-                    }
-                    placeholder="8"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    VD: 8 = 8% lương
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Tính từ</Label>
-                  <Select
-                    value={formData.auto_rules.calculate_from || "base_salary"}
-                    onValueChange={(v: "base_salary" | "insurance_salary") =>
-                      setFormData({
-                        ...formData,
-                        auto_rules: { ...formData.auto_rules, calculate_from: v },
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="base_salary">Lương cơ bản</SelectItem>
-                      <SelectItem value="insurance_salary">Lương BHXH</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Chọn loại lương để tính %
-                  </p>
-                </div>
-              </>
+            {(formData.calculation_type === "percentage" || formData.calculation_type === "percentage_insurance") ? (
+              <div className="space-y-2">
+                <Label htmlFor="amount">Phần trăm lương (%)</Label>
+                <Input
+                  id="amount"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={formData.amount}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setFormData({ ...formData, amount: e.target.value })
+                  }
+                  placeholder="8"
+                />
+                <p className="text-xs text-muted-foreground">
+                  VD: 8 = 8% {formData.calculation_type === "percentage_insurance" || formData.auto_rules.calculate_from === "insurance_salary" ? "lương BHXH" : "lương cơ bản"}
+                </p>
+              </div>
             ) : (formData.category !== "penalty" || formData.auto_rules.penalty_type === "fixed_amount") && (
               <div className="space-y-2">
                 <Label htmlFor="amount">
@@ -546,26 +574,6 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                 </p>
               </div>
             )}
-
-            <div className="space-y-2">
-              <Label>Cách tính</Label>
-              <Select
-                value={formData.calculation_type}
-                onValueChange={(v: "fixed" | "daily" | "per_occurrence" | "percentage") =>
-                  setFormData({ ...formData, calculation_type: v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fixed">Cố định/tháng</SelectItem>
-                  <SelectItem value="daily">Theo ngày công</SelectItem>
-                  <SelectItem value="per_occurrence">Theo lần vi phạm</SelectItem>
-                  <SelectItem value="percentage">Theo % lương</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="description">Mô tả</Label>

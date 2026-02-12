@@ -782,6 +782,23 @@ export async function processAdjustments(
     for (const adjType of adjustmentTypes as PayrollAdjustmentType[]) {
       if (!adjType.is_auto_applied) continue
 
+      // Kiểm tra phạm vi áp dụng: Nếu có assigned_employees thì chỉ áp dụng cho nhân viên được chọn
+      const { data: assignedEmployees } = await supabase
+        .from("adjustment_type_employees")
+        .select("employee_id")
+        .eq("adjustment_type_id", adjType.id)
+      
+      // Nếu có danh sách nhân viên được chọn (không rỗng)
+      if (assignedEmployees && assignedEmployees.length > 0) {
+        // Kiểm tra nhân viên hiện tại có trong danh sách không
+        const isAssigned = assignedEmployees.some((ae: any) => ae.employee_id === emp.id)
+        if (!isAssigned) {
+          console.log(`[Adjustment] Bỏ qua ${adjType.name} - không áp dụng cho nhân viên này`)
+          continue // Bỏ qua adjustment type này
+        }
+      }
+      // Nếu không có ai được chọn (rỗng) -> áp dụng toàn công ty -> tiếp tục xử lý
+
       const rules = adjType.auto_rules as AdjustmentAutoRules | null
       const empOverride = empAdjustments?.find((ea: any) => ea.adjustment_type_id === adjType.id)
 

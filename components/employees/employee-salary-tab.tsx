@@ -545,7 +545,9 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                                     : adj.calculation_type === "daily"
                                     ? "Theo ngày"
                                     : adj.calculation_type === "percentage"
-                                    ? "% lương"
+                                    ? (adj.auto_rules as any)?.calculate_from === "insurance_salary"
+                                      ? "% lương BHXH"
+                                      : "% lương"
                                     : "Theo lần"}
                                 </Badge>
                               </td>
