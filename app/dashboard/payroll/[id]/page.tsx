@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { getPayrollRun, getPayrollItems, calculateStandardWorkingDays } from "@/lib/actions/payroll-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
+import { listDepartments } from "@/lib/actions/department-actions"
 import { PayrollDetailPanel } from "@/components/payroll/payroll-detail-panel"
 
 interface PageProps {
@@ -22,12 +23,13 @@ export default async function PayrollDetailPage({ params }: PageProps) {
     redirect("/login")
   }
 
-  const [employee, userRoles, payrollRun, payrollItems, canApproveRequests] = await Promise.all([
+  const [employee, userRoles, payrollRun, payrollItems, canApproveRequests, departments] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     getPayrollRun(id),
     getPayrollItems(id),
     checkCanApproveRequests(),
+    listDepartments(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
@@ -58,6 +60,7 @@ export default async function PayrollDetailPage({ params }: PageProps) {
           payrollItems={payrollItems} 
           standardWorkingDays={workingDaysInfo.standardDays}
           workingDaysInfo={workingDaysInfo}
+          departments={departments}
         />
       </div>
     </DashboardLayout>

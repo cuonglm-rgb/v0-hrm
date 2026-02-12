@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { lockPayroll, markPayrollPaid, sendPayrollForReview, getPayrollAdjustmentDetails, addManualAdjustment, deleteAdjustmentDetail, recalculateSingleEmployee, getPayrollExportData } from "@/lib/actions/payroll-actions"
-import type { PayrollRun, PayrollItemWithRelations } from "@/lib/types/database"
+import type { PayrollRun, PayrollItemWithRelations, Department } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
-import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar, TrendingUp, TrendingDown, RefreshCw, Pencil, Plus, Trash2, Download, CheckSquare, Square } from "lucide-react"
+import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar, TrendingUp, TrendingDown, RefreshCw, Pencil, Plus, Trash2, Download, CheckSquare, Square, Search, Filter } from "lucide-react"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 
@@ -31,6 +31,7 @@ interface PayrollDetailPanelProps {
   payrollItems: PayrollItemWithRelations[]
   standardWorkingDays?: number
   workingDaysInfo?: WorkingDaysInfo
+  departments?: Department[]
 }
 
 interface AdjustmentDetail {
@@ -51,7 +52,8 @@ export function PayrollDetailPanel({
   payrollRun, 
   payrollItems, 
   standardWorkingDays = 26,
-  workingDaysInfo 
+  workingDaysInfo,
+  departments = []
 }: PayrollDetailPanelProps) {
   const [loading, setLoading] = useState<"review" | "lock" | "paid" | null>(null)
   const [selectedItem, setSelectedItem] = useState<PayrollItemWithRelations | null>(null)
@@ -64,9 +66,13 @@ export function PayrollDetailPanel({
   const [addAmount, setAddAmount] = useState("")
   const [addReason, setAddReason] = useState("")
   const [isAdding, setIsAdding] = useState(false)
-  const [localPayrollItems, setLocalPayrollItems] = useState(payrollItems)
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set())
   const [isExporting, setIsExporting] = useState(false)
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<"name-asc" | "name-desc" | "salary-asc" | "salary-desc" | "days-asc" | "days-desc">("name-asc")
 
   const loadAdjustmentDetails = async (payrollItemId: string) => {
     setIsLoading(true)
@@ -82,12 +88,54 @@ export function PayrollDetailPanel({
     }
   }
 
+  // Filter and sort logic
+  const filteredAndSortedItems = useMemo(() => {
+    let filtered = [...payrollItems]
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter((item) => {
+        const name = item.employee?.full_name?.toLowerCase() || ""
+        const code = item.employee?.employee_code?.toLowerCase() || ""
+        return name.includes(query) || code.includes(query)
+      })
+    }
+
+    // Department filter
+    if (selectedDepartment !== "all") {
+      filtered = filtered.filter((item) => item.employee?.department_id === selectedDepartment)
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "name-asc":
+          return (a.employee?.full_name || "").localeCompare(b.employee?.full_name || "", "vi")
+        case "name-desc":
+          return (b.employee?.full_name || "").localeCompare(a.employee?.full_name || "", "vi")
+        case "salary-asc":
+          return (a.net_salary || 0) - (b.net_salary || 0)
+        case "salary-desc":
+          return (b.net_salary || 0) - (a.net_salary || 0)
+        case "days-asc":
+          return (a.working_days || 0) - (b.working_days || 0)
+        case "days-desc":
+          return (b.working_days || 0) - (a.working_days || 0)
+        default:
+          return 0
+      }
+    })
+
+    return filtered
+  }, [payrollItems, searchQuery, selectedDepartment, sortBy])
+
   // Selection handlers
   const toggleSelectAll = () => {
-    if (selectedEmployeeIds.size === localPayrollItems.length) {
+    if (selectedEmployeeIds.size === filteredAndSortedItems.length) {
       setSelectedEmployeeIds(new Set())
     } else {
-      setSelectedEmployeeIds(new Set(localPayrollItems.map((item) => item.employee_id)))
+      setSelectedEmployeeIds(new Set(filteredAndSortedItems.map((item) => item.employee_id)))
     }
   }
 
@@ -329,10 +377,10 @@ export function PayrollDetailPanel({
     }
   }
 
-  // Tính tổng
-  const totalGross = payrollItems.reduce((sum, item) => sum + (item.total_income || 0), 0)
-  const totalDeduction = payrollItems.reduce((sum, item) => sum + (item.total_deduction || 0), 0)
-  const totalNet = payrollItems.reduce((sum, item) => sum + (item.net_salary || 0), 0)
+  // Tính tổng (dựa trên filtered items)
+  const totalGross = filteredAndSortedItems.reduce((sum, item) => sum + (item.total_income || 0), 0)
+  const totalDeduction = filteredAndSortedItems.reduce((sum, item) => sum + (item.total_deduction || 0), 0)
+  const totalNet = filteredAndSortedItems.reduce((sum, item) => sum + (item.net_salary || 0), 0)
 
   return (
     <div className="space-y-6">
@@ -428,7 +476,12 @@ export function PayrollDetailPanel({
               <Users className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">Nhân viên</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{payrollItems.length}</p>
+            <p className="text-2xl font-bold mt-1">
+              {filteredAndSortedItems.length}
+              {filteredAndSortedItems.length !== payrollItems.length && (
+                <span className="text-sm text-muted-foreground ml-1">/ {payrollItems.length}</span>
+              )}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -459,6 +512,88 @@ export function PayrollDetailPanel({
         </Card>
       </div>
 
+      {/* Bộ lọc */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            <CardTitle>Bộ lọc và tìm kiếm</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Tìm kiếm */}
+            <div className="space-y-2">
+              <Label>Tìm kiếm nhân viên</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Tên hoặc mã nhân viên..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            {/* Lọc theo phòng ban */}
+            <div className="space-y-2">
+              <Label>Phòng ban</Label>
+              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tất cả phòng ban" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả phòng ban</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sắp xếp */}
+            <div className="space-y-2">
+              <Label>Sắp xếp theo</Label>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">Tên (A → Z)</SelectItem>
+                  <SelectItem value="name-desc">Tên (Z → A)</SelectItem>
+                  <SelectItem value="salary-desc">Lương (Cao → Thấp)</SelectItem>
+                  <SelectItem value="salary-asc">Lương (Thấp → Cao)</SelectItem>
+                  <SelectItem value="days-desc">Ngày công (Nhiều → Ít)</SelectItem>
+                  <SelectItem value="days-asc">Ngày công (Ít → Nhiều)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Hiển thị số kết quả */}
+          <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+            <span>
+              Hiển thị {filteredAndSortedItems.length} / {payrollItems.length} nhân viên
+            </span>
+            {(searchQuery || selectedDepartment !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("")
+                  setSelectedDepartment("all")
+                }}
+              >
+                Xóa bộ lọc
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Bảng chi tiết */}
       <Card>
         <CardHeader>
@@ -475,9 +610,9 @@ export function PayrollDetailPanel({
                   <button
                     onClick={toggleSelectAll}
                     className="flex items-center justify-center"
-                    title={selectedEmployeeIds.size === localPayrollItems.length ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                    title={selectedEmployeeIds.size === filteredAndSortedItems.length ? "Bỏ chọn tất cả" : "Chọn tất cả"}
                   >
-                    {selectedEmployeeIds.size === localPayrollItems.length && localPayrollItems.length > 0 ? (
+                    {selectedEmployeeIds.size === filteredAndSortedItems.length && filteredAndSortedItems.length > 0 ? (
                       <CheckSquare className="h-4 w-4 text-primary" />
                     ) : (
                       <Square className="h-4 w-4 text-muted-foreground" />
@@ -500,14 +635,16 @@ export function PayrollDetailPanel({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {localPayrollItems.length === 0 ? (
+              {filteredAndSortedItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={12} className="text-center text-muted-foreground">
-                    Chưa có dữ liệu
+                    {searchQuery || selectedDepartment !== "all" 
+                      ? "Không tìm thấy nhân viên phù hợp" 
+                      : "Chưa có dữ liệu"}
                   </TableCell>
                 </TableRow>
               ) : (
-                localPayrollItems.map((item) => (
+                filteredAndSortedItems.map((item) => (
                   <TableRow 
                     key={item.id} 
                     className="cursor-pointer hover:bg-muted/50"
