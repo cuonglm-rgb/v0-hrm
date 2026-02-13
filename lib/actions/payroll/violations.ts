@@ -181,9 +181,18 @@ export async function getEmployeeViolations(
       } else if (hasForgotCheckoutRequest) {
         forgotCheckOut = true
         console.log(`[Violations] Ngày ${dateStr}: Có phiếu quên chấm công về - TÍNH LÀ VI PHẠM`)
+        
+        // Kiểm tra xem giờ checkout trong phiếu có trước giờ nghỉ trưa không
+        if (breakStartMinutes > 0 && breakEndMinutes > 0 && checkOutMinutes <= breakEndMinutes) {
+          // Checkout trước/trong giờ nghỉ → chỉ làm nửa ngày sáng
+          isHalfDay = true
+          console.log(`[Violations] Ngày ${dateStr}: Phiếu checkout lúc ${Math.floor(checkOutMinutes/60)}:${String(checkOutMinutes%60).padStart(2,'0')} - chỉ làm ca sáng`)
+        } else {
+          isHalfDay = false
+        }
+        
         lateMinutes = 0
         earlyMinutes = 0
-        isHalfDay = false
       }
       // Nếu không có phiếu, kiểm tra check_in/check_out gốc
       else if (!log.check_in) {
@@ -198,75 +207,27 @@ export async function getEmployeeViolations(
         earlyMinutes = 0
         isHalfDay = false
       } else {
-        // Có đủ check_in và check_out - áp dụng logic 120 phút cho mỗi ca
-        const THRESHOLD_MINUTES = 120
-        
-        // Tính vi phạm cho mỗi ca
-        let morningSessionValid = true  // Ca sáng có hợp lệ không
-        let afternoonSessionValid = true // Ca chiều có hợp lệ không
+        // Có đủ check_in và check_out - tính vi phạm đơn giản
         
         if (breakStartMinutes > 0 && breakEndMinutes > 0) {
-          // === CA SÁNG: từ shiftStart đến breakStart ===
-          // Kiểm tra đi muộn ca sáng
-          const morningLateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
+          // Có giờ nghỉ trưa - kiểm tra xem có làm đủ 2 ca không
           
-          // Kiểm tra về sớm ca sáng (nếu checkout trước giờ nghỉ trưa)
-          let morningEarlyMinutes = 0
-          if (checkOutMinutes < breakStartMinutes) {
-            morningEarlyMinutes = breakStartMinutes - checkOutMinutes
-          }
-          
-          // Ca sáng không hợp lệ nếu muộn hoặc về sớm quá 120 phút
-          if (morningLateMinutes > THRESHOLD_MINUTES || morningEarlyMinutes > THRESHOLD_MINUTES) {
-            morningSessionValid = false
-          }
-          
-          // === CA CHIỀU: từ breakEnd đến shiftEnd ===
-          // Kiểm tra đi muộn ca chiều (nếu checkin sau giờ nghỉ trưa)
-          let afternoonLateMinutes = 0
-          if (checkInMinutes > breakEndMinutes) {
-            afternoonLateMinutes = checkInMinutes - breakEndMinutes
-          }
-          
-          // Kiểm tra về sớm ca chiều
-          let afternoonEarlyMinutes = 0
-          // Nếu checkout trước hoặc trong giờ nghỉ trưa → không làm ca chiều
+          // Kiểm tra checkout có trước hoặc trong giờ nghỉ trưa không
           if (checkOutMinutes <= breakEndMinutes) {
-            // Coi như không làm ca chiều, set về sớm = vô cùng để đánh dấu ca không hợp lệ
-            afternoonEarlyMinutes = 999999
-          } else if (checkOutMinutes < shiftEndMinutes) {
-            // Checkout sau giờ nghỉ nhưng trước giờ tan ca
-            afternoonEarlyMinutes = shiftEndMinutes - checkOutMinutes
-          }
-          
-          // Ca chiều không hợp lệ nếu muộn hoặc về sớm quá 120 phút
-          if (afternoonLateMinutes > THRESHOLD_MINUTES || afternoonEarlyMinutes > THRESHOLD_MINUTES) {
-            afternoonSessionValid = false
-          }
-          
-          // Xác định isHalfDay dựa trên ca nào hợp lệ
-          if (!morningSessionValid && !afternoonSessionValid) {
-            // Cả 2 ca đều không hợp lệ → vắng mặt, KHÔNG tính phạt
-            isHalfDay = false
-            lateMinutes = 0
-            earlyMinutes = 0
-          } else if (!morningSessionValid) {
-            // Chỉ ca chiều hợp lệ → làm nửa ngày chiều
-            // Ca sáng không tính công → KHÔNG phạt ca sáng
+            // Checkout trước/trong giờ nghỉ → chỉ làm nửa ngày sáng
             isHalfDay = true
-            lateMinutes = afternoonLateMinutes
-            earlyMinutes = afternoonEarlyMinutes
-          } else if (!afternoonSessionValid) {
-            // Chỉ ca sáng hợp lệ → làm nửa ngày sáng
-            // Ca chiều không tính công → KHÔNG phạt ca chiều
-            isHalfDay = true
-            lateMinutes = morningLateMinutes
-            earlyMinutes = morningEarlyMinutes
+            lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
+            
+            // Tính về sớm ca sáng (nếu checkout trước giờ nghỉ trưa)
+            if (checkOutMinutes < breakStartMinutes) {
+              earlyMinutes = breakStartMinutes - checkOutMinutes
+            }
+            
             console.log(`[Violations] Ngày ${dateStr}: Chỉ làm ca sáng (checkout lúc ${Math.floor(checkOutMinutes/60)}:${String(checkOutMinutes%60).padStart(2,'0')})`)
           } else {
-            // Cả 2 ca đều hợp lệ → làm cả ngày
+            // Checkout sau giờ nghỉ → làm cả ngày
             isHalfDay = false
-            lateMinutes = morningLateMinutes
+            lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
             
             // Tính về sớm nếu checkout trước giờ tan ca
             if (checkOutMinutes < shiftEndMinutes) {
@@ -274,7 +235,7 @@ export async function getEmployeeViolations(
             }
           }
         } else {
-          // Không có giờ nghỉ trưa → tính như cũ
+          // Không có giờ nghỉ trưa → tính đơn giản
           lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
           if (checkOutMinutes < shiftEndMinutes) {
             earlyMinutes = shiftEndMinutes - checkOutMinutes
