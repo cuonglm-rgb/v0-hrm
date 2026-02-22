@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { OTSetting, OvertimeRecordWithRelations, EmployeeOTRateWithRelations, Holiday } from "@/lib/types/database"
 import { getLastDayOfMonthVN, getNowVN } from "@/lib/utils/date-utils"
+import { lunarToSolarDate } from "@/lib/utils/lunar-calendar"
 
 // =============================================
 // OT SETTINGS ACTIONS
@@ -243,6 +244,9 @@ export async function createHoliday(input: {
   holiday_date: string
   year: number
   is_recurring?: boolean
+  is_lunar?: boolean
+  lunar_month?: number
+  lunar_day?: number
   description?: string
 }) {
   const supabase = await createClient()
@@ -252,6 +256,9 @@ export async function createHoliday(input: {
     holiday_date: input.holiday_date,
     year: input.year,
     is_recurring: input.is_recurring || false,
+    is_lunar: input.is_lunar || false,
+    lunar_month: input.lunar_month || null,
+    lunar_day: input.lunar_day || null,
     description: input.description || null,
   })
 
@@ -264,6 +271,64 @@ export async function createHoliday(input: {
   return { success: true }
 }
 
+export async function createHolidayRange(input: {
+  name: string
+  start_date: string
+  end_date: string
+  is_recurring?: boolean
+  is_lunar?: boolean
+  lunar_month?: number
+  lunar_day?: number
+  lunar_end_day?: number
+  description?: string
+}) {
+  const supabase = await createClient()
+
+  const start = new Date(input.start_date)
+  const end = new Date(input.end_date)
+
+  if (end < start) {
+    return { success: false, error: "Ngày kết thúc phải sau ngày bắt đầu" }
+  }
+
+  const rows: {
+    name: string
+    holiday_date: string
+    year: number
+    is_recurring: boolean
+    is_lunar: boolean
+    lunar_month: number | null
+    lunar_day: number | null
+    description: string | null
+  }[] = []
+
+  let lunarDayCounter = input.lunar_day || 0
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dateStr = d.toISOString().split("T")[0]
+    rows.push({
+      name: input.name,
+      holiday_date: dateStr,
+      year: d.getFullYear(),
+      is_recurring: input.is_recurring || false,
+      is_lunar: input.is_lunar || false,
+      lunar_month: input.lunar_month || null,
+      lunar_day: input.is_lunar ? lunarDayCounter : null,
+      description: input.description || null,
+    })
+    lunarDayCounter++
+  }
+
+  const { error } = await supabase.from("holidays").insert(rows)
+
+  if (error) {
+    console.error("Error creating holiday range:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/allowances")
+  return { success: true, count: rows.length }
+}
+
 export async function updateHoliday(
   id: string,
   input: {
@@ -271,6 +336,9 @@ export async function updateHoliday(
     holiday_date?: string
     year?: number
     is_recurring?: boolean
+    is_lunar?: boolean
+    lunar_month?: number | null
+    lunar_day?: number | null
     description?: string
   }
 ) {
@@ -302,6 +370,88 @@ export async function deleteHoliday(id: string) {
 
   revalidatePath("/dashboard/allowances")
   return { success: true }
+}
+
+export async function regenerateLunarHolidays(year: number) {
+  const supabase = await createClient()
+
+  // Get all lunar-based recurring holidays (get unique lunar dates from any year)
+  const { data: lunarHolidays, error: fetchError } = await supabase
+    .from("holidays")
+    .select("*")
+    .eq("is_lunar", true)
+    .eq("is_recurring", true)
+    .not("lunar_month", "is", null)
+    .not("lunar_day", "is", null)
+
+  if (fetchError) {
+    console.error("Error fetching lunar holidays:", fetchError)
+    return { success: false, error: fetchError.message }
+  }
+
+  if (!lunarHolidays || lunarHolidays.length === 0) {
+    return { success: true, count: 0 }
+  }
+
+  // Group by name to handle date ranges
+  const grouped = new Map<string, typeof lunarHolidays>()
+  for (const h of lunarHolidays) {
+    const key = h.name
+    if (!grouped.has(key)) grouped.set(key, [])
+    grouped.get(key)!.push(h)
+  }
+
+  // Delete existing lunar entries for this year with same names
+  const names = [...grouped.keys()]
+  await supabase
+    .from("holidays")
+    .delete()
+    .eq("year", year)
+    .eq("is_lunar", true)
+    .in("name", names)
+
+  // Create new entries with converted dates
+  const rows: {
+    name: string
+    holiday_date: string
+    year: number
+    is_recurring: boolean
+    is_lunar: boolean
+    lunar_month: number
+    lunar_day: number
+    description: string | null
+  }[] = []
+
+  for (const [name, items] of grouped) {
+    const lunarDays = [...new Set(items.map(i => `${i.lunar_month}-${i.lunar_day}`))]
+    for (const ld of lunarDays) {
+      const [lm, ldDay] = ld.split("-").map(Number)
+      const solarDate = lunarToSolarDate(ldDay, lm, year)
+      if (solarDate) {
+        rows.push({
+          name,
+          holiday_date: solarDate,
+          year,
+          is_recurring: true,
+          is_lunar: true,
+          lunar_month: lm,
+          lunar_day: ldDay,
+          description: items[0].description,
+        })
+      }
+    }
+  }
+
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase.from("holidays").insert(rows)
+    if (insertError) {
+      console.error("Error regenerating lunar holidays:", insertError)
+      return { success: false, error: insertError.message }
+    }
+  }
+
+  revalidatePath("/dashboard/allowances")
+  return { success: true, count: rows.length }
 }
 
 // Kiểm tra ngày có phải ngày lễ không

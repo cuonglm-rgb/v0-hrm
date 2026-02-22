@@ -444,6 +444,9 @@ export interface Holiday {
   holiday_date: string
   year: number
   is_recurring: boolean
+  is_lunar: boolean
+  lunar_month: number | null
+  lunar_day: number | null
   description: string | null
   created_at: string
 }
