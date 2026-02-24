@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import type { PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
-import { Wallet, Calendar, TrendingUp, TrendingDown } from "lucide-react"
+import { Wallet, Calendar, TrendingUp, TrendingDown, Eye, EyeOff } from "lucide-react"
 import { useState } from "react"
 import { getPayrollAdjustmentDetails } from "@/lib/actions/payroll-actions"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -34,6 +34,7 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
   const [selectedPayslip, setSelectedPayslip] = useState<PayrollItemWithRelations | null>(null)
   const [adjustmentDetails, setAdjustmentDetails] = useState<AdjustmentDetail[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [showSalary, setShowSalary] = useState(false)
 
   const getStatusBadge = (status: string | undefined) => {
     switch (status) {
@@ -99,14 +100,18 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                 <p className="text-sm text-muted-foreground">Nghỉ không lương</p>
                 <p className="text-2xl font-bold">{latestPayslip.unpaid_leave_days || 0}</p>
               </div>
-              <div className="p-4 bg-primary/10 rounded-lg">
-                <p className="text-sm text-muted-foreground">Thực lĩnh</p>
+              <div className="p-4 bg-primary/10 rounded-lg cursor-pointer select-none" onClick={() => setShowSalary(!showSalary)}>
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  Thực lĩnh
+                  {showSalary ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </p>
                 <p className="text-2xl font-bold text-primary">
-                  {formatCurrency(latestPayslip.net_salary)}
+                  {showSalary ? formatCurrency(latestPayslip.net_salary) : "••••••••"}
                 </p>
               </div>
             </div>
 
+            {showSalary && (
             <div className="space-y-3">
               <div className="flex justify-between py-2 border-b">
                 <span className="text-muted-foreground">Lương cơ bản</span>
@@ -140,6 +145,8 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                   {formatCurrency(latestPayslip.net_salary)}
                 </span>
               </div>
+            </div>
+            )}
               
               <button
                 onClick={() => handleViewDetails(latestPayslip)}
@@ -147,7 +154,6 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
               >
                 Xem chi tiết cơ cấu lương
               </button>
-            </div>
           </CardContent>
         </Card>
       )}
@@ -169,7 +175,6 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                 <TableHead className="text-right">Ngày công</TableHead>
                 <TableHead className="text-right">Thu nhập</TableHead>
                 <TableHead className="text-right">Khấu trừ</TableHead>
-                <TableHead className="text-right">Thực lĩnh</TableHead>
                 <TableHead>Trạng thái</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -177,7 +182,7 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
             <TableBody>
               {payslips.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     Chưa có phiếu lương nào
                   </TableCell>
                 </TableRow>
@@ -189,13 +194,10 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                     </TableCell>
                     <TableCell className="text-right">{payslip.working_days || 0}</TableCell>
                     <TableCell className="text-right text-blue-600">
-                      {formatCurrency(payslip.total_income)}
+                      {showSalary ? formatCurrency(payslip.total_income) : "••••••"}
                     </TableCell>
                     <TableCell className="text-right text-red-600">
-                      {formatCurrency(payslip.total_deduction)}
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-green-600">
-                      {formatCurrency(payslip.net_salary)}
+                      {showSalary ? formatCurrency(payslip.total_deduction) : "••••••"}
                     </TableCell>
                     <TableCell>{getStatusBadge(payslip.payroll_run?.status)}</TableCell>
                     <TableCell>
