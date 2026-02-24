@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createRequestType, updateRequestType, deleteRequestType } from "@/lib/actions/request-type-actions"
+import { applyToggleCoupling } from "@/lib/utils/time-slot-utils"
 import type { RequestType, Position, CustomField, CustomFieldType } from "@/lib/types/database"
 import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip, Users, GripVertical } from "lucide-react"
 import { toast } from "sonner"
@@ -34,6 +35,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
     requires_single_date: false,
     requires_time: false,
     requires_time_range: false,
+    allows_multiple_time_slots: false,
     requires_reason: true,
     requires_attachment: false,
     affects_attendance: false,
@@ -55,6 +57,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       requires_single_date: false,
       requires_time: false,
       requires_time_range: false,
+      allows_multiple_time_slots: false,
       requires_reason: true,
       requires_attachment: false,
       affects_attendance: false,
@@ -126,6 +129,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       requires_single_date: type.requires_single_date,
       requires_time: type.requires_time,
       requires_time_range: type.requires_time_range,
+      allows_multiple_time_slots: type.allows_multiple_time_slots || false,
       requires_reason: type.requires_reason,
       requires_attachment: type.requires_attachment,
       affects_attendance: type.affects_attendance,
@@ -253,7 +257,29 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
             <Switch
               id="requires_time_range"
               checked={formData.requires_time_range}
-              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, requires_time_range: checked }))}
+              onCheckedChange={(checked) => {
+                const coupled = applyToggleCoupling(formData.allows_multiple_time_slots, checked)
+                setFormData((prev) => ({
+                  ...prev,
+                  requires_time_range: coupled.requires_time_range,
+                  allows_multiple_time_slots: coupled.allows_multiple_time_slots,
+                }))
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="allows_multiple_time_slots">Cho phép nhiều khung giờ</Label>
+            <Switch
+              id="allows_multiple_time_slots"
+              checked={formData.allows_multiple_time_slots}
+              onCheckedChange={(checked) => {
+                const coupled = applyToggleCoupling(checked, formData.requires_time_range)
+                setFormData((prev) => ({
+                  ...prev,
+                  allows_multiple_time_slots: coupled.allows_multiple_time_slots,
+                  requires_time_range: coupled.requires_time_range,
+                }))
+              }}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -603,6 +629,12 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                         <Badge variant="outline" className="gap-1">
                           <Clock className="h-3 w-3" />
                           Từ-đến giờ
+                        </Badge>
+                      )}
+                      {type.allows_multiple_time_slots && (
+                        <Badge variant="outline" className="gap-1">
+                          <Clock className="h-3 w-3" />
+                          Nhiều khung giờ
                         </Badge>
                       )}
                       {type.requires_reason && (

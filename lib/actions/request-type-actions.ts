@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
+import { validateTimeSlot, validateNoOverlap } from "@/lib/utils/time-slot-utils"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
 import { differenceInDays, parseISO, startOfDay } from "date-fns"
 
@@ -69,6 +70,7 @@ export async function createRequestType(input: {
   submission_deadline?: number | null
   custom_fields?: CustomField[] | null
   display_order?: number
+  allows_multiple_time_slots?: boolean
 }) {
   const supabase = await createClient()
 
@@ -91,6 +93,7 @@ export async function createRequestType(input: {
     submission_deadline: input.submission_deadline,
     custom_fields: input.custom_fields || null,
     display_order: input.display_order ?? 0,
+    allows_multiple_time_slots: input.allows_multiple_time_slots ?? false,
   })
 
   if (error) {
@@ -123,6 +126,7 @@ export async function updateRequestType(
     custom_fields: CustomField[] | null
     is_active: boolean
     display_order: number
+    allows_multiple_time_slots: boolean
   }>
 ) {
   const supabase = await createClient()
@@ -279,7 +283,8 @@ export async function listEmployeeRequests(filters?: {
       *,
       employee:employees!employee_id(id, full_name, employee_code, department_id),
       approver:employees!approver_id(id, full_name),
-      request_type:request_types!request_type_id(*)
+      request_type:request_types!request_type_id(*),
+      time_slots:request_time_slots(*)
     `)
     .order("created_at", { ascending: false })
 
@@ -341,7 +346,8 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
         *,
         employee:employees!employee_id(id, full_name, employee_code, department_id),
         approver:employees!approver_id(id, full_name),
-        request_type:request_types!request_type_id(*)
+        request_type:request_types!request_type_id(*),
+        time_slots:request_time_slots(*)
       `)
       .order("created_at", { ascending: false })
 
@@ -393,7 +399,8 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
       *,
       employee:employees!employee_id(id, full_name, employee_code, department_id),
       approver:employees!approver_id(id, full_name),
-      request_type:request_types!request_type_id(*)
+      request_type:request_types!request_type_id(*),
+      time_slots:request_time_slots(*)
     `)
     .in("id", assignedRequestIds)
     .order("created_at", { ascending: false })
@@ -434,7 +441,8 @@ export async function getMyEmployeeRequests(): Promise<EmployeeRequestWithRelati
     .select(`
       *,
       request_type:request_types!request_type_id(*),
-      approver:employees!approver_id(id, full_name)
+      approver:employees!approver_id(id, full_name),
+      time_slots:request_time_slots(*)
     `)
     .eq("employee_id", employee.id)
     .order("created_at", { ascending: false })
@@ -459,6 +467,7 @@ export async function createEmployeeRequest(input: {
   attachment_url?: string
   assigned_approver_ids?: string[] // Danh sách người duyệt được chỉ định
   custom_data?: Record<string, string> // Dữ liệu từ custom fields
+  time_slots?: { from_time: string; to_time: string }[] // Nhiều khung giờ
 }) {
   const supabase = await createClient()
 
@@ -486,7 +495,7 @@ export async function createEmployeeRequest(input: {
   // Validate số dư phép và thời hạn tạo phiếu
   const { data: requestType } = await supabase
     .from("request_types")
-    .select("code, deduct_leave_balance, submission_deadline")
+    .select("code, deduct_leave_balance, submission_deadline, allows_multiple_time_slots")
     .eq("id", input.request_type_id)
     .single()
 
@@ -585,6 +594,43 @@ export async function createEmployeeRequest(input: {
       // Xóa phiếu nếu không lưu được người duyệt
       await supabase.from("employee_requests").delete().eq("id", newRequest.id)
       return { success: false, error: "Không thể lưu danh sách người duyệt" }
+    }
+  }
+
+  // Lưu nhiều khung giờ nếu loại phiếu hỗ trợ
+  if (newRequest && requestType?.allows_multiple_time_slots && input.time_slots && input.time_slots.length > 0) {
+    // Validate từng khung giờ
+    for (const slot of input.time_slots) {
+      const slotValidation = validateTimeSlot(slot.from_time, slot.to_time)
+      if (!slotValidation.valid) {
+        await supabase.from("employee_requests").delete().eq("id", newRequest.id)
+        return { success: false, error: slotValidation.error }
+      }
+    }
+
+    // Validate không chồng chéo
+    const overlapValidation = validateNoOverlap(input.time_slots)
+    if (!overlapValidation.valid) {
+      await supabase.from("employee_requests").delete().eq("id", newRequest.id)
+      return { success: false, error: overlapValidation.error }
+    }
+
+    // Insert time slots
+    const timeSlotRecords = input.time_slots.map((slot, index) => ({
+      request_id: newRequest.id,
+      from_time: slot.from_time,
+      to_time: slot.to_time,
+      slot_order: index,
+    }))
+
+    const { error: timeSlotsError } = await supabase
+      .from("request_time_slots")
+      .insert(timeSlotRecords)
+
+    if (timeSlotsError) {
+      console.error("Error saving time slots:", timeSlotsError)
+      await supabase.from("employee_requests").delete().eq("id", newRequest.id)
+      return { success: false, error: "Không thể lưu khung giờ" }
     }
   }
 
@@ -1193,6 +1239,7 @@ export async function updateEmployeeRequest(
     attachment_url?: string
     assigned_approver_ids?: string[]
     custom_data?: Record<string, string>
+    time_slots?: { from_time: string; to_time: string }[]
   }
 ) {
   const supabase = await createClient()
@@ -1287,6 +1334,53 @@ export async function updateEmployeeRequest(
     if (insertError) {
       console.error("Error inserting new approvers:", insertError)
       return { success: false, error: `Lỗi khi thêm người duyệt mới: ${insertError.message}` }
+    }
+  }
+
+  // Cập nhật time slots nếu có
+  if (input.time_slots !== undefined) {
+    // Validate từng khung giờ
+    for (const slot of input.time_slots) {
+      const slotValidation = validateTimeSlot(slot.from_time, slot.to_time)
+      if (!slotValidation.valid) {
+        return { success: false, error: slotValidation.error }
+      }
+    }
+
+    // Validate không chồng chéo
+    const overlapValidation = validateNoOverlap(input.time_slots)
+    if (!overlapValidation.valid) {
+      return { success: false, error: overlapValidation.error }
+    }
+
+    // Xóa slots cũ
+    const { error: deleteTimeSlotsError } = await supabase
+      .from("request_time_slots")
+      .delete()
+      .eq("request_id", id)
+
+    if (deleteTimeSlotsError && deleteTimeSlotsError.code !== "PGRST116") {
+      console.error("Error deleting old time slots:", deleteTimeSlotsError)
+      return { success: false, error: `Lỗi khi xóa khung giờ cũ: ${deleteTimeSlotsError.message}` }
+    }
+
+    // Insert slots mới
+    if (input.time_slots.length > 0) {
+      const timeSlotRecords = input.time_slots.map((slot, index) => ({
+        request_id: id,
+        from_time: slot.from_time,
+        to_time: slot.to_time,
+        slot_order: index,
+      }))
+
+      const { error: insertTimeSlotsError } = await supabase
+        .from("request_time_slots")
+        .insert(timeSlotRecords)
+
+      if (insertTimeSlotsError) {
+        console.error("Error inserting new time slots:", insertTimeSlotsError)
+        return { success: false, error: `Lỗi khi lưu khung giờ mới: ${insertTimeSlotsError.message}` }
+      }
     }
   }
 

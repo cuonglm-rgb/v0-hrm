@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/request-type-actions"
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
+import { getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
 import {
   Dialog,
   DialogContent,
@@ -90,7 +91,10 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       employeeCode: r.employee?.employee_code || "",
       fromDate: r.from_date || r.request_date,
       toDate: r.to_date,
-      time: r.request_time || (r.from_time && r.to_time ? `${r.from_time} - ${r.to_time}` : null),
+      time: r.request_time || (() => {
+        const slots = getTimeSlotsWithFallback(r.time_slots, r.from_time, r.to_time)
+        return slots.length > 0 ? formatTimeSlots(slots) : null
+      })(),
       reason: r.reason,
       status: r.status,
       attachmentUrl: r.attachment_url,
@@ -778,7 +782,25 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                     <Clock className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     <div>
                       <p className="text-sm font-medium">Giờ</p>
-                      <p className="text-sm text-muted-foreground">{viewingRequest.time}</p>
+                      {(() => {
+                        const slots = getTimeSlotsWithFallback(
+                          viewingRequest.originalData.time_slots,
+                          viewingRequest.originalData.from_time,
+                          viewingRequest.originalData.to_time
+                        )
+                        if (slots.length > 1) {
+                          return (
+                            <div className="space-y-1">
+                              {slots.map((slot, i) => (
+                                <p key={i} className="text-sm text-muted-foreground">
+                                  Khung {i + 1}: {slot.from_time} - {slot.to_time}
+                                </p>
+                              ))}
+                            </div>
+                          )
+                        }
+                        return <p className="text-sm text-muted-foreground">{viewingRequest.time}</p>
+                      })()}
                     </div>
                   </div>
                 )}

@@ -318,6 +318,7 @@ export interface RequestType {
   created_at: string
   updated_at: string
   submission_deadline: number | null
+  allows_multiple_time_slots: boolean
 }
 
 export interface EmployeeRequest {
@@ -341,10 +342,20 @@ export interface EmployeeRequest {
   updated_at: string
 }
 
+export interface RequestTimeSlot {
+  id: string
+  request_id: string
+  from_time: string
+  to_time: string
+  slot_order: number
+  created_at: string
+}
+
 export interface EmployeeRequestWithRelations extends EmployeeRequest {
   employee?: Employee | null
   approver?: Employee | null
   request_type?: RequestType | null
+  time_slots?: RequestTimeSlot[]
 }
 
 // Request Type Approvers

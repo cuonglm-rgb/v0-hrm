@@ -24,6 +24,7 @@ import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, ge
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
+import { validateTimeSlot, validateNoOverlap, addTimeSlot, removeTimeSlot, getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
 import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users, Edit, Clock, User, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 
 interface LeaveRequestPanelProps {
@@ -61,6 +62,9 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
   const [uploadingFieldId, setUploadingFieldId] = useState<string | null>(null)
   const customFieldInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   
+  // Multi time slots
+  const [timeSlots, setTimeSlots] = useState<{ from_time: string; to_time: string }[]>([{ from_time: "", to_time: "" }])
+
   // Edit mode
   const [editingRequest, setEditingRequest] = useState<UnifiedRequest | null>(null)
 
@@ -118,6 +122,11 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     }
   }, [selectedTypeId])
 
+  // Reset timeSlots khi đổi loại phiếu
+  useEffect(() => {
+    setTimeSlots([{ from_time: "", to_time: "" }])
+  }, [selectedTypeId])
+
   // Normalize all requests
   const allRequests = useMemo<UnifiedRequest[]>(() => {
     return employeeRequests.map((r) => ({
@@ -126,7 +135,10 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       typeCode: r.request_type?.code || "",
       fromDate: r.from_date || r.request_date,
       toDate: r.to_date,
-      time: r.request_time || (r.from_time && r.to_time ? `${r.from_time} - ${r.to_time}` : null),
+      time: r.request_time || (() => {
+        const slots = getTimeSlotsWithFallback(r.time_slots, r.from_time, r.to_time)
+        return slots.length > 0 ? formatTimeSlots(slots) : null
+      })(),
       reason: r.reason,
       status: r.status,
       attachmentUrl: r.attachment_url,
@@ -268,13 +280,54 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
 
     const formData = new FormData(e.currentTarget)
     
+    // Validate multi time slots nếu loại phiếu hỗ trợ
+    if (selectedType.allows_multiple_time_slots) {
+      const filledSlots = timeSlots.filter(s => s.from_time || s.to_time)
+      
+      // Kiểm tra ít nhất 1 slot có đầy đủ from_time và to_time
+      const completeSlots = timeSlots.filter(s => s.from_time && s.to_time)
+      if (completeSlots.length === 0) {
+        setError("Vui lòng nhập đầy đủ giờ bắt đầu và kết thúc cho ít nhất 1 khung giờ")
+        setLoading(false)
+        return
+      }
+
+      // Kiểm tra slot có from_time hoặc to_time trống (nhập dở)
+      for (const slot of filledSlots) {
+        if (!slot.from_time || !slot.to_time) {
+          setError("Vui lòng nhập đầy đủ giờ bắt đầu và kết thúc")
+          setLoading(false)
+          return
+        }
+      }
+
+      // Validate từng slot: from < to
+      for (const slot of completeSlots) {
+        const result = validateTimeSlot(slot.from_time, slot.to_time)
+        if (!result.valid) {
+          setError(result.error || "Khung giờ không hợp lệ")
+          setLoading(false)
+          return
+        }
+      }
+
+      // Validate không chồng chéo
+      if (completeSlots.length > 1) {
+        const overlapResult = validateNoOverlap(completeSlots)
+        if (!overlapResult.valid) {
+          setError(overlapResult.error || "Các khung giờ không được chồng chéo")
+          setLoading(false)
+          return
+        }
+      }
+    }
+
     // Thu thập custom_data từ custom fields
     let customData: Record<string, string> | undefined = undefined
     if (selectedType.custom_fields && selectedType.custom_fields.length > 0) {
       customData = {}
       for (const field of selectedType.custom_fields) {
         if (field.type === "image") {
-          // Lấy URL từ customFieldImages state
           const imageData = customFieldImages[field.id]
           if (imageData?.url) {
             customData[field.id] = imageData.url
@@ -286,23 +339,28 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
           }
         }
       }
-      // Chỉ gửi nếu có dữ liệu
       if (Object.keys(customData).length === 0) {
         customData = undefined
       }
     }
+
+    // Chuẩn bị time_slots cho multi-slot
+    const validTimeSlots = selectedType.allows_multiple_time_slots
+      ? timeSlots.filter(s => s.from_time && s.to_time)
+      : undefined
     
     const requestData = {
       from_date: selectedType.requires_date_range ? formData.get("from_date") as string : undefined,
       to_date: selectedType.requires_date_range ? formData.get("to_date") as string : undefined,
       request_date: selectedType.requires_single_date ? formData.get("request_date") as string : undefined,
       request_time: selectedType.requires_time ? formData.get("request_time") as string : undefined,
-      from_time: selectedType.requires_time_range ? formData.get("from_time") as string : undefined,
-      to_time: selectedType.requires_time_range ? formData.get("to_time") as string : undefined,
+      from_time: (selectedType.requires_time_range && !selectedType.allows_multiple_time_slots) ? formData.get("from_time") as string : undefined,
+      to_time: (selectedType.requires_time_range && !selectedType.allows_multiple_time_slots) ? formData.get("to_time") as string : undefined,
       reason: formData.get("reason") as string,
       attachment_url: attachmentUrl || undefined,
       assigned_approver_ids: selectedApprovers.length > 0 ? selectedApprovers : undefined,
       custom_data: customData,
+      time_slots: validTimeSlots,
     }
     
     let result
@@ -328,6 +386,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       setEligibleApprovers([])
       setEditingRequest(null)
       setCustomFieldImages({})
+      setTimeSlots([{ from_time: "", to_time: "" }])
     }
     setLoading(false)
   }
@@ -337,6 +396,17 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     const requestType = requestTypes.find(rt => rt.id === request.originalData.request_type_id)
     if (requestType) {
       setSelectedType(requestType)
+      // Load time slots for editing
+      if (requestType.allows_multiple_time_slots) {
+        const slots = getTimeSlotsWithFallback(
+          request.originalData.time_slots,
+          request.originalData.from_time,
+          request.originalData.to_time
+        )
+        setTimeSlots(slots.length > 0 ? slots : [{ from_time: "", to_time: "" }])
+      } else {
+        setTimeSlots([{ from_time: "", to_time: "" }])
+      }
       setAttachmentUrl(request.attachmentUrl)
       setAttachmentName(request.attachmentUrl ? "File đính kèm" : null)
       setOpen(true)
@@ -450,7 +520,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       </div>
 
       {/* Nút tạo phiếu */}
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]); setEditingRequest(null); setCustomFieldImages({}) } }}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]); setEditingRequest(null); setCustomFieldImages({}); setTimeSlots([{ from_time: "", to_time: "" }]) } }}>
         <DialogTrigger asChild>
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
@@ -538,7 +608,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     />
                   </div>
                 )}
-                {selectedType.requires_time_range && (
+                {selectedType.requires_time_range && !selectedType.allows_multiple_time_slots && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Từ giờ *</Label>
@@ -556,6 +626,46 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                         value={editingRequest?.originalData.to_time || undefined}
                       />
                     </div>
+                  </div>
+                )}
+                {selectedType.allows_multiple_time_slots && (
+                  <div className="space-y-3">
+                    <Label>Khung giờ *</Label>
+                    {timeSlots.map((slot, index) => (
+                      <div key={index} className="flex items-end gap-2">
+                        <div className="grid gap-1 flex-1">
+                          <Label className="text-xs">Từ giờ</Label>
+                          <TimeInput
+                            value={slot.from_time}
+                            onChange={(val) => {
+                              const updated = [...timeSlots]
+                              updated[index] = { ...updated[index], from_time: val }
+                              setTimeSlots(updated)
+                            }}
+                          />
+                        </div>
+                        <div className="grid gap-1 flex-1">
+                          <Label className="text-xs">Đến giờ</Label>
+                          <TimeInput
+                            value={slot.to_time}
+                            onChange={(val) => {
+                              const updated = [...timeSlots]
+                              updated[index] = { ...updated[index], to_time: val }
+                              setTimeSlots(updated)
+                            }}
+                          />
+                        </div>
+                        {timeSlots.length > 1 && (
+                          <Button type="button" variant="ghost" size="icon" onClick={() => setTimeSlots(removeTimeSlot(timeSlots, index))}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" onClick={() => setTimeSlots(addTimeSlot(timeSlots))}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Thêm khung giờ
+                    </Button>
                   </div>
                 )}
                 <div className="grid gap-2">
@@ -979,7 +1089,25 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     <Clock className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     <div>
                       <p className="text-sm font-medium">Giờ</p>
-                      <p className="text-sm text-muted-foreground">{viewingRequest.time}</p>
+                      {(() => {
+                        const slots = getTimeSlotsWithFallback(
+                          viewingRequest.originalData.time_slots,
+                          viewingRequest.originalData.from_time,
+                          viewingRequest.originalData.to_time
+                        )
+                        if (slots.length > 1) {
+                          return (
+                            <div className="space-y-1">
+                              {slots.map((slot, i) => (
+                                <p key={i} className="text-sm text-muted-foreground">
+                                  Khung {i + 1}: {slot.from_time} - {slot.to_time}
+                                </p>
+                              ))}
+                            </div>
+                          )
+                        }
+                        return <p className="text-sm text-muted-foreground">{viewingRequest.time}</p>
+                      })()}
                     </div>
                   </div>
                 )}
