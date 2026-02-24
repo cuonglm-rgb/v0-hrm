@@ -197,7 +197,8 @@ export function calculateLeaveDays(
   // Nếu không có toDate hoặc cùng ngày
   if (!toDate || fromDate === toDate) {
     // Nếu có time range, tính theo giờ (nghỉ nửa ngày)
-    if (config?.requires_time_range && fromTime && toTime) {
+    // Cho phép tính theo giờ khi có fromTime/toTime, kể cả khi không truyền config
+    if (fromTime && toTime) {
       const [fromH, fromM] = fromTime.split(":").map(Number)
       const [toH, toM] = toTime.split(":").map(Number)
       const fromMinutes = fromH * 60 + (fromM || 0)
