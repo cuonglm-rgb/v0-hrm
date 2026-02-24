@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useRef, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Command,
   CommandEmpty,
@@ -16,12 +17,24 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { AttendancePanel } from "@/components/attendance/attendance-panel"
+import {
+  importAttendanceFromExcel,
+  generateAttendanceTemplate,
+} from "@/lib/actions/attendance-import-actions"
 import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, Employee } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
 import type { SpecialWorkDayWithEmployees } from "@/lib/types/database"
 import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
-import { Users, Check, ChevronsUpDown } from "lucide-react"
+import { Users, Check, ChevronsUpDown, FileSpreadsheet, Download, Upload, CheckCircle, XCircle, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface EmployeeWithShift extends Employee {
@@ -50,6 +63,86 @@ export function AttendanceManagementView({
     employees[0]?.id || ""
   )
 
+  // Import state
+  const [importing, setImporting] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [importResult, setImportResult] = useState<{
+    success: boolean
+    total: number
+    imported: number
+    skipped: number
+    errors: string[]
+  } | null>(null)
+  const [showResultDialog, setShowResultDialog] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const validTypes = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+    ]
+    if (!validTypes.includes(file.type) && !file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+      setImportResult({
+        success: false, total: 0, imported: 0, skipped: 0,
+        errors: ["Chỉ hỗ trợ file Excel (.xlsx, .xls)"],
+      })
+      setShowResultDialog(true)
+      return
+    }
+
+    setImporting(true)
+    const formData = new FormData()
+    formData.append("file", file)
+
+    try {
+      const result = await importAttendanceFromExcel(formData)
+      setImportResult(result)
+      setShowResultDialog(true)
+    } catch {
+      setImportResult({
+        success: false, total: 0, imported: 0, skipped: 0,
+        errors: ["Lỗi không xác định khi import"],
+      })
+      setShowResultDialog(true)
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  const handleDownloadTemplate = async () => {
+    setDownloading(true)
+    try {
+      const result = await generateAttendanceTemplate()
+      if (result.success && result.data) {
+        const byteCharacters = atob(result.data)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = "mau_cham_cong.xlsx"
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error("Error downloading template:", error)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   // Lọc dữ liệu theo nhân viên được chọn
   const selectedEmployee = useMemo(() => {
     return employees.find((e) => e.id === selectedEmployeeId)
@@ -69,6 +162,139 @@ export function AttendanceManagementView({
 
   return (
     <div className="space-y-6">
+      {/* Import Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5" />
+            Import chấm công từ Excel
+          </CardTitle>
+          <CardDescription>
+            Upload file Excel để import dữ liệu chấm công hàng loạt
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileChange}
+                disabled={importing}
+                className="cursor-pointer"
+              />
+              {importing && (
+                <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Đang import...
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground mt-2">
+                Hỗ trợ file .xlsx, .xls
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleDownloadTemplate}
+                disabled={downloading}
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                {downloading ? "Đang tải..." : "Tải file mẫu"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Format guide */}
+          <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+            <h4 className="font-medium mb-2">Định dạng file Excel:</h4>
+            <div className="overflow-x-auto">
+              <table className="text-sm border-collapse w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-3 py-1 text-left">Mã N.Viên</th>
+                    <th className="px-3 py-1 text-left">Tên nhân viên</th>
+                    <th className="px-3 py-1 text-left">Phòng ban</th>
+                    <th className="px-3 py-1 text-left">Chức vụ</th>
+                    <th className="px-3 py-1 text-left">Ngày</th>
+                    <th className="px-3 py-1 text-left">Thứ</th>
+                    <th className="px-3 py-1 text-left">Vào</th>
+                    <th className="px-3 py-1 text-left">Ra</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="px-3 py-1">2</td>
+                    <td className="px-3 py-1">Nguyễn Văn A</td>
+                    <td className="px-3 py-1">Văn phòng</td>
+                    <td className="px-3 py-1">Nhân viên</td>
+                    <td className="px-3 py-1">02/01/2026</td>
+                    <td className="px-3 py-1">Sáu</td>
+                    <td className="px-3 py-1">7:53</td>
+                    <td className="px-3 py-1">17:25</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              * Chỉ cần các cột: Mã N.Viên, Ngày (dd/mm/yyyy), Vào, Ra. Các cột khác có thể bỏ qua.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Import Result Dialog */}
+      <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {importResult?.success ? (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-500" />
+              )}
+              Kết quả import
+            </DialogTitle>
+            <DialogDescription>
+              {importResult?.success ? "Import hoàn tất" : "Import thất bại"}
+            </DialogDescription>
+          </DialogHeader>
+          {importResult && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="p-3 bg-muted rounded-lg">
+                  <div className="text-2xl font-bold">{importResult.total}</div>
+                  <div className="text-sm text-muted-foreground">Tổng dòng</div>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{importResult.imported}</div>
+                  <div className="text-sm text-muted-foreground">Đã import</div>
+                </div>
+                <div className="p-3 bg-yellow-50 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-600">{importResult.skipped}</div>
+                  <div className="text-sm text-muted-foreground">Bỏ qua</div>
+                </div>
+              </div>
+              {importResult.errors.length > 0 && (
+                <div className="p-3 bg-red-50 rounded-lg">
+                  <p className="font-medium text-red-700 mb-1">Lỗi:</p>
+                  <ul className="text-sm text-red-600 space-y-1">
+                    {importResult.errors.map((err, i) => (
+                      <li key={i}>• {err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setShowResultDialog(false)}>Đóng</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Employee Selector with Search */}
       <Card>
         <CardHeader>

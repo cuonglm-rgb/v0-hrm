@@ -95,7 +95,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
 
   const { data: overtimeRequestDates } = await supabase
     .from("employee_requests")
-    .select(`request_date, from_time, to_time, request_type:request_types!request_type_id(code)`)
+    .select(`request_date, from_time, to_time, time_slots:request_time_slots(*), request_type:request_types!request_type_id(code)`)
     .eq("employee_id", emp.id)
     .eq("status", "approved")
     .gte("request_date", startDate)
@@ -126,18 +126,39 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       if (reqType?.code !== "overtime") continue
 
       const date = req.request_date
-      if (!req.from_time || !req.to_time) {
+
+      // Lấy danh sách khung giờ (ưu tiên request_time_slots, fallback về from_time/to_time)
+      const timeSlots: { from_time: string; to_time: string }[] = []
+      const reqTimeSlots = (req as any).time_slots as any[] | null
+      if (reqTimeSlots && reqTimeSlots.length > 0) {
+        for (const slot of reqTimeSlots) {
+          timeSlots.push({ from_time: slot.from_time, to_time: slot.to_time })
+        }
+      } else if (req.from_time && req.to_time) {
+        timeSlots.push({ from_time: req.from_time, to_time: req.to_time })
+      }
+
+      if (timeSlots.length === 0) {
         overtimeDates.add(date)
         continue
       }
 
-      const fromMin = parseTime(req.from_time)
-      const toMin = parseTime(req.to_time)
-      const isBeforeShift = toMin <= shiftStartMin
-      const isAfterShift = fromMin >= shiftEndMin
-      const isDuringBreak = fromMin >= breakStartMin && toMin <= breakEndMin
+      // Kiểm tra tất cả khung giờ: nếu TẤT CẢ đều nằm ngoài ca → overtimeWithinShift
+      let allOutsideShift = true
+      for (const slot of timeSlots) {
+        const fromMin = parseTime(slot.from_time)
+        const toMin = parseTime(slot.to_time)
+        const isBeforeShift = toMin <= shiftStartMin
+        const isAfterShift = fromMin >= shiftEndMin
+        const isDuringBreak = fromMin >= breakStartMin && toMin <= breakEndMin
 
-      if (isBeforeShift || isAfterShift || isDuringBreak) {
+        if (!(isBeforeShift || isAfterShift || isDuringBreak)) {
+          allOutsideShift = false
+          break
+        }
+      }
+
+      if (allOutsideShift) {
         overtimeWithinShift.add(date)
       } else {
         overtimeDates.add(date)

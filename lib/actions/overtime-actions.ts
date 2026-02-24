@@ -711,11 +711,13 @@ export async function calculateOvertimePay(
   }> = []
 
   // 1. Lấy phiếu tăng ca từ employee_requests (request_type.code = 'overtime')
+  // Join thêm request_time_slots cho nhiều khung giờ
   const { data: otRequests } = await supabase
     .from("employee_requests")
     .select(`
       *,
-      request_type:request_types!request_type_id(code, name)
+      request_type:request_types!request_type_id(code, name),
+      time_slots:request_time_slots(*)
     `)
     .eq("employee_id", employeeId)
     .eq("status", "approved")
@@ -731,13 +733,28 @@ export async function calculateOvertimePay(
 
   // Xử lý phiếu từ employee_requests
   for (const request of overtimeRequests) {
-    // Tính số giờ từ from_time và to_time
+    // Lấy danh sách khung giờ (ưu tiên request_time_slots, fallback về from_time/to_time)
+    const reqTimeSlots = (request as any).time_slots as any[] | null
+    const timeSlots: { from_time: string; to_time: string }[] = []
+    
+    if (reqTimeSlots && reqTimeSlots.length > 0) {
+      for (const slot of reqTimeSlots) {
+        if (slot.from_time && slot.to_time) {
+          timeSlots.push({ from_time: slot.from_time, to_time: slot.to_time })
+        }
+      }
+    } else if (request.from_time && request.to_time) {
+      timeSlots.push({ from_time: request.from_time, to_time: request.to_time })
+    }
+
+    // Tính tổng số giờ từ tất cả khung giờ
     let hours = 0
-    if (request.from_time && request.to_time) {
-      const [fromH, fromM] = request.from_time.split(":").map(Number)
-      const [toH, toM] = request.to_time.split(":").map(Number)
-      hours = (toH * 60 + toM - fromH * 60 - fromM) / 60
-      if (hours < 0) hours += 24 // Qua đêm
+    for (const slot of timeSlots) {
+      const [fromH, fromM] = slot.from_time.split(":").map(Number)
+      const [toH, toM] = slot.to_time.split(":").map(Number)
+      let slotHours = (toH * 60 + toM - fromH * 60 - fromM) / 60
+      if (slotHours < 0) slotHours += 24 // Qua đêm
+      hours += slotHours
     }
 
     if (hours <= 0) continue
@@ -847,12 +864,13 @@ export async function getOTBreakdownForPayroll(
 
   const items: OTBreakdownItem[] = []
 
-  // 1. Lấy từ employee_requests
+  // 1. Lấy từ employee_requests (join thêm request_time_slots)
   const { data: otRequests } = await supabase
     .from("employee_requests")
     .select(`
       *,
-      request_type:request_types!request_type_id(code, name)
+      request_type:request_types!request_type_id(code, name),
+      time_slots:request_time_slots(*)
     `)
     .eq("employee_id", employeeId)
     .eq("status", "approved")
@@ -864,12 +882,28 @@ export async function getOTBreakdownForPayroll(
   )
 
   for (const request of overtimeRequests) {
+    // Lấy danh sách khung giờ (ưu tiên request_time_slots, fallback về from_time/to_time)
+    const reqTimeSlots = (request as any).time_slots as any[] | null
+    const timeSlots: { from_time: string; to_time: string }[] = []
+    
+    if (reqTimeSlots && reqTimeSlots.length > 0) {
+      for (const slot of reqTimeSlots) {
+        if (slot.from_time && slot.to_time) {
+          timeSlots.push({ from_time: slot.from_time, to_time: slot.to_time })
+        }
+      }
+    } else if (request.from_time && request.to_time) {
+      timeSlots.push({ from_time: request.from_time, to_time: request.to_time })
+    }
+
+    // Tính tổng số giờ từ tất cả khung giờ
     let hours = 0
-    if (request.from_time && request.to_time) {
-      const [fromH, fromM] = request.from_time.split(":").map(Number)
-      const [toH, toM] = request.to_time.split(":").map(Number)
-      hours = (toH * 60 + toM - fromH * 60 - fromM) / 60
-      if (hours < 0) hours += 24
+    for (const slot of timeSlots) {
+      const [fromH, fromM] = slot.from_time.split(":").map(Number)
+      const [toH, toM] = slot.to_time.split(":").map(Number)
+      let slotHours = (toH * 60 + toM - fromH * 60 - fromM) / 60
+      if (slotHours < 0) slotHours += 24
+      hours += slotHours
     }
 
     if (hours <= 0) continue

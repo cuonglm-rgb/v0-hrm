@@ -190,10 +190,10 @@ async function processEmployeePayroll(
   const breakStartMin = parseTime(breakStart)
   const breakEndMin = parseTime(breakEnd)
 
-  // Lấy phiếu tăng ca
+  // Lấy phiếu tăng ca (join thêm request_time_slots cho nhiều khung giờ)
   const { data: overtimeRequestDates } = await supabase
     .from("employee_requests")
-    .select(`request_date, from_time, to_time, request_type:request_types!request_type_id(code)`)
+    .select(`request_date, from_time, to_time, time_slots:request_time_slots(*), request_type:request_types!request_type_id(code)`)
     .eq("employee_id", emp.id)
     .eq("status", "approved")
     .gte("request_date", startDate)
@@ -208,18 +208,40 @@ async function processEmployeePayroll(
       if (reqType?.code !== "overtime") continue
 
       const date = req.request_date
-      if (!req.from_time || !req.to_time) {
+
+      // Lấy danh sách khung giờ (ưu tiên request_time_slots, fallback về from_time/to_time)
+      const timeSlots: { from_time: string; to_time: string }[] = []
+      const reqTimeSlots = (req as any).time_slots as any[] | null
+      if (reqTimeSlots && reqTimeSlots.length > 0) {
+        for (const slot of reqTimeSlots) {
+          timeSlots.push({ from_time: slot.from_time, to_time: slot.to_time })
+        }
+      } else if (req.from_time && req.to_time) {
+        timeSlots.push({ from_time: req.from_time, to_time: req.to_time })
+      }
+
+      if (timeSlots.length === 0) {
         overtimeDates.add(date)
         continue
       }
 
-      const fromMin = parseTime(req.from_time)
-      const toMin = parseTime(req.to_time)
-      const isBeforeShift = toMin <= shiftStartMin
-      const isAfterShift = fromMin >= shiftEndMin
-      const isDuringBreak = fromMin >= breakStartMin && toMin <= breakEndMin
+      // Kiểm tra tất cả khung giờ: nếu TẤT CẢ đều nằm ngoài ca → overtimeWithinShift
+      // Nếu có bất kỳ khung giờ nào trùng ca → overtimeDates (full day OT)
+      let allOutsideShift = true
+      for (const slot of timeSlots) {
+        const fromMin = parseTime(slot.from_time)
+        const toMin = parseTime(slot.to_time)
+        const isBeforeShift = toMin <= shiftStartMin
+        const isAfterShift = fromMin >= shiftEndMin
+        const isDuringBreak = fromMin >= breakStartMin && toMin <= breakEndMin
 
-      if (isBeforeShift || isAfterShift || isDuringBreak) {
+        if (!(isBeforeShift || isAfterShift || isDuringBreak)) {
+          allOutsideShift = false
+          break
+        }
+      }
+
+      if (allOutsideShift) {
         overtimeWithinShift.add(date)
       } else {
         overtimeDates.add(date)
@@ -292,7 +314,8 @@ async function processEmployeePayroll(
     .from("employee_requests")
     .select(`
       *,
-      request_type:request_types!request_type_id(code)
+      request_type:request_types!request_type_id(code),
+      time_slots:request_time_slots(*)
     `)
     .eq("employee_id", emp.id)
     .eq("status", "approved")
@@ -570,8 +593,10 @@ async function processLeaveRequests(
       *,
       request_type:request_types!request_type_id(
         code, name, affects_payroll, deduct_leave_balance,
-        requires_date_range, requires_single_date
-      )
+        requires_date_range, requires_single_date, requires_time_range,
+        allows_multiple_time_slots
+      ),
+      time_slots:request_time_slots(*)
     `)
     .eq("employee_id", employeeId)
     .eq("status", "approved")
@@ -621,6 +646,34 @@ async function processLeaveRequests(
     return 1
   }
 
+  // Helper: lấy from_time/to_time từ time_slots hoặc fallback
+  const getEffectiveTimeRange = (request: any): { from_time: string | null; to_time: string | null } => {
+    const slots = request.time_slots as any[] | null
+    if (slots && slots.length > 0) {
+      // Nếu có nhiều khung giờ, lấy khung giờ đầu tiên (dùng cho calculateDayFraction)
+      // Trường hợp nhiều slot sẽ được xử lý riêng bên dưới
+      return { from_time: slots[0].from_time, to_time: slots[0].to_time }
+    }
+    return { from_time: request.from_time, to_time: request.to_time }
+  }
+
+  // Helper: tính tổng phân số ngày từ nhiều khung giờ
+  const calculateMultiSlotDayFraction = (request: any): number => {
+    const slots = request.time_slots as any[] | null
+    if (slots && slots.length > 1) {
+      // Nhiều khung giờ: tính tổng phân số từ mỗi slot
+      let totalFraction = 0
+      for (const slot of slots) {
+        totalFraction += calculateDayFraction(slot.from_time, slot.to_time)
+      }
+      // Cap tại 1 ngày
+      return Math.min(totalFraction, 1)
+    }
+    // Một khung giờ hoặc không có: dùng logic cũ
+    const { from_time, to_time } = getEffectiveTimeRange(request)
+    return calculateDayFraction(from_time, to_time)
+  }
+
   if (employeeRequests) {
     for (const request of employeeRequests) {
       const reqType = request.request_type as any
@@ -631,6 +684,8 @@ async function processLeaveRequests(
 
       if (code === "overtime") continue
       if (!affectsPayroll && code !== "unpaid_leave") continue
+
+      const { from_time: effFromTime, to_time: effToTime } = getEffectiveTimeRange(request)
 
       let days = 0
       if (reqType.requires_date_range && request.from_date && request.to_date) {
@@ -647,13 +702,13 @@ async function processLeaveRequests(
         const diffTime = reqEnd.getTime() - reqStart.getTime()
         const fullDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
         
-        if (fullDays === 1 && request.from_time && request.to_time) {
-          days = calculateDayFraction(request.from_time, request.to_time)
+        if (fullDays === 1 && (effFromTime && effToTime)) {
+          days = calculateMultiSlotDayFraction(request)
         } else {
           days = fullDays
         }
       } else if (reqType.requires_single_date && request.request_date) {
-        days = calculateDayFraction(request.from_time, request.to_time)
+        days = calculateMultiSlotDayFraction(request)
       } else if (request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
           const [y, m, d] = dateStr.split('-').map(Number)
@@ -668,8 +723,8 @@ async function processLeaveRequests(
         const diffTime = reqEnd.getTime() - reqStart.getTime()
         const fullDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
         
-        if (fullDays === 1 && request.from_time && request.to_time) {
-          days = calculateDayFraction(request.from_time, request.to_time)
+        if (fullDays === 1 && (effFromTime && effToTime)) {
+          days = calculateMultiSlotDayFraction(request)
         } else {
           days = fullDays
         }
@@ -693,7 +748,7 @@ async function processLeaveRequests(
 
   const { data: historicRequests } = await supabase
     .from("employee_requests")
-    .select(`from_date, to_date, from_time, to_time, request_type:request_types!inner(code, deduct_leave_balance)`)
+    .select(`from_date, to_date, from_time, to_time, time_slots:request_time_slots(*), request_type:request_types!inner(code, deduct_leave_balance)`)
     .eq("employee_id", employeeId)
     .eq("status", "approved")
     .gte("from_date", startOfYear)
@@ -703,7 +758,11 @@ async function processLeaveRequests(
   let historicUsed = 0
   if (historicRequests) {
     for (const hReq of historicRequests) {
-      historicUsed += calculateLeaveDays(hReq.from_date, hReq.to_date || hReq.from_date, hReq.from_time, hReq.to_time)
+      // Nếu có time_slots, dùng slot đầu tiên cho calculateLeaveDays (fallback)
+      const slots = (hReq as any).time_slots as any[] | null
+      const effFromTime = (slots && slots.length > 0) ? slots[0].from_time : hReq.from_time
+      const effToTime = (slots && slots.length > 0) ? slots[0].to_time : hReq.to_time
+      historicUsed += calculateLeaveDays(hReq.from_date, hReq.to_date || hReq.from_date, effFromTime, effToTime)
     }
   }
 
@@ -715,11 +774,15 @@ async function processLeaveRequests(
     for (const req of employeeRequests) {
       const reqType = req.request_type as any
       if (reqType.affects_payroll && reqType.deduct_leave_balance) {
+        // Lấy from_time/to_time từ time_slots hoặc fallback
+        const slots = (req as any).time_slots as any[] | null
+        const effFromTime = (slots && slots.length > 0) ? slots[0].from_time : req.from_time
+        const effToTime = (slots && slots.length > 0) ? slots[0].to_time : req.to_time
         const d = calculateLeaveDays(
           req.from_date,
           req.to_date || req.from_date,
-          req.from_time,
-          req.to_time,
+          effFromTime,
+          effToTime,
           { requires_date_range: reqType.requires_date_range, requires_single_date: reqType.requires_single_date }
         )
         annualLeaveThisMonth += d
