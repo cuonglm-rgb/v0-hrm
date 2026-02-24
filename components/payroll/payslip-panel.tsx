@@ -30,7 +30,13 @@ interface AdjustmentDetail {
 }
 
 export function PayslipPanel({ payslips }: PayslipPanelProps) {
-  const latestPayslip = payslips[0]
+  const sortedPayslips = [...payslips].sort((a, b) => {
+    const yearA = a.payroll_run?.year || 0
+    const yearB = b.payroll_run?.year || 0
+    if (yearA !== yearB) return yearB - yearA
+    return (b.payroll_run?.month || 0) - (a.payroll_run?.month || 0)
+  })
+  const latestPayslip = sortedPayslips[0]
   const [selectedPayslip, setSelectedPayslip] = useState<PayrollItemWithRelations | null>(null)
   const [adjustmentDetails, setAdjustmentDetails] = useState<AdjustmentDetail[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -180,14 +186,14 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payslips.length === 0 ? (
+              {sortedPayslips.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
                     Chưa có phiếu lương nào
                   </TableCell>
                 </TableRow>
               ) : (
-                payslips.map((payslip) => (
+                sortedPayslips.map((payslip) => (
                   <TableRow key={payslip.id}>
                     <TableCell className="font-medium">
                       Tháng {payslip.payroll_run?.month}/{payslip.payroll_run?.year}
