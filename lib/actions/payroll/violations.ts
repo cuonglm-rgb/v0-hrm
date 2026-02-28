@@ -103,18 +103,22 @@ export async function getEmployeeViolations(
         // Trường hợp chỉ có check_out (quên check_in)
         const checkOutDate = new Date(log.check_out)
         dateStr = toDateStringVN(checkOutDate)
-        
-        // Dùng giờ trong phiếu quên chấm công đến (nếu có)
-        const forgotCheckinTime = forgotCheckinTimeByDate.get(dateStr)
-        if (forgotCheckinTime) {
-          const [hour, minute] = forgotCheckinTime.split(":").map(Number)
-          checkInMinutes = hour * 60 + minute
-          hasCheckIn = true
-          console.log(`[Violations] Ngày ${dateStr}: Dùng giờ từ phiếu forgot_checkin: ${forgotCheckinTime} (${checkInMinutes} phút)`)
-        }
       } else {
         // Không có cả check_in và check_out - bỏ qua
         continue
+      }
+
+      // ƯU TIÊN: Nếu có phiếu quên chấm công đến đã duyệt → dùng giờ trong phiếu
+      // thay vì giờ check_in gốc (vì check_in gốc có thể sai)
+      const forgotCheckinTime = forgotCheckinTimeByDate.get(dateStr)
+      if (forgotCheckinTime) {
+        const [hour, minute] = forgotCheckinTime.split(":").map(Number)
+        checkInMinutes = hour * 60 + minute
+        hasCheckIn = true
+        console.log(`[Violations] Ngày ${dateStr}: Dùng giờ từ phiếu forgot_checkin: ${forgotCheckinTime} (${checkInMinutes} phút) - ưu tiên phiếu over check_in gốc`)
+      } else if (!hasCheckIn && log.check_out) {
+        // Không có phiếu forgot_checkin và không có check_in gốc → check_in thiếu
+        // (hasCheckIn vẫn = false)
       }
 
       const approvedRequestTypes = approvedByDate.get(dateStr) || []
@@ -142,21 +146,19 @@ export async function getEmployeeViolations(
 
       let checkOutMinutes = 0
       let hasCheckOut = false
-      if (log.check_out) {
+      // ƯU TIÊN: Nếu có phiếu quên chấm công về đã duyệt → dùng giờ trong phiếu
+      // thay vì giờ check_out gốc (vì check_out gốc có thể sai, ví dụ nhân viên chấm công đến 2 lần)
+      const forgotCheckoutTime = forgotCheckoutTimeByDate.get(dateStr)
+      if (forgotCheckoutTime) {
+        const [hour, minute] = forgotCheckoutTime.split(":").map(Number)
+        checkOutMinutes = hour * 60 + minute
+        hasCheckOut = true
+        console.log(`[Violations] Ngày ${dateStr}: Dùng giờ từ phiếu forgot_checkout: ${forgotCheckoutTime} (${checkOutMinutes} phút) - ưu tiên phiếu over check_out gốc`)
+      } else if (log.check_out) {
         const checkOutDate = new Date(log.check_out)
         const { hours: checkOutHour, minutes: checkOutMin } = getTimePartsVN(checkOutDate)
         checkOutMinutes = checkOutHour * 60 + checkOutMin
         hasCheckOut = true
-      } else {
-        // Nếu không có check_out nhưng có phiếu quên chấm công về đã duyệt
-        // thì dùng giờ trong phiếu làm check_out
-        const forgotCheckoutTime = forgotCheckoutTimeByDate.get(dateStr)
-        if (forgotCheckoutTime) {
-          const [hour, minute] = forgotCheckoutTime.split(":").map(Number)
-          checkOutMinutes = hour * 60 + minute
-          hasCheckOut = true
-          console.log(`[Violations] Ngày ${dateStr}: Dùng giờ từ phiếu forgot_checkout: ${forgotCheckoutTime} (${checkOutMinutes} phút)`)
-        }
       }
 
       let isHalfDay = false
