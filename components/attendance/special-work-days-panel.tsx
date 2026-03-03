@@ -88,13 +88,13 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
   
   // Load danh sách nhân viên khi cần
   useEffect(() => {
-    if (formData.is_company_holiday && formData.apply_to_selected_employees && employees.length === 0) {
+    if (formData.apply_to_selected_employees && employees.length === 0) {
       setLoadingEmployees(true)
       listEmployees()
         .then(setEmployees)
         .finally(() => setLoadingEmployees(false))
     }
-  }, [formData.is_company_holiday, formData.apply_to_selected_employees, employees.length])
+  }, [formData.apply_to_selected_employees, employees.length])
 
   const handleOpenDialog = (day?: SpecialWorkDayWithEmployees) => {
     if (day) {
@@ -138,7 +138,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
     }
 
     // Validate: Nếu chọn áp dụng cho nhân viên cụ thể thì phải chọn ít nhất 1 nhân viên
-    if (formData.is_company_holiday && formData.apply_to_selected_employees && formData.selected_employee_ids.length === 0) {
+    if (formData.apply_to_selected_employees && formData.selected_employee_ids.length === 0) {
       toast.error("Vui lòng chọn ít nhất 1 nhân viên")
       return
     }
@@ -146,7 +146,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
     setSaving(true)
     try {
       // Nếu không áp dụng cho nhân viên cụ thể, gửi mảng rỗng (= toàn công ty)
-      const employeeIds = formData.is_company_holiday && formData.apply_to_selected_employees
+      const employeeIds = formData.apply_to_selected_employees
         ? formData.selected_employee_ids
         : []
 
@@ -275,21 +275,9 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       {day.is_company_holiday ? (
-                        <>
-                          <Badge variant="outline" className="w-fit text-xs bg-purple-50 text-purple-700">
-                            Ngày nghỉ công ty
-                          </Badge>
-                          {day.assigned_employees && day.assigned_employees.length > 0 ? (
-                            <Badge variant="outline" className="w-fit text-xs bg-blue-50 text-blue-700 gap-1">
-                              <Users className="h-3 w-3" />
-                              {day.assigned_employees.length} nhân viên
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="w-fit text-xs bg-green-50 text-green-700">
-                              Toàn công ty
-                            </Badge>
-                          )}
-                        </>
+                        <Badge variant="outline" className="w-fit text-xs bg-purple-50 text-purple-700">
+                          Ngày nghỉ công ty
+                        </Badge>
                       ) : (
                         <>
                           {day.allow_early_leave && (
@@ -303,6 +291,16 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                             </Badge>
                           )}
                         </>
+                      )}
+                      {day.assigned_employees && day.assigned_employees.length > 0 ? (
+                        <Badge variant="outline" className="w-fit text-xs bg-blue-50 text-blue-700 gap-1">
+                          <Users className="h-3 w-3" />
+                          {day.assigned_employees.length} nhân viên
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="w-fit text-xs bg-green-50 text-green-700">
+                          Toàn công ty
+                        </Badge>
                       )}
                     </div>
                   </TableCell>
@@ -348,7 +346,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
 
       {/* Dialog thêm/sửa */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {editingDay ? "Chỉnh sửa ngày đặc biệt" : "Thêm ngày làm việc đặc biệt"}
@@ -358,7 +356,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="work_date">Ngày *</Label>
@@ -399,67 +397,6 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                 />
               </div>
               
-              {/* Phần chọn phạm vi áp dụng - chỉ hiển thị khi is_company_holiday = true */}
-              {formData.is_company_holiday && (
-                <div className="pt-3 border-t space-y-3">
-                  <Label className="text-sm">Phạm vi áp dụng:</Label>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                      <input
-                        type="radio"
-                        name="apply_scope"
-                        checked={!formData.apply_to_selected_employees}
-                        onChange={() => setFormData({ 
-                          ...formData, 
-                          apply_to_selected_employees: false,
-                          selected_employee_ids: []
-                        })}
-                        className="h-4 w-4 text-primary"
-                      />
-                      <div className="flex-1">
-                        <div className="font-medium text-sm">Toàn công ty</div>
-                        <p className="text-xs text-muted-foreground">Áp dụng cho tất cả nhân viên</p>
-                      </div>
-                    </label>
-                    <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                      <input
-                        type="radio"
-                        name="apply_scope"
-                        checked={formData.apply_to_selected_employees}
-                        onChange={() => setFormData({ 
-                          ...formData, 
-                          apply_to_selected_employees: true
-                        })}
-                        className="h-4 w-4 text-primary mt-0.5"
-                      />
-                      <div className="flex-1 space-y-2">
-                        <div>
-                          <div className="font-medium text-sm">Nhân viên cụ thể</div>
-                          <p className="text-xs text-muted-foreground">Chỉ áp dụng cho các nhân viên được chọn</p>
-                        </div>
-                        {formData.apply_to_selected_employees && (
-                          <div className="space-y-2">
-                            <EmployeeMultiSelect
-                              employees={employees}
-                              selected={formData.selected_employee_ids}
-                              onChange={(ids) => setFormData({ ...formData, selected_employee_ids: ids })}
-                              loading={loadingEmployees}
-                              placeholder="Tìm và chọn nhân viên..."
-                              maxHeight="150px"
-                            />
-                            {formData.selected_employee_ids.length > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                Đã chọn {formData.selected_employee_ids.length} nhân viên
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )}
-              
               {!formData.is_company_holiday && (
                 <>
                   <div className="flex items-center justify-between">
@@ -494,6 +431,65 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Phạm vi áp dụng */}
+            <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+              <Label className="text-sm font-medium">Phạm vi áp dụng:</Label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <input
+                    type="radio"
+                    name="apply_scope"
+                    checked={!formData.apply_to_selected_employees}
+                    onChange={() => setFormData({ 
+                      ...formData, 
+                      apply_to_selected_employees: false,
+                      selected_employee_ids: []
+                    })}
+                    className="h-4 w-4 text-primary"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">Toàn công ty</div>
+                    <p className="text-xs text-muted-foreground">Áp dụng cho tất cả nhân viên</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <input
+                    type="radio"
+                    name="apply_scope"
+                    checked={formData.apply_to_selected_employees}
+                    onChange={() => setFormData({ 
+                      ...formData, 
+                      apply_to_selected_employees: true
+                    })}
+                    className="h-4 w-4 text-primary mt-0.5"
+                  />
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <div className="font-medium text-sm">Nhân viên cụ thể</div>
+                      <p className="text-xs text-muted-foreground">Chỉ áp dụng cho các nhân viên được chọn</p>
+                    </div>
+                    {formData.apply_to_selected_employees && (
+                      <div className="space-y-2">
+                        <EmployeeMultiSelect
+                          employees={employees}
+                          selected={formData.selected_employee_ids}
+                          onChange={(ids) => setFormData({ ...formData, selected_employee_ids: ids })}
+                          loading={loadingEmployees}
+                          placeholder="Tìm và chọn nhân viên..."
+                          maxHeight="150px"
+                        />
+                        {formData.selected_employee_ids.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Đã chọn {formData.selected_employee_ids.length} nhân viên
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              </div>
             </div>
 
             <div className="space-y-3 p-4 bg-blue-50 rounded-lg border border-blue-200">

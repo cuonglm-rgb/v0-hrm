@@ -148,7 +148,8 @@ function checkViolations(
 function detectHalfDayWork(
   checkIn: string | null,
   checkOut: string | null,
-  shift: WorkShift | null | undefined
+  shift: WorkShift | null | undefined,
+  specialDay?: any
 ): { isHalfDayWork: boolean; isAfternoonOnly: boolean; isMorningOnly: boolean } {
   let isHalfDayWork = false
   let isAfternoonOnly = false
@@ -167,8 +168,16 @@ function detectHalfDayWork(
     const breakStartMinutes = bsH * 60 + bsM
     const breakEndMinutes = beH * 60 + beM
 
+    const effectiveEnd = specialDay?.custom_end_time?.slice(0, 5) || shift.end_time?.slice(0, 5) || "17:00"
+    const [seH, seM] = effectiveEnd.split(":").map(Number)
+    const shiftEndMinutes = seH * 60 + seM
+
+    if (checkOutMinutes >= shiftEndMinutes) {
+      // Checkout sau hoặc đúng giờ tan ca hiệu lực → full day
+      isHalfDayWork = false
+    }
     // Trường hợp 1: Nghỉ buổi chiều - check in trước nghỉ trưa và check out trong/trước nghỉ trưa
-    if (checkInMinutes < breakStartMinutes && checkOutMinutes <= breakEndMinutes) {
+    else if (checkInMinutes < breakStartMinutes && checkOutMinutes <= breakEndMinutes && shiftEndMinutes > breakEndMinutes) {
       isHalfDayWork = true
       isMorningOnly = true
     }
@@ -309,10 +318,10 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
         const shift = log.employee?.shift
         const logDateOnly = dateSource.split('T')[0]
         const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
-        const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift)
+        const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
         const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo)
         const hasViolation = violations.length > 0
-        
+
         if (filterStatus === "violation" && !hasViolation) return false
         if (filterStatus === "complete" && (hasViolation || !log.check_out)) return false
         if (filterStatus === "incomplete" && log.check_out) return false
@@ -668,7 +677,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     const dateSource = log.check_in || log.check_out || log.created_at
                     const logDateOnly = dateSource ? dateSource.split('T')[0] : null
                     const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
-                    const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift)
+                    const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
                     const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo)
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")

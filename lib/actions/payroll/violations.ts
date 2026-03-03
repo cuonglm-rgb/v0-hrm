@@ -23,15 +23,19 @@ export async function getEmployeeViolations(
     .eq("employee_id", employeeId)
     .or(`and(check_in.gte.${startDate},check_in.lte.${endDate}T23:59:59),and(check_out.gte.${startDate},check_out.lte.${endDate}T23:59:59)`)
 
-  // Lấy danh sách ngày đặc biệt
+  // Lấy danh sách ngày đặc biệt kèm phạm vi nhân viên
   const { data: specialWorkDays } = await supabase
     .from("special_work_days")
-    .select("*")
+    .select(`*, assigned_employees:special_work_day_employees(employee_id)`)
     .gte("work_date", startDate)
     .lte("work_date", endDate)
 
   const specialDayMap = new Map<string, any>()
   for (const day of specialWorkDays || []) {
+    const assignedEmps = day.assigned_employees || []
+    if (assignedEmps.length > 0 && !assignedEmps.some((ae: any) => ae.employee_id === employeeId)) {
+      continue
+    }
     specialDayMap.set(day.work_date, day)
   }
 
@@ -212,27 +216,26 @@ export async function getEmployeeViolations(
         if (breakStartMinutes > 0 && breakEndMinutes > 0) {
           // Có giờ nghỉ trưa - kiểm tra xem có làm đủ 2 ca không
           
-          // Kiểm tra checkout có trước hoặc trong giờ nghỉ trưa không
-          if (checkOutMinutes <= breakEndMinutes) {
-            // Checkout trước/trong giờ nghỉ → chỉ làm nửa ngày sáng
+          if (checkOutMinutes >= shiftEndMinutes) {
+            // Checkout sau hoặc đúng giờ tan ca → full day
+            isHalfDay = false
+            lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
+            earlyMinutes = 0
+          } else if (checkOutMinutes <= breakEndMinutes && shiftEndMinutes > breakEndMinutes) {
+            // Checkout trước/trong giờ nghỉ (chỉ áp dụng khi ca kết thúc sau break)
             isHalfDay = true
             lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
             
-            // Tính về sớm ca sáng (nếu checkout trước giờ nghỉ trưa)
             if (checkOutMinutes < breakStartMinutes) {
               earlyMinutes = breakStartMinutes - checkOutMinutes
             }
             
             console.log(`[Violations] Ngày ${dateStr}: Chỉ làm ca sáng (checkout lúc ${Math.floor(checkOutMinutes/60)}:${String(checkOutMinutes%60).padStart(2,'0')})`)
           } else {
-            // Checkout sau giờ nghỉ → làm cả ngày
+            // Checkout sau giờ nghỉ nhưng trước giờ tan ca → làm cả ngày, về sớm
             isHalfDay = false
             lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
-            
-            // Tính về sớm nếu checkout trước giờ tan ca
-            if (checkOutMinutes < shiftEndMinutes) {
-              earlyMinutes = shiftEndMinutes - checkOutMinutes
-            }
+            earlyMinutes = shiftEndMinutes - checkOutMinutes
           }
         } else {
           // Không có giờ nghỉ trưa → tính đơn giản
