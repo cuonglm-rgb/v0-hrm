@@ -8,6 +8,8 @@ import type { PayrollItemWithRelations } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
 import { Wallet, Calendar, TrendingUp, TrendingDown, Eye, EyeOff } from "lucide-react"
 import { useState } from "react"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/shared/data-pagination"
 import { getPayrollAdjustmentDetails } from "@/lib/actions/payroll-actions"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
@@ -37,6 +39,17 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
     return (b.payroll_run?.month || 0) - (a.payroll_run?.month || 0)
   })
   const latestPayslip = sortedPayslips[0]
+
+  const {
+    paginatedData: paginatedPayslips,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems: totalPayslips,
+    setPage,
+    setPageSize,
+  } = usePagination(sortedPayslips, 50)
+
   const [selectedPayslip, setSelectedPayslip] = useState<PayrollItemWithRelations | null>(null)
   const [adjustmentDetails, setAdjustmentDetails] = useState<AdjustmentDetail[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -186,14 +199,14 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedPayslips.length === 0 ? (
+              {paginatedPayslips.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
                     Chưa có phiếu lương nào
                   </TableCell>
                 </TableRow>
               ) : (
-                sortedPayslips.map((payslip) => (
+                paginatedPayslips.map((payslip) => (
                   <TableRow key={payslip.id}>
                     <TableCell className="font-medium">
                       Tháng {payslip.payroll_run?.month}/{payslip.payroll_run?.year}
@@ -219,6 +232,14 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
               )}
             </TableBody>
           </Table>
+          <DataPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            totalItems={totalPayslips}
+          />
         </CardContent>
       </Card>
 

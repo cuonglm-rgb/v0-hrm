@@ -13,6 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Target, Plus, Pencil, Trash2, CheckCircle, XCircle } from "lucide-react"
 import { formatCurrency } from "@/lib/utils/format-utils"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/shared/data-pagination"
 import { 
   listKPIEvaluations, 
   saveKPIEvaluation, 
@@ -74,6 +76,19 @@ export function KPIEvaluationPanel() {
     loadData()
   }, [month, year])
 
+  const {
+    paginatedData: paginatedEvaluations,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems: totalEvaluations,
+    setPage,
+    setPageSize,
+  } = usePagination(evaluations, 50)
+
+  useEffect(() => {
+    setPage(1)
+  }, [month, year, setPage])
 
   const resetForm = () => {
     setSelectedEmployeeId("")
@@ -245,14 +260,14 @@ export function KPIEvaluationPanel() {
                     Đang tải...
                   </TableCell>
                 </TableRow>
-              ) : evaluations.length === 0 ? (
+              ) : paginatedEvaluations.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     Chưa có đánh giá KPI nào trong tháng {month}/{year}
                   </TableCell>
                 </TableRow>
               ) : (
-                evaluations.map((evaluation) => (
+                paginatedEvaluations.map((evaluation) => (
                   <TableRow key={evaluation.id}>
                     <TableCell>
                       <div>
@@ -302,6 +317,14 @@ export function KPIEvaluationPanel() {
               )}
             </TableBody>
           </Table>
+          <DataPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            totalItems={totalEvaluations}
+          />
 
           {/* Thống kê */}
           {evaluations.length > 0 && (

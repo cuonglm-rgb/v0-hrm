@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useMemo } from "react"
+import { useState, useRef, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -37,6 +37,8 @@ import type { Holiday } from "@/lib/actions/attendance-actions"
 import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
 import { formatDateVN, formatTimeVN, formatSourceVN } from "@/lib/utils/date-utils"
 import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, AlertTriangle, Clock, Filter, Search, Loader2, Calendar } from "lucide-react"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/shared/data-pagination"
 
 interface AttendanceManagementPanelProps {
   attendanceLogs: (AttendanceLogWithRelations & { employee?: { shift?: WorkShift | null } | null })[]
@@ -402,6 +404,20 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
     })
   }, [attendanceLogs, filterMonth, filterYear, filterStatus, filterEmployee, specialDaysMap, leaveRequests])
 
+  const {
+    paginatedData: paginatedLogs,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems: totalCombined,
+    setPage,
+    setPageSize,
+  } = usePagination(combinedData, 50)
+
+  useEffect(() => {
+    setPage(1)
+  }, [filterMonth, filterYear, filterStatus, filterEmployee, setPage])
+
   // Lấy danh sách năm từ dữ liệu
   const availableYears = useMemo(() => {
     const years = new Set<number>()
@@ -647,7 +663,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
               />
             </div>
             <span className="text-sm text-muted-foreground">
-              {combinedData.length} bản ghi
+              {totalCombined} bản ghi
             </span>
           </div>
 
@@ -665,14 +681,14 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {combinedData.length === 0 ? (
+                {paginatedLogs.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground">
                       Không có dữ liệu chấm công
                     </TableCell>
                   </TableRow>
                 ) : (
-                  combinedData.map((log) => {
+                  paginatedLogs.map((log) => {
                     const shift = log.employee?.shift
                     const dateSource = log.check_in || log.check_out || log.created_at
                     const logDateOnly = dateSource ? dateSource.split('T')[0] : null
@@ -851,6 +867,14 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
               </TableBody>
             </Table>
           </TooltipProvider>
+          <DataPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            totalItems={totalCombined}
+          />
         </CardContent>
       </Card>
 

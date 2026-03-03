@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -23,6 +23,8 @@ import {
 import { getRequestAssignedApprovers } from "@/lib/actions/request-type-actions"
 import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip, ShieldCheck, CheckCircle2, Calendar, User, XCircle, AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/shared/data-pagination"
 
 interface ApproverInfo {
   employeeId: string
@@ -178,6 +180,20 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       return true
     })
   }, [allRequests, filterStatus, filterType, filterFromDate, filterToDate, searchText])
+
+  const {
+    paginatedData: paginatedRequests,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems: totalFiltered,
+    setPage,
+    setPageSize,
+  } = usePagination(filteredRequests, 50)
+
+  useEffect(() => {
+    setPage(1)
+  }, [filterStatus, filterType, filterFromDate, filterToDate, searchText, setPage])
 
   const handleApprove = async (request: UnifiedApprovalRequest) => {
     setLoadingId(request.id)
@@ -520,7 +536,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Danh sách phiếu ({filteredRequests.length})
+              Danh sách phiếu ({totalFiltered})
             </CardTitle>
             {selectedIds.size > 0 && (
               <div className="flex items-center gap-2">
@@ -575,14 +591,14 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRequests.length === 0 ? (
+              {paginatedRequests.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center text-muted-foreground">
                     {hasActiveFilters ? "Không tìm thấy phiếu phù hợp" : "Không có phiếu nào"}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRequests.map((request) => {
+                paginatedRequests.map((request) => {
                   const canSelect = request.status === "pending" && 
                                    canApproveRequest(request) &&
                                    request.myApprovalStatus !== "approved" &&
@@ -711,6 +727,14 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
               )}
             </TableBody>
           </Table>
+          <DataPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            totalItems={totalFiltered}
+          />
         </CardContent>
       </Card>
 

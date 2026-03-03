@@ -26,6 +26,8 @@ import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, Custo
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { validateTimeSlot, validateNoOverlap, addTimeSlot, removeTimeSlot, getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
 import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users, Edit, Clock, User, CheckCircle, XCircle, AlertCircle } from "lucide-react"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/shared/data-pagination"
 
 interface LeaveRequestPanelProps {
   requestTypes: RequestType[]
@@ -183,6 +185,20 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       return true
     })
   }, [allRequests, filterType, filterStatus, filterFromDate, filterToDate, searchText])
+
+  const {
+    paginatedData: paginatedRequests,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems: totalFiltered,
+    setPage,
+    setPageSize,
+  } = usePagination(filteredRequests, 50)
+
+  useEffect(() => {
+    setPage(1)
+  }, [filterType, filterStatus, filterFromDate, filterToDate, searchText, setPage])
 
   // Stats
   const stats = useMemo(() => ({
@@ -946,7 +962,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Danh sách phiếu ({filteredRequests.length})
+            Danh sách phiếu ({totalFiltered})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -963,14 +979,14 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRequests.length === 0 ? (
+              {paginatedRequests.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground">
                     {hasActiveFilters ? "Không tìm thấy phiếu phù hợp" : "Chưa có phiếu nào"}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRequests.map((request) => (
+                paginatedRequests.map((request) => (
                   <TableRow 
                     key={request.id} 
                     className="cursor-pointer hover:bg-muted/50"
@@ -1032,6 +1048,14 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
               )}
             </TableBody>
           </Table>
+          <DataPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            totalItems={totalFiltered}
+          />
         </CardContent>
       </Card>
 

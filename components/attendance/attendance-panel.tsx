@@ -32,6 +32,8 @@ import {
 } from "@/lib/utils/date-utils"
 import { calculateLeaveEntitlement } from "@/lib/utils/leave-utils"
 import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter, Calendar } from "lucide-react"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/shared/data-pagination"
 
 interface AttendanceViolation {
   type: "late" | "early_leave" | "no_checkin" | "no_checkout"
@@ -465,6 +467,20 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
     return filtered.reverse()
   }, [filteredLogs, filterMonth, filterYear, leaveRequests, holidays, specialDays, saturdaySchedules, filterStatus, shift, employeeId])
 
+  const {
+    paginatedData: paginatedAttendance,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems: totalAttendance,
+    setPage,
+    setPageSize,
+  } = usePagination(workingDaysWithAttendance, 50)
+
+  useEffect(() => {
+    setPage(1)
+  }, [filterMonth, filterYear, filterStatus, setPage])
+
   // Lấy danh sách năm từ dữ liệu
   const availableYears = useMemo(() => {
     const years = new Set<number>()
@@ -661,7 +677,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
               </Select>
             </div>
             <span className="text-sm text-muted-foreground ml-auto">
-              {workingDaysWithAttendance.length} bản ghi
+              {totalAttendance} bản ghi
             </span>
           </div>
 
@@ -678,14 +694,14 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {workingDaysWithAttendance.length === 0 ? (
+                {paginatedAttendance.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
                       Không có dữ liệu chấm công
                     </TableCell>
                   </TableRow>
                 ) : (
-                  workingDaysWithAttendance.map(({ date, log, leaveRequest, holiday, specialDay }) => {
+                  paginatedAttendance.map(({ date, log, leaveRequest, holiday, specialDay }) => {
                     // Kiểm tra nếu là làm nửa ngày (check in/out trong giờ nghỉ trưa) - cần xác định trước khi gọi checkViolations
                     let isHalfDayWork = false
                     let isAfternoonOnly = false // Nghỉ buổi sáng, làm buổi chiều
@@ -930,6 +946,14 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
               </TableBody>
             </Table>
           </TooltipProvider>
+          <DataPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            totalItems={totalAttendance}
+          />
         </CardContent>
       </Card>
     </div>

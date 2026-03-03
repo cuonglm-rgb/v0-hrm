@@ -30,6 +30,8 @@ import type { PayrollRun } from "@/lib/types/database"
 import { formatDateVN } from "@/lib/utils/date-utils"
 import { Plus, Eye, Trash2, Calculator, Wallet, RefreshCw, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/shared/data-pagination"
 
 interface PayrollListPanelProps {
   payrollRuns: PayrollRun[]
@@ -184,6 +186,16 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
     }
   }
 
+  const {
+    paginatedData: paginatedRuns,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems: totalRuns,
+    setPage,
+    setPageSize,
+  } = usePagination(payrollRuns, 50)
+
   // Stats
   const draftCount = payrollRuns.filter((r) => r.status === "draft").length
   const reviewCount = payrollRuns.filter((r) => r.status === "review").length
@@ -308,14 +320,14 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payrollRuns.length === 0 ? (
+              {paginatedRuns.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground">
                     Chưa có bảng lương nào
                   </TableCell>
                 </TableRow>
               ) : (
-                payrollRuns.map((run) => (
+                paginatedRuns.map((run) => (
                   <TableRow key={run.id}>
                     <TableCell className="font-medium">
                       Tháng {run.month}/{run.year}
@@ -365,6 +377,14 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
               )}
             </TableBody>
           </Table>
+          <DataPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            totalItems={totalRuns}
+          />
         </CardContent>
       </Card>
 

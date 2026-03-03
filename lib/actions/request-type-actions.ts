@@ -355,7 +355,7 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
     if (filters?.request_type_id) query = query.eq("request_type_id", filters.request_type_id)
     if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id)
 
-    const { data, error } = await query.limit(100)
+    const { data, error } = await query
 
     if (error) {
       console.error("Error listing employee requests:", error)
@@ -409,7 +409,7 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
   if (filters?.request_type_id) query = query.eq("request_type_id", filters.request_type_id)
   if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id)
 
-  const { data, error } = await query.limit(100)
+  const { data, error } = await query
 
   if (error) {
     console.error("Error listing employee requests:", error)

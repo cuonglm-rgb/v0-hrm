@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, UserPlus } from "lucide-react"
 import type { EmployeeWithRelations, UserRoleWithRelations, Department } from "@/lib/types/database"
+import { usePagination } from "@/hooks/use-pagination"
+import { DataPagination } from "@/components/shared/data-pagination"
 
 interface EmployeeListProps {
   employees: EmployeeWithRelations[]
@@ -49,6 +51,20 @@ export function EmployeeList({ employees, userRoles, departments = [] }: Employe
 
     return matchesSearch && matchesStatus && matchesDepartment
   })
+
+  const {
+    paginatedData: paginatedEmployees,
+    currentPage,
+    totalPages,
+    pageSize,
+    totalItems: totalFiltered,
+    setPage,
+    setPageSize,
+  } = usePagination(filteredEmployees, 50)
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, statusFilter, departmentFilter, setPage])
 
   return (
     <div className="space-y-4">
@@ -117,14 +133,14 @@ export function EmployeeList({ employees, userRoles, departments = [] }: Employe
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEmployees.length === 0 ? (
+              {paginatedEmployees.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     No employees found
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredEmployees.map((emp) => {
+                paginatedEmployees.map((emp) => {
                   const initials = emp.full_name
                     ?.split(" ")
                     .map((n) => n[0])
@@ -166,6 +182,14 @@ export function EmployeeList({ employees, userRoles, departments = [] }: Employe
               )}
             </TableBody>
           </Table>
+          <DataPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
+            totalItems={totalFiltered}
+          />
         </CardContent>
       </Card>
     </div>
