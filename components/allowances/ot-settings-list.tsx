@@ -34,20 +34,24 @@ import {
   createOTSetting,
   updateOTSetting,
   deleteOTSetting,
+  updateOTHoursPerDay,
 } from "@/lib/actions/overtime-actions"
 import type { OTSetting } from "@/lib/types/database"
 
 interface OTSettingsListProps {
   settings: OTSetting[]
   isHROrAdmin: boolean
+  otHoursPerDay: number
 }
 
-export function OTSettingsList({ settings, isHROrAdmin }: OTSettingsListProps) {
+export function OTSettingsList({ settings, isHROrAdmin, otHoursPerDay }: OTSettingsListProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<OTSetting | null>(null)
   const [deleting, setDeleting] = useState<OTSetting | null>(null)
   const [saving, setSaving] = useState(false)
+  const [hoursPerDay, setHoursPerDay] = useState(String(otHoursPerDay))
+  const [savingHours, setSavingHours] = useState(false)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -67,6 +71,26 @@ export function OTSettingsList({ settings, isHROrAdmin }: OTSettingsListProps) {
       display_order: String(settings.length + 1),
     })
     setOpen(true)
+  }
+
+  const handleSaveHoursPerDay = async () => {
+    const value = parseFloat(hoursPerDay)
+    if (isNaN(value) || value <= 0 || value > 24) {
+      toast.error("Giờ công chuẩn OT phải từ 0.5 đến 24")
+      return
+    }
+    setSavingHours(true)
+    try {
+      const result = await updateOTHoursPerDay(value)
+      if (result.success) {
+        toast.success("Đã cập nhật giờ công chuẩn OT")
+        router.refresh()
+      } else {
+        toast.error(result.error)
+      }
+    } finally {
+      setSavingHours(false)
+    }
   }
 
   const handleOpenEdit = (item: OTSetting) => {
@@ -160,6 +184,56 @@ export function OTSettingsList({ settings, isHROrAdmin }: OTSettingsListProps) {
   }
 
   return (
+    <div className="space-y-4">
+      {/* Giờ công chuẩn OT */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Giờ công chuẩn OT
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ot_hours_per_day">Số giờ/ngày để tính lương OT</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="ot_hours_per_day"
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  max="24"
+                  value={hoursPerDay}
+                  onChange={(e) => setHoursPerDay(e.target.value)}
+                  className="w-24"
+                  disabled={!isHROrAdmin}
+                />
+                <span className="text-sm text-muted-foreground">giờ/ngày</span>
+                {isHROrAdmin && (
+                  <Button
+                    size="sm"
+                    onClick={handleSaveHoursPerDay}
+                    disabled={savingHours || String(otHoursPerDay) === hoursPerDay}
+                  >
+                    {savingHours ? "Đang lưu..." : "Lưu"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-800">
+              <strong>Công thức:</strong> Lương OT/giờ = Lương cơ bản ÷ Công chuẩn ÷ <strong>{hoursPerDay}</strong>
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              VD: 12,000,000 ÷ 26 ÷ {hoursPerDay} = {Math.round(12000000 / 26 / (parseFloat(hoursPerDay) || 8)).toLocaleString()}đ/giờ
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bảng hệ số OT */}
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg flex items-center gap-2">
@@ -287,7 +361,7 @@ export function OTSettingsList({ settings, isHROrAdmin }: OTSettingsListProps) {
                 <strong>Công thức:</strong> Tiền OT = Lương giờ × Số giờ OT × Hệ số
               </p>
               <p className="text-xs text-blue-600 mt-1">
-                Lương giờ = Lương cơ bản ÷ Công chuẩn ÷ 8
+                Lương giờ = Lương cơ bản ÷ Công chuẩn ÷ {otHoursPerDay}
               </p>
             </div>
 
@@ -342,5 +416,6 @@ export function OTSettingsList({ settings, isHROrAdmin }: OTSettingsListProps) {
         </AlertDialogContent>
       </AlertDialog>
     </Card>
+    </div>
   )
 }

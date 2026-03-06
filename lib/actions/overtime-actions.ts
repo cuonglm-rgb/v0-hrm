@@ -7,6 +7,58 @@ import { getLastDayOfMonthVN, getNowVN } from "@/lib/utils/date-utils"
 import { lunarToSolarDate } from "@/lib/utils/lunar-calendar"
 
 // =============================================
+// OT CONFIG (Giờ công chuẩn OT)
+// =============================================
+
+const DEFAULT_OT_HOURS_PER_DAY = 8
+
+export async function getOTHoursPerDay(): Promise<number> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from("ot_config")
+    .select("value")
+    .eq("key", "ot_hours_per_day")
+    .maybeSingle()
+
+  if (error || !data) {
+    return DEFAULT_OT_HOURS_PER_DAY
+  }
+
+  return Number(data.value) || DEFAULT_OT_HOURS_PER_DAY
+}
+
+export async function updateOTHoursPerDay(value: number) {
+  if (value <= 0 || value > 24) {
+    return { success: false, error: "Giờ công chuẩn OT phải từ 0.5 đến 24" }
+  }
+
+  const supabase = await createClient()
+
+  // Upsert
+  const { error } = await supabase
+    .from("ot_config")
+    .upsert(
+      {
+        key: "ot_hours_per_day",
+        value,
+        label: "Giờ công chuẩn OT",
+        description: `Số giờ chuẩn để tính lương OT theo giờ. Lương OT/giờ = Lương cơ bản ÷ Công chuẩn ÷ ${value}`,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" }
+    )
+
+  if (error) {
+    console.error("Error updating OT hours per day:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/allowances")
+  return { success: true }
+}
+
+// =============================================
 // OT SETTINGS ACTIONS
 // =============================================
 
@@ -699,7 +751,8 @@ export async function calculateOvertimePay(
 
   console.log(`[OT] Calculating OT for employee ${employeeId} from ${startDate} to ${endDate}`)
 
-  const hourlyRate = baseSalary / standardWorkingDays / 8 // Lương theo giờ
+  const otHoursPerDay = await getOTHoursPerDay()
+  const hourlyRate = baseSalary / standardWorkingDays / otHoursPerDay // Lương OT theo giờ
   let totalOTHours = 0
   let totalOTPay = 0
   const details: Array<{
@@ -860,7 +913,8 @@ export async function getOTBreakdownForPayroll(
   
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`
   const endDate = getLastDayOfMonthVN(year, month)
-  const hourlyRate = baseSalary / standardWorkingDays / 8
+  const otHoursPerDay = await getOTHoursPerDay()
+  const hourlyRate = baseSalary / standardWorkingDays / otHoursPerDay
 
   const items: OTBreakdownItem[] = []
 

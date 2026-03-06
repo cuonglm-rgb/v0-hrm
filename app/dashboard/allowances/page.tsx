@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { listAdjustmentTypes } from "@/lib/actions/allowance-actions"
-import { listOTSettings, listHolidays } from "@/lib/actions/overtime-actions"
+import { listOTSettings, listHolidays, getOTHoursPerDay } from "@/lib/actions/overtime-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { AllowanceList } from "@/components/allowances/allowance-list"
 import { OTSettingsList } from "@/components/allowances/ot-settings-list"
@@ -22,13 +22,14 @@ export default async function AllowancesPage() {
     redirect("/login")
   }
 
-  const [employee, userRoles, adjustments, otSettings, holidays, canApproveRequests] = await Promise.all([
+  const [employee, userRoles, adjustments, otSettings, holidays, canApproveRequests, otHoursPerDay] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listAdjustmentTypes(),
     listOTSettings(),
     listHolidays(),
     checkCanApproveRequests(),
+    getOTHoursPerDay(),
   ])
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
@@ -63,7 +64,7 @@ export default async function AllowancesPage() {
           </TabsContent>
 
           <TabsContent value="overtime" className="mt-4">
-            <OTSettingsList settings={otSettings} isHROrAdmin={isHROrAdmin} />
+            <OTSettingsList settings={otSettings} isHROrAdmin={isHROrAdmin} otHoursPerDay={otHoursPerDay} />
           </TabsContent>
 
           <TabsContent value="holidays" className="mt-4">
