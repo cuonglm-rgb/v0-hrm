@@ -108,6 +108,27 @@ export async function createRequestType(input: {
   return { success: true }
 }
 
+export async function updateRequestTypeOrder(
+  items: { id: string; display_order: number }[]
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  for (const item of items) {
+    const { error } = await supabase
+      .from("request_types")
+      .update({ display_order: item.display_order })
+      .eq("id", item.id)
+
+    if (error) {
+      console.error("Error updating request type order:", error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  revalidatePath("/dashboard/leave-approval")
+  return { success: true }
+}
+
 export async function updateRequestType(
   id: string,
   input: Partial<{

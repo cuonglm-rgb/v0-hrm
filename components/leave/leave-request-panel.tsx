@@ -391,14 +391,15 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
           return
         }
         ;(customData as Record<string, unknown>)[LINKED_DEFICIT_LINKS_KEY] = links
-      } else {
-        const deficitDate = formData.get("linked_deficit_date") as string
-        if (!deficitDate) {
-          setError("Vui lòng chọn ngày thiếu công gốc")
+      } else if (selectedType.code === "late_early_makeup") {
+        // Tạm thời: làm bù cùng ngày → linked_deficit_date = request_date
+        const requestDate = formData.get("request_date") as string
+        if (!requestDate) {
+          setError("Vui lòng chọn ngày làm bù")
           setLoading(false)
           return
         }
-        customData[LINKED_DEFICIT_DATE_KEY] = deficitDate
+        customData[LINKED_DEFICIT_DATE_KEY] = requestDate
       }
     }
 
@@ -657,20 +658,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     />
                   </div>
                 )}
-                {isMakeupRequestType(selectedType.code) && selectedType.code === "late_early_makeup" && (
-                  <div className="grid gap-2">
-                    <Label>Ngày thiếu công gốc *</Label>
-                    <Input
-                      type="date"
-                      name="linked_deficit_date"
-                      required
-                      defaultValue={editingRequest?.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] || ""}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Phải cùng tháng với ngày làm bù. Checkout trước giờ kết thúc trong phiếu sẽ bị tính vi phạm.
-                    </p>
-                  </div>
-                )}
+                {/* late_early_makeup tạm thời làm bù cùng ngày → ẩn trường ngày thiếu công gốc, backend sẽ tự gán = request_date */}
                 {isMakeupRequestType(selectedType.code) && selectedType.code === "full_day_makeup" && (
                   <div className="grid gap-2">
                     <Label>Ngày thiếu công gốc * (tổng ≤ 1 ngày)</Label>

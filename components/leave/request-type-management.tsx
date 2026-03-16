@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -11,10 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createRequestType, updateRequestType, deleteRequestType } from "@/lib/actions/request-type-actions"
+import { createRequestType, updateRequestType, deleteRequestType, updateRequestTypeOrder } from "@/lib/actions/request-type-actions"
 import { applyToggleCoupling } from "@/lib/utils/time-slot-utils"
 import type { RequestType, Position, CustomField, CustomFieldType } from "@/lib/types/database"
-import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip, Users, GripVertical } from "lucide-react"
+import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip, Users, GripVertical, ArrowUp, ArrowDown } from "lucide-react"
 import { toast } from "sonner"
 
 interface RequestTypeManagementProps {
@@ -26,6 +26,17 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [editingType, setEditingType] = useState<RequestType | null>(null)
   const [loading, setLoading] = useState(false)
+  const [ordering, setOrdering] = useState(false)
+
+  // Local thứ tự để hiển thị và kéo lên/xuống
+  const [orderedTypes, setOrderedTypes] = useState<RequestType[]>(() =>
+    [...requestTypes].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+  )
+
+  // Đồng bộ lại khi server trả về list mới (sau khi revalidate)
+  useEffect(() => {
+    setOrderedTypes([...requestTypes].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0)))
+  }, [requestTypes])
 
   const [formData, setFormData] = useState({
     name: "",
@@ -177,6 +188,31 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       toast.success(type.is_active ? "Đã tắt loại phiếu" : "Đã bật loại phiếu")
     } else {
       toast.error(result.error || "Không thể cập nhật trạng thái")
+    }
+  }
+
+  const handleMove = async (id: string, direction: "up" | "down") => {
+    const index = orderedTypes.findIndex(t => t.id === id)
+    if (index === -1) return
+    const newIndex = direction === "up" ? index - 1 : index + 1
+    if (newIndex < 0 || newIndex >= orderedTypes.length) return
+
+    const next = [...orderedTypes]
+    const [moved] = next.splice(index, 1)
+    next.splice(newIndex, 0, moved)
+    setOrderedTypes(next)
+
+    try {
+      setOrdering(true)
+      await updateRequestTypeOrder(
+        next.map((t, idx) => ({ id: t.id, display_order: idx + 1 }))
+      )
+      toast.success("Đã cập nhật thứ tự loại phiếu")
+    } catch (e) {
+      console.error("Error updating request type order:", e)
+      toast.error("Không thể cập nhật thứ tự loại phiếu")
+    } finally {
+      setOrdering(false)
     }
   }
 
@@ -583,14 +619,14 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
             </TableRow>
           </TableHeader>
           <TableBody>
-            {requestTypes.length === 0 ? (
+            {orderedTypes.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
                   Chưa có loại phiếu nào
                 </TableCell>
               </TableRow>
             ) : (
-              requestTypes.map((type) => (
+              orderedTypes.map((type, index) => (
                 <TableRow key={type.id}>
                   <TableCell>
                     <div>
@@ -676,7 +712,28 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => handleMove(type.id, "up")}
+                        disabled={index === 0 || ordering}
+                        title="Đưa lên trên"
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => handleMove(type.id, "down")}
+                        disabled={index === orderedTypes.length - 1 || ordering}
+                        title="Đưa xuống dưới"
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                      <div className="w-px h-6 bg-border mx-1" />
                       <Button size="sm" variant="ghost" onClick={() => handleEdit(type)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
