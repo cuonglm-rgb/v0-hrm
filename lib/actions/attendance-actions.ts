@@ -73,10 +73,15 @@ export async function getMyApprovedLeaveRequests(from?: string, to?: string) {
     `)
     .eq("employee_id", employee.id)
     .eq("status", "approved")
-    .not("from_date", "is", null)
+    .or("from_date.not.is.null,request_date.not.is.null")
 
-  if (from) query = query.gte("from_date", from)
-  if (to) query = query.lte("to_date", to)
+  if (from && to) {
+    query = query.or(`and(from_date.lte.${to},to_date.gte.${from}),and(request_date.gte.${from},request_date.lte.${to})`)
+  } else if (from) {
+    query = query.or(`to_date.gte.${from},request_date.gte.${from}`)
+  } else if (to) {
+    query = query.or(`from_date.lte.${to},request_date.lte.${to}`)
+  }
 
   const { data, error } = await query
 
@@ -88,7 +93,7 @@ export async function getMyApprovedLeaveRequests(from?: string, to?: string) {
   return data || []
 }
 
-// Lấy tất cả phiếu nghỉ được duyệt (cho HR/Admin)
+// Lấy tất cả phiếu nghỉ / làm bù được duyệt (cho HR/Admin, bao gồm phiếu có request_date như late_early_makeup)
 export async function getAllApprovedLeaveRequests(from?: string, to?: string) {
   const supabase = await createClient()
 
@@ -111,10 +116,15 @@ export async function getAllApprovedLeaveRequests(from?: string, to?: string) {
       )
     `)
     .eq("status", "approved")
-    .not("from_date", "is", null)
+    .or("from_date.not.is.null,request_date.not.is.null")
 
-  if (from) query = query.gte("from_date", from)
-  if (to) query = query.lte("to_date", to)
+  if (from && to) {
+    query = query.or(`and(from_date.lte.${to},to_date.gte.${from}),and(request_date.gte.${from},request_date.lte.${to})`)
+  } else if (from) {
+    query = query.or(`to_date.gte.${from},request_date.gte.${from}`)
+  } else if (to) {
+    query = query.or(`from_date.lte.${to},request_date.lte.${to}`)
+  }
 
   const { data, error } = await query
 

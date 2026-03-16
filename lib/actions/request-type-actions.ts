@@ -6,7 +6,9 @@ import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, Custo
 import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { validateTimeSlot, validateNoOverlap } from "@/lib/utils/time-slot-utils"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
-import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
+import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, LINKED_DEFICIT_LINKS_KEY, getMakeupDeficitLinks, type MakeupDeficitLink } from "@/lib/utils/makeup-utils"
+import { getEmployeeViolations } from "./payroll/violations"
+import type { ShiftInfo } from "./payroll/types"
 import { differenceInDays, parseISO, startOfDay } from "date-fns"
 
 // =============================================
@@ -557,20 +559,41 @@ export async function createEmployeeRequest(input: {
   }
 
   // Validate phiếu làm bù
+  let normalizedMakeupCustomData: Record<string, unknown> | undefined
   if (requestType && isMakeupRequestType(requestType.code)) {
-    const linkedDate = input.custom_data?.[LINKED_DEFICIT_DATE_KEY]
-    if (!linkedDate) {
+    const cd = (input.custom_data || {}) as Record<string, unknown>
+    let links: MakeupDeficitLink[] = []
+    const rawLinks = cd[LINKED_DEFICIT_LINKS_KEY]
+    if (Array.isArray(rawLinks) && rawLinks.length > 0) {
+      links = rawLinks.filter((l: any) => l && typeof l.deficit_date === "string" && typeof l.amount === "number").map((l: any) => ({ deficit_date: l.deficit_date, amount: l.amount }))
+    }
+    if (links.length === 0) {
+      const single = cd[LINKED_DEFICIT_DATE_KEY] as string | undefined
+      if (single) links = [{ deficit_date: single, amount: 1 }]
+    }
+    if (links.length === 0) {
       return { success: false, error: "Vui lòng chọn ngày thiếu công gốc" }
     }
     if (!input.request_date) {
       return { success: false, error: "Vui lòng chọn ngày làm bù" }
     }
 
-    if (requestType.code === "late_early_makeup" && !isSameMonth(input.request_date, linkedDate)) {
+    const firstDeficitDate = links[0].deficit_date
+    if (requestType.code === "late_early_makeup" && !isSameMonth(input.request_date, firstDeficitDate)) {
       return { success: false, error: "Phiếu đi muộn/về sớm làm bù chỉ được tạo trong cùng tháng với ngày thiếu công" }
     }
 
     if (requestType.code === "full_day_makeup") {
+      const totalAmount = links.reduce((s, l) => s + l.amount, 0)
+      if (totalAmount > 1) {
+        return { success: false, error: "Tổng số ngày bù không được vượt quá 1 ngày" }
+      }
+      for (const l of links) {
+        if (l.amount !== 0.5 && l.amount !== 1) {
+          return { success: false, error: "Mỗi ngày thiếu công chỉ được nhập 0,5 hoặc 1 ngày" }
+        }
+      }
+
       const { data: satSchedules } = await supabase
         .from("saturday_work_schedule")
         .select("employee_id, work_date, is_working")
@@ -584,6 +607,60 @@ export async function createEmployeeRequest(input: {
       if (!isEmployeeOffDay(input.request_date, satSchedules || [], employee.id, holidays || [])) {
         return { success: false, error: "Ngày làm bù phải là ngày nghỉ của nhân viên (Chủ nhật, Thứ 7 nghỉ theo lịch, hoặc ngày lễ)" }
       }
+
+      // Over-consume: deficit amount và đã consumed theo từng ngày
+      const deficitDates = [...new Set(links.map((l) => l.deficit_date))]
+      const startDate = deficitDates.reduce((a, b) => (a < b ? a : b))
+      const endDate = deficitDates.reduce((a, b) => (a > b ? a : b))
+      const { data: empWithShift } = await supabase.from("employees").select("shift_id").eq("id", employee.id).single()
+      const shiftId = (empWithShift as any)?.shift_id
+      let shiftInfo: ShiftInfo = { startTime: "08:00", endTime: "17:00", breakStart: null, breakEnd: null }
+      if (shiftId) {
+        const { data: shiftRow } = await supabase.from("work_shifts").select("start_time, end_time, break_start, break_end").eq("id", shiftId).single()
+        if (shiftRow) {
+          shiftInfo = {
+            startTime: (shiftRow as any).start_time?.slice(0, 5) || "08:00",
+            endTime: (shiftRow as any).end_time?.slice(0, 5) || "17:00",
+            breakStart: (shiftRow as any).break_start?.slice(0, 5) || null,
+            breakEnd: (shiftRow as any).break_end?.slice(0, 5) || null,
+          }
+        }
+      }
+      const violations = await getEmployeeViolations(supabase, employee.id, startDate, endDate, shiftInfo)
+      const deficitAmountByDate: Record<string, number> = {}
+      for (const v of violations) {
+        if (v.isAbsent) deficitAmountByDate[v.date] = 1
+        else if (v.isHalfDay) deficitAmountByDate[v.date] = 0.5
+        else if (deficitAmountByDate[v.date] === undefined) deficitAmountByDate[v.date] = 0
+      }
+      const { data: existingMakeup } = await supabase
+        .from("employee_requests")
+        .select("id, custom_data, request_type:request_types!request_type_id(code)")
+        .eq("employee_id", employee.id)
+        .eq("status", "approved")
+      const consumedByDate: Record<string, number> = {}
+      for (const r of existingMakeup || []) {
+        if ((r as any).request_type?.code !== "full_day_makeup") continue
+        const existingLinks = getMakeupDeficitLinks((r as any).custom_data as Record<string, unknown>)
+        for (const el of existingLinks) {
+          consumedByDate[el.deficit_date] = (consumedByDate[el.deficit_date] || 0) + el.amount
+        }
+      }
+      for (const link of links) {
+        const def = deficitAmountByDate[link.deficit_date] ?? 0
+        if (def <= 0) {
+          return { success: false, error: `Ngày ${link.deficit_date} không có thiếu công (nửa ngày/cả ngày) để bù` }
+        }
+        const consumed = consumedByDate[link.deficit_date] || 0
+        if (consumed + link.amount > def) {
+          return { success: false, error: `Ngày thiếu công ${link.deficit_date} đã được bù đủ (còn lại ${def - consumed} ngày). Không thể bù thêm ${link.amount} ngày.` }
+        }
+      }
+
+      normalizedMakeupCustomData = { [LINKED_DEFICIT_LINKS_KEY]: links }
+      if (links.length === 1) (normalizedMakeupCustomData as Record<string, string>)[LINKED_DEFICIT_DATE_KEY] = links[0].deficit_date
+    } else {
+      normalizedMakeupCustomData = { [LINKED_DEFICIT_DATE_KEY]: firstDeficitDate }
     }
 
     if (!input.from_time || !input.to_time) {
@@ -605,23 +682,9 @@ export async function createEmployeeRequest(input: {
     if (otConflict) {
       return { success: false, error: "Khung giờ làm bù trùng với phiếu tăng ca đã duyệt. Vui lòng chọn khung giờ khác." }
     }
-
-    if (requestType.code === "full_day_makeup" && linkedDate) {
-      const { data: existingMakeup } = await supabase
-        .from("employee_requests")
-        .select("id, custom_data, request_type:request_types!request_type_id(code)")
-        .eq("employee_id", employee.id)
-        .eq("status", "approved")
-      const alreadyConsumed = (existingMakeup || []).some(
-        (r: any) => r.request_type?.code === "full_day_makeup" && r.custom_data?.[LINKED_DEFICIT_DATE_KEY] === linkedDate
-      )
-      if (alreadyConsumed) {
-        return { success: false, error: "Ngày thiếu công gốc này đã có phiếu làm bù cả ngày được duyệt. Mỗi ngày thiếu chỉ được bù một lần." }
-      }
-    }
   }
 
-  // Tạo phiếu
+  // Tạo phiếu (dùng normalized custom_data cho makeup để lưu linked_deficit_links)
   const { data: newRequest, error } = await supabase.from("employee_requests").insert({
     employee_id: employee.id,
     request_type_id: input.request_type_id,
@@ -633,7 +696,7 @@ export async function createEmployeeRequest(input: {
     to_time: input.to_time,
     reason: input.reason,
     attachment_url: input.attachment_url,
-    custom_data: input.custom_data || null,
+    custom_data: normalizedMakeupCustomData ?? input.custom_data ?? null,
     status: "pending",
   }).select("id").single()
 

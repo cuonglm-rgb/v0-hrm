@@ -31,6 +31,10 @@
 | 1.2.10 | Làm bù **tháng sau** so với ngày thiếu công | Deficit 28/3, makeup 5/4 (CN) | Cho phép; ghi nhận công **tháng 4**, không hồi tố tháng 3 |
 | 1.2.11 | Trùng khung giờ với phiếu OT đã duyệt cùng ngày | Có OT approved cùng ngày, khung giờ giao với from_time–to_time | Từ chối (overlap OT) |
 | 1.2.12 | Ngày làm việc đặc biệt (special_work_days) | Bão, sự kiện, được về sớm… | **Không** dùng để mở rộng quyền chọn ngày làm bù; chỉ xét CN / T7 override / holidays |
+| 1.2.13 | **1 makeup consume nhiều deficit** | `linked_deficit_links`: [{ deficit_date: "2026-03-06", amount: 0.5 }, { deficit_date: "2026-03-13", amount: 0.5 }], tổng = 1 | Cho phép; 1 ngày làm bù (VD 07/03) bù 2 nửa ngày 06/03 và 13/03 |
+| 1.2.14 | Tổng amount > 1 | linked_deficit_links tổng > 1 | Từ chối: "Tổng số ngày bù không được vượt quá 1 ngày" |
+| 1.2.15 | Over-consume một ngày | Đã có phiếu bù 06/03 0.5, tạo phiếu mới cũng link 06/03 0.5 | Từ chối (remaining 06/03 = 0) |
+| 1.2.16 | Ngày không có thiếu công | Link deficit_date không có trong violations (isHalfDay/isAbsent) | Từ chối: "Ngày ... không có thiếu công để bù" |
 
 ---
 
@@ -61,12 +65,13 @@
 
 ### Mô hình Consume deficit (áp dụng)
 
-- **Ngày làm bù** không tăng `working_days`; chỉ dùng để **consume** deficit từ `linked_deficit_date`.
-- **Mỗi deficit** chỉ được consume **tối đa 1 lần** (nhiều phiếu bù cùng 1 ngày gốc vẫn chỉ +1).
-- Công thức: `actual_salary_days = working_days - (nửa ngày) + consumed_days`, với `consumed_days` = số ngày deficit được consume trong tháng (có phiếu full_day_makeup approved + có chấm công ngày làm bù).
+- **Ngày làm bù** không tăng `working_days`; chỉ dùng để **consume** deficit của các **ngày gốc** (deficit_date). Makeup không tạo công mới.
+- **Consume theo amount:** `consumed_days` = **tổng amount** từ các phiếu full_day_makeup đã duyệt và có chấm công ngày làm bù (1 phiếu có thể có `linked_deficit_links`: nhiều cặp deficit_date + amount, VD 0.5 + 0.5 = 1).
+- **Không over-consume:** Với mỗi ngày gốc, tổng amount đã consume (từ mọi phiếu) ≤ deficit amount ngày đó (0.5 hoặc 1 từ violations).
+- Công thức: `actual_salary_days = working_days - (nửa ngày) + consumed_days`.
 - **Trạng thái consume theo tháng:** Mỗi lần chạy payroll (generate hoặc recalculate), lưu vào `payroll_items`:
-  - `consumed_deficit_days`: số ngày consume trong tháng run.
-  - `consumed_deficit_detail`: danh sách `linked_deficit_date` đã consume (VD: `2026-02-28,2026-03-10`) để audit. Khi xem bảng lương tháng 3 → biết consume thuộc tháng 3 và bù những ngày gốc nào.
+  - `consumed_deficit_days`: tổng amount đã consume trong tháng run.
+  - `consumed_deficit_detail`: danh sách `deficit_date:amount` đã consume (VD: `2026-03-06:0.5,2026-03-13:0.5`) để audit.
 
 ### 3.1 Phiếu làm bù **không** tính là nghỉ phép
 
@@ -77,10 +82,10 @@
 
 ### 3.2 Làm bù cả ngày – Mô hình **consume deficit**
 
-**Nguyên tắc:** Ngày làm bù **không** tăng working days; chỉ dùng để **giảm (consume)** deficit từ `linked_deficit_date`. Mỗi deficit chỉ được consume tối đa **1 lần**.
+**Nguyên tắc:** Ngày làm bù **không** tăng working days; chỉ dùng để **giảm (consume)** deficit của các ngày gốc. Consume theo **amount** (0.5 hoặc 1), không theo số lần.
 
 - `working_days` = đếm attendance, **trừ** các ngày là ngày làm bù (request_date của full_day_makeup).
-- `consumed_days` = số **unique** `linked_deficit_date` có ít nhất 1 phiếu full_day_makeup đã duyệt trong tháng **và** có chấm công đủ trên ngày làm bù.
+- `consumed_days` = **tổng amount** từ `getMakeupDeficitLinks(custom_data)` của mọi phiếu full_day_makeup đã duyệt **và** có chấm công ngày làm bù (chỉ những phiếu có attendance trên request_date mới được cộng).
 - `actual_salary_days` = working_days − (nửa ngày) **+ consumed_days**.
 
 | # | Case | Mô tả | Kết quả |
@@ -88,9 +93,10 @@
 | 3.2.1 | full_day_makeup trong tháng, deficit cùng tháng | Deficit 10/3, makeup 21/3, có attendance 21/3 | Ngày 21/3 **không** cộng vào working_days; deficit 10/3 được consume → +1 consumed_days → đúng 1 công |
 | 3.2.2 | full_day_makeup trong tháng, deficit tháng trước | Deficit 28/2, makeup 7/3, có attendance 7/3 | Ngày 7/3 không cộng working_days; deficit 28/2 được consume → +1 consumed_days (ghi tháng 3) |
 | 3.2.3 | Không double penalty | Tháng 3 vắng 1 ngày; có 1 phiếu full_day_makeup đã duyệt + attendance OK | deficit_days = 1, consumed_days = 1 → chỉ trừ (deficit − consumed) = 0; không trừ hai lần |
-| 3.2.4 | **2 phiếu makeup cho cùng 1 deficit** | 2 phiếu full_day_makeup cùng linked_deficit_date 10/3, 2 ngày làm bù khác nhau, đều có attendance | consumed_days = **1** (mỗi deficit chỉ count 1 lần) → tránh +2 công sai |
+| 3.2.4 | **2 phiếu makeup cho cùng 1 deficit** | 2 phiếu cùng link 10/3 (cùng amount), tổng amount ≤ deficit 10/3 | Validation từ chối over-consume hoặc consumed_days = tổng amount (không vượt deficit) |
 | 3.2.5 | Makeup không có chấm công | Phiếu full_day_makeup đã duyệt nhưng ngày làm bù không có log | Ngày đó không count; deficit **không** được consume → consumed_days không tăng |
 | 3.2.6 | Ghi chú payroll | Có consumed | Note: "Consume deficit: X ngày" |
+| 3.2.7 | **1 makeup bù 2 nửa ngày** | Deficit 06/03 (0.5) + 13/03 (0.5); 1 phiếu full_day_makeup 07/03 với links 0.5+0.5, có attendance 07/03 | consumed_days = 1; actual = working_days - 1 + 1 = không bị trừ công |
 
 ### 3.3 late_early_makeup và công trong tháng
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY } from "../makeup-utils"
+import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, getMakeupDeficitLinks } from "../makeup-utils"
 
 describe("isMakeupRequestType", () => {
   it("returns true for late_early_makeup", () => {
@@ -84,5 +84,43 @@ describe("isEmployeeOffDay", () => {
 describe("LINKED_DEFICIT_DATE_KEY", () => {
   it("has the expected value", () => {
     expect(LINKED_DEFICIT_DATE_KEY).toBe("linked_deficit_date")
+  })
+})
+
+describe("getMakeupDeficitLinks", () => {
+  it("returns empty array for null/undefined custom_data", () => {
+    expect(getMakeupDeficitLinks(null)).toEqual([])
+    expect(getMakeupDeficitLinks(undefined)).toEqual([])
+  })
+
+  it("returns linked_deficit_links when present and non-empty", () => {
+    const customData = {
+      linked_deficit_links: [
+        { deficit_date: "2026-03-06", amount: 0.5 },
+        { deficit_date: "2026-03-13", amount: 0.5 },
+      ],
+    }
+    expect(getMakeupDeficitLinks(customData)).toEqual([
+      { deficit_date: "2026-03-06", amount: 0.5 },
+      { deficit_date: "2026-03-13", amount: 0.5 },
+    ])
+  })
+
+  it("falls back to linked_deficit_date as single link amount 1 when no links array", () => {
+    const customData = { linked_deficit_date: "2026-03-10" }
+    expect(getMakeupDeficitLinks(customData)).toEqual([{ deficit_date: "2026-03-10", amount: 1 }])
+  })
+
+  it("prefers linked_deficit_links over linked_deficit_date when both present", () => {
+    const customData = {
+      linked_deficit_date: "2026-03-01",
+      linked_deficit_links: [{ deficit_date: "2026-03-06", amount: 0.5 }],
+    }
+    expect(getMakeupDeficitLinks(customData)).toEqual([{ deficit_date: "2026-03-06", amount: 0.5 }])
+  })
+
+  it("falls back to linked_deficit_date when linked_deficit_links is empty array", () => {
+    const customData = { linked_deficit_links: [], linked_deficit_date: "2026-03-15" }
+    expect(getMakeupDeficitLinks(customData)).toEqual([{ deficit_date: "2026-03-15", amount: 1 }])
   })
 })

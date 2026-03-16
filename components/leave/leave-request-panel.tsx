@@ -25,7 +25,7 @@ import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { validateTimeSlot, validateNoOverlap, addTimeSlot, removeTimeSlot, getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
-import { isMakeupRequestType, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
+import { isMakeupRequestType, LINKED_DEFICIT_DATE_KEY, LINKED_DEFICIT_LINKS_KEY, getMakeupDeficitLinks, type MakeupDeficitLink } from "@/lib/utils/makeup-utils"
 import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users, Edit, Clock, User, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { usePagination } from "@/hooks/use-pagination"
 import { DataPagination } from "@/components/shared/data-pagination"
@@ -68,6 +68,9 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
   // Multi time slots
   const [timeSlots, setTimeSlots] = useState<{ from_time: string; to_time: string }[]>([{ from_time: "", to_time: "" }])
 
+  // Full-day makeup: nhiều ngày thiếu công + amount (0.5 / 1)
+  const [deficitLinks, setDeficitLinks] = useState<MakeupDeficitLink[]>([{ deficit_date: "", amount: 0.5 }])
+
   // Edit mode
   const [editingRequest, setEditingRequest] = useState<UnifiedRequest | null>(null)
 
@@ -94,6 +97,16 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
   const [filterFromDate, setFilterFromDate] = useState<string>("")
   const [filterToDate, setFilterToDate] = useState<string>("")
   const [searchText, setSearchText] = useState<string>("")
+
+  // Init deficit links khi mở form full_day_makeup (tạo mới hoặc sửa)
+  useEffect(() => {
+    if (selectedType?.code === "full_day_makeup") {
+      const links = editingRequest?.originalData?.custom_data
+        ? getMakeupDeficitLinks(editingRequest.originalData.custom_data as Record<string, unknown>)
+        : []
+      setDeficitLinks(links.length > 0 ? links : [{ deficit_date: "", amount: 0.5 }])
+    }
+  }, [selectedType?.code, editingRequest?.id, editingRequest?.originalData?.custom_data])
 
   // Load danh sách người duyệt khi chọn loại phiếu
   const selectedTypeId = selectedType?.id
@@ -361,16 +374,32 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       }
     }
 
-    // Thu thập linked_deficit_date cho phiếu làm bù
+    // Thu thập deficit cho phiếu làm bù
     if (isMakeupRequestType(selectedType.code)) {
-      const deficitDate = formData.get("linked_deficit_date") as string
-      if (!deficitDate) {
-        setError("Vui lòng chọn ngày thiếu công gốc")
-        setLoading(false)
-        return
-      }
       if (!customData) customData = {}
-      customData[LINKED_DEFICIT_DATE_KEY] = deficitDate
+      if (selectedType.code === "full_day_makeup") {
+        const links = deficitLinks.filter((l) => l.deficit_date)
+        if (links.length === 0) {
+          setError("Vui lòng chọn ít nhất một ngày thiếu công gốc")
+          setLoading(false)
+          return
+        }
+        const total = links.reduce((s, l) => s + l.amount, 0)
+        if (total > 1) {
+          setError("Tổng số ngày bù không được vượt quá 1 ngày")
+          setLoading(false)
+          return
+        }
+        ;(customData as Record<string, unknown>)[LINKED_DEFICIT_LINKS_KEY] = links
+      } else {
+        const deficitDate = formData.get("linked_deficit_date") as string
+        if (!deficitDate) {
+          setError("Vui lòng chọn ngày thiếu công gốc")
+          setLoading(false)
+          return
+        }
+        customData[LINKED_DEFICIT_DATE_KEY] = deficitDate
+      }
     }
 
     // Chuẩn bị time_slots cho multi-slot
@@ -416,6 +445,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       setEditingRequest(null)
       setCustomFieldImages({})
       setTimeSlots([{ from_time: "", to_time: "" }])
+      setDeficitLinks([{ deficit_date: "", amount: 0.5 }])
     }
     setLoading(false)
   }
@@ -627,7 +657,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     />
                   </div>
                 )}
-                {isMakeupRequestType(selectedType.code) && (
+                {isMakeupRequestType(selectedType.code) && selectedType.code === "late_early_makeup" && (
                   <div className="grid gap-2">
                     <Label>Ngày thiếu công gốc *</Label>
                     <Input
@@ -636,16 +666,64 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                       required
                       defaultValue={editingRequest?.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] || ""}
                     />
-                    {selectedType.code === "late_early_makeup" && (
-                      <p className="text-xs text-muted-foreground">
-                        Phải cùng tháng với ngày làm bù. Checkout trước giờ kết thúc trong phiếu sẽ bị tính vi phạm.
-                      </p>
-                    )}
-                    {selectedType.code === "full_day_makeup" && (
-                      <p className="text-xs text-muted-foreground">
-                        Ngày làm bù phải là ngày nghỉ của bạn (Chủ nhật hoặc Thứ 7 theo lịch).
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Phải cùng tháng với ngày làm bù. Checkout trước giờ kết thúc trong phiếu sẽ bị tính vi phạm.
+                    </p>
+                  </div>
+                )}
+                {isMakeupRequestType(selectedType.code) && selectedType.code === "full_day_makeup" && (
+                  <div className="grid gap-2">
+                    <Label>Ngày thiếu công gốc * (tổng ≤ 1 ngày)</Label>
+                    {deficitLinks.map((link, index) => (
+                      <div key={index} className="flex items-end gap-2">
+                        <div className="grid gap-1 flex-1">
+                          <Label className="text-xs">Ngày</Label>
+                          <Input
+                            type="date"
+                            value={link.deficit_date}
+                            onChange={(e) => {
+                              const next = [...deficitLinks]
+                              next[index] = { ...next[index], deficit_date: e.target.value }
+                              setDeficitLinks(next)
+                            }}
+                          />
+                        </div>
+                        <div className="grid gap-1 w-[100px]">
+                          <Label className="text-xs">Số ngày</Label>
+                          <Select
+                            value={String(link.amount)}
+                            onValueChange={(v) => {
+                              const next = [...deficitLinks]
+                              next[index] = { ...next[index], amount: v === "1" ? 1 : 0.5 }
+                              setDeficitLinks(next)
+                            }}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0.5">0,5</SelectItem>
+                              <SelectItem value="1">1</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {deficitLinks.length > 1 && (
+                          <Button type="button" variant="ghost" size="icon" onClick={() => setDeficitLinks(deficitLinks.filter((_, i) => i !== index))}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setDeficitLinks([...deficitLinks, { deficit_date: "", amount: 0.5 }])}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Thêm ngày thiếu công
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Tổng: {deficitLinks.reduce((s, l) => s + l.amount, 0)} ngày
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Ngày làm bù phải là ngày nghỉ của bạn (Chủ nhật hoặc Thứ 7 theo lịch).
+                    </p>
                   </div>
                 )}
                 {selectedType.requires_time && (

@@ -12,7 +12,7 @@ import { calculateStandardWorkingDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
-import { MAKEUP_CODES, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
+import { MAKEUP_CODES, getMakeupDeficitLinks } from "@/lib/utils/makeup-utils"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
@@ -323,23 +323,39 @@ async function processEmployeePayroll(
     }
   }
 
-  // Consumed deficits: mỗi linked_deficit_date chỉ được consume tối đa 1 lần (tránh 2 phiếu bù cùng 1 ngày = +2 công)
-  const consumedDeficitDates = new Set<string>()
+  // Consumed deficits: tổng amount từ full_day_makeup có chấm công ngày làm bù (1 makeup có thể consume nhiều deficit)
+  let consumed_days = 0
+  const consumedDetailPairs: string[] = []
+  const makeupLogLines: string[] = []
   if (employeeRequests) {
     for (const request of employeeRequests) {
       const reqType = request.request_type as any
       if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
-      const deficitDate = request.custom_data?.[LINKED_DEFICIT_DATE_KEY]
-      if (!deficitDate) continue
-      if (!attendanceDates.has(request.request_date)) continue
-      consumedDeficitDates.add(deficitDate)
+      const links = getMakeupDeficitLinks((request.custom_data as Record<string, unknown>) || null)
+      const hasAttendance = attendanceDates.has(request.request_date)
+      const linkDesc = links.map((l) => `${l.deficit_date}:${l.amount}`).join(", ")
+      const requestSum = links.reduce((s, l) => s + l.amount, 0)
+      if (hasAttendance) {
+        consumed_days += requestSum
+        for (const link of links) consumedDetailPairs.push(`${link.deficit_date}:${link.amount}`)
+        makeupLogLines.push(`  [COUNTED] request_id=${request.id} ngày làm bù=${request.request_date} có chấm công → bù ${linkDesc} (cộng ${requestSum} ngày)`)
+      } else {
+        makeupLogLines.push(`  [SKIP] request_id=${request.id} ngày làm bù=${request.request_date} không có chấm công → không cộng (links: ${linkDesc || "—"})`)
+      }
     }
   }
-  const consumed_days = consumedDeficitDates.size
+  consumedDetailPairs.sort()
+  console.log(`\n📋 LÀM BÙ (full_day_makeup) — ${emp.full_name} (${emp.employee_code || emp.id}):`)
+  if (makeupLogLines.length === 0) {
+    console.log(`  Không có phiếu full_day_makeup đã duyệt trong kỳ.`)
+  } else {
+    makeupLogLines.forEach((line) => console.log(line))
+    console.log(`  → Tổng consumed_days = ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` | Chi tiết: ${consumedDetailPairs.join(", ")}` : ""}`)
+  }
 
-  console.log(`📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
+  console.log(`\n📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
   console.log(`📊 Ngày công từ chấm công (trừ ngày làm bù): ${workingDaysCount} ngày`)
-  console.log(`📊 Consumed deficit (bù thiếu, cap 1/deficit): ${consumed_days} ngày`)
+  console.log(`📊 Consumed deficit (bù thiếu, theo amount): ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` (${consumedDetailPairs.join(", ")})` : ""}`)
   console.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
 
   // Lấy danh sách ngày lễ và ngày nghỉ công ty
@@ -558,8 +574,7 @@ async function processEmployeePayroll(
   if (otResult.totalOTHours > 0) noteItems.push(`OT: ${otResult.totalOTHours}h`)
   if (kpiBonus > 0) noteItems.push(`KPI: ${kpiBonus.toLocaleString()}đ`)
 
-  const consumedDeficitDetailStr =
-    consumedDeficitDates.size > 0 ? [...consumedDeficitDates].sort().join(",") : null
+  const consumedDeficitDetailStr = consumedDetailPairs.length > 0 ? consumedDetailPairs.join(",") : null
 
   // Insert payroll item (lưu consumed theo tháng run để audit)
   const { data: payrollItem, error: insertError } = await supabase
@@ -1040,24 +1055,9 @@ export async function processAdjustments(
             const isViolation = hasLateViolation || hasEarlyViolation || hasOtherViolation
             if (!isViolation) return false
             
-            // Nếu bật miễn trừ và ngày này có phiếu được duyệt -> kiểm tra loại phiếu
+            // Miễn trừ theo cấu hình: ngày có bất kỳ loại phiếu nào trong exempt_request_types thì được miễn
             if (exemptWithRequest && exemptDatesByType.has(v.date)) {
-              const requestTypes = exemptDatesByType.get(v.date)!
-              
-              // Nếu đi muộn -> cần phiếu late_arrival
-              if (hasLateViolation && requestTypes.has('late_arrival')) {
-                return true
-              }
-              
-              // Nếu về sớm -> cần phiếu early_leave
-              if (hasEarlyViolation && requestTypes.has('early_leave')) {
-                return true
-              }
-              
-              // Các vi phạm khác (quên chấm công, nửa ngày) -> chấp nhận bất kỳ loại phiếu nào
-              if (hasOtherViolation) {
-                return true
-              }
+              return true
             }
             return false
           }).length

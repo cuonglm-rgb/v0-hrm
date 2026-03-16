@@ -268,6 +268,25 @@ function getLeaveRequestForDate(date: string, employeeId: string, leaveRequests:
   })
 }
 
+// Phiếu đi muộn/về sớm làm bù đã duyệt cho ngày (request_date = ngày làm bù, có to_time)
+function getLateEarlyMakeupForDate(
+  date: string,
+  employeeId: string,
+  leaveRequests: EmployeeRequestWithRelations[]
+): { to_time: string } | null {
+  const req = leaveRequests.find(
+    (r) =>
+      r.employee_id === employeeId &&
+      r.status === "approved" &&
+      (r.request_type as { code?: string })?.code === "late_early_makeup" &&
+      r.request_date === date &&
+      r.to_time
+  )
+  if (!req?.to_time) return null
+  const toTime = req.to_time.slice(0, 5)
+  return { to_time: toTime }
+}
+
 export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], holidays = [], leaveRequests = [], saturdaySchedules = [] }: AttendanceManagementPanelProps) {
   const currentDate = new Date()
   const [importing, setImporting] = useState(false)
@@ -701,6 +720,21 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     const noCheckIn = violations.some((v) => v.type === "no_checkin")
                     const noCheckOut = violations.some((v) => v.type === "no_checkout")
 
+                    const makeup = logDateOnly && log.employee_id ? getLateEarlyMakeupForDate(logDateOnly, log.employee_id, leaveRequests) : null
+                    const hasOnlyTimeViolation = (isLate || isEarlyLeave) && !noCheckIn && !noCheckOut
+                    let madeUp = false
+                    let madeUpTooltip = ""
+                    if (makeup && log.check_out && hasOnlyTimeViolation) {
+                      const [toH, toM] = makeup.to_time.split(":").map(Number)
+                      const toMinutes = toH * 60 + toM
+                      const outDate = new Date(log.check_out)
+                      const outMinutes = outDate.getHours() * 60 + outDate.getMinutes()
+                      if (outMinutes >= toMinutes) {
+                        madeUp = true
+                        madeUpTooltip = `Đã làm bù (checkout đủ giờ theo phiếu đến ${makeup.to_time})`
+                      }
+                    }
+
                     // Kiểm tra ngày lễ và cuối tuần
                     const holiday = logDateOnly ? getHolidayForDate(logDateOnly, holidays) : null
                     const isHolidayDay = !!holiday
@@ -719,8 +753,9 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     return (
                       <TableRow key={log.id} className={
                         isLeaveOnly ? "bg-blue-50" :
-                        halfDayInfo.isHalfDayWork ? "bg-yellow-50" : 
-                        hasViolation ? "bg-red-50" : 
+                        halfDayInfo.isHalfDayWork ? "bg-yellow-50" :
+                        madeUp ? "" :
+                        hasViolation ? "bg-red-50" :
                         specialDay ? "bg-blue-50" : ""
                       }>
                         <TableCell>
@@ -838,6 +873,16 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                                 Nghỉ nửa ngày không phép
                               </Badge>
                             )
+                          ) : madeUp ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge className="bg-green-100 text-green-800 gap-1">
+                                  <CheckCircle className="h-3 w-3" />
+                                  Hoàn thành
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{madeUpTooltip}</TooltipContent>
+                            </Tooltip>
                           ) : hasViolation ? (
                             <Tooltip>
                               <TooltipTrigger>

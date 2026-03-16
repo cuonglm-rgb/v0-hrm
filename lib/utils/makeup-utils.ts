@@ -3,6 +3,19 @@ import { isSaturdayOffByDefault } from "./saturday-utils"
 export const MAKEUP_CODES = ["late_early_makeup", "full_day_makeup"] as const
 export type MakeupCode = typeof MAKEUP_CODES[number]
 export const LINKED_DEFICIT_DATE_KEY = "linked_deficit_date"
+export const LINKED_DEFICIT_LINKS_KEY = "linked_deficit_links"
+
+export type MakeupDeficitLink = { deficit_date: string; amount: number }
+
+/** Chuẩn hóa đọc deficit links từ custom_data: linked_deficit_links hoặc fallback linked_deficit_date (1 link amount 1). */
+export function getMakeupDeficitLinks(customData: Record<string, unknown> | null | undefined): MakeupDeficitLink[] {
+  if (!customData) return []
+  const links = customData[LINKED_DEFICIT_LINKS_KEY] as MakeupDeficitLink[] | undefined
+  if (Array.isArray(links) && links.length > 0) return links
+  const single = customData[LINKED_DEFICIT_DATE_KEY] as string | undefined
+  if (single) return [{ deficit_date: single, amount: 1 }]
+  return []
+}
 
 export function isMakeupRequestType(code: string): code is MakeupCode {
   return MAKEUP_CODES.includes(code as MakeupCode)

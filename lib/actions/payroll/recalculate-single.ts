@@ -11,7 +11,7 @@ import { getEmployeeViolations } from "./violations"
 import { processAdjustments } from "./generate-payroll"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
-import { MAKEUP_CODES, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
+import { MAKEUP_CODES, getMakeupDeficitLinks } from "@/lib/utils/makeup-utils"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
@@ -231,22 +231,38 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     }
   }
 
-  const consumedDeficitDates = new Set<string>()
+  let consumed_days = 0
+  const consumedDetailPairs: string[] = []
+  const makeupLogLines: string[] = []
   if (employeeRequests) {
     for (const request of employeeRequests) {
       const reqType = request.request_type as any
       if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
-      const deficitDate = request.custom_data?.[LINKED_DEFICIT_DATE_KEY]
-      if (!deficitDate) continue
-      if (!attendanceDates.has(request.request_date)) continue
-      consumedDeficitDates.add(deficitDate)
+      const links = getMakeupDeficitLinks((request.custom_data as Record<string, unknown>) || null)
+      const hasAttendance = attendanceDates.has(request.request_date)
+      const linkDesc = links.map((l) => `${l.deficit_date}:${l.amount}`).join(", ")
+      const requestSum = links.reduce((s, l) => s + l.amount, 0)
+      if (hasAttendance) {
+        consumed_days += requestSum
+        for (const link of links) consumedDetailPairs.push(`${link.deficit_date}:${link.amount}`)
+        makeupLogLines.push(`  [COUNTED] request_id=${request.id} ngày làm bù=${request.request_date} có chấm công → bù ${linkDesc} (cộng ${requestSum} ngày)`)
+      } else {
+        makeupLogLines.push(`  [SKIP] request_id=${request.id} ngày làm bù=${request.request_date} không có chấm công → không cộng (links: ${linkDesc || "—"})`)
+      }
     }
   }
-  const consumed_days = consumedDeficitDates.size
+  consumedDetailPairs.sort()
+  console.log(`\n📋 LÀM BÙ (full_day_makeup) — ${emp.full_name} (${emp.employee_code || emp.id}):`)
+  if (makeupLogLines.length === 0) {
+    console.log(`  Không có phiếu full_day_makeup đã duyệt trong kỳ.`)
+  } else {
+    makeupLogLines.forEach((line) => console.log(line))
+    console.log(`  → Tổng consumed_days = ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` | Chi tiết: ${consumedDetailPairs.join(", ")}` : ""}`)
+  }
 
-  console.log(`📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
+  console.log(`\n📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
   console.log(`📊 Ngày công từ chấm công (trừ ngày làm bù): ${workingDaysCount} ngày`)
-  console.log(`📊 Consumed deficit: ${consumed_days} ngày`)
+  console.log(`📊 Consumed deficit: ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` (${consumedDetailPairs.join(", ")})` : ""}`)
   console.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
 
   // Lấy danh sách ngày lễ và ngày nghỉ công ty
@@ -480,7 +496,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   console.log(`  - Đi muộn: ${lateCount} lần`)
   console.log(`  - Quên chấm công đến: ${forgotCheckinCount} lần`)
   console.log(`  - Quên chấm công về: ${forgotCheckoutCount} lần`)
-  console.log(`  - Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} - ${halfDays * 0.5})`)
+  console.log(`  - Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} - ${halfDays * 0.5} + consumed ${consumed_days})`)
 
   // Tính ngày đủ giờ cho phụ cấp - giống hệt generate-payroll.ts
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
@@ -565,8 +581,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   console.log(`  - Thực lĩnh: ${netSalary.toLocaleString()} VNĐ`)
   console.log(`========== KẾT THÚC TÍNH LƯƠNG: ${emp.full_name} ==========\n`)
 
-  const consumedDeficitDetailStr =
-    consumedDeficitDates.size > 0 ? [...consumedDeficitDates].sort().join(",") : null
+  const consumedDeficitDetailStr = consumedDetailPairs.length > 0 ? consumedDetailPairs.join(",") : null
 
   await supabase
     .from("payroll_items")
