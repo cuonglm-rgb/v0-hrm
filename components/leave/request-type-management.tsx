@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createRequestType, updateRequestType, deleteRequestType, updateRequestTypeOrder } from "@/lib/actions/request-type-actions"
+import { createRequestType, updateRequestType, deleteRequestType, updateRequestTypeOrder, listRequestTypeApprovers, resetRequestTypeApprovers } from "@/lib/actions/request-type-actions"
 import { applyToggleCoupling } from "@/lib/utils/time-slot-utils"
 import type { RequestType, Position, CustomField, CustomFieldType } from "@/lib/types/database"
 import { Plus, Pencil, Trash2, FileText, Calendar, Clock, Paperclip, Users, GripVertical, ArrowUp, ArrowDown } from "lucide-react"
@@ -27,6 +27,10 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
   const [editingType, setEditingType] = useState<RequestType | null>(null)
   const [loading, setLoading] = useState(false)
   const [ordering, setOrdering] = useState(false)
+
+  // Cấu hình thứ tự bước duyệt (chỉ áp dụng khi approval_mode = "all")
+  const [approverSteps, setApproverSteps] = useState<{ positionId: string | null }[]>([])
+  const [loadingApproverSteps, setLoadingApproverSteps] = useState(false)
 
   // Local thứ tự để hiển thị và kéo lên/xuống
   const [orderedTypes, setOrderedTypes] = useState<RequestType[]>(() =>
@@ -79,6 +83,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       max_approver_level: null,
       submission_deadline: null,
       custom_fields: [],
+      // Reset cấu hình bước duyệt
     })
   }
 
@@ -90,6 +95,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       type: "text",
       required: false,
       placeholder: "",
+      editable_while_approving: false,
     }
     setFormData((prev) => ({
       ...prev,
@@ -152,24 +158,82 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
       submission_deadline: type.submission_deadline,
       custom_fields: type.custom_fields || [],
     })
+
+    // Load cấu hình bước duyệt cho loại phiếu này
+    setLoadingApproverSteps(true)
+    setApproverSteps([])
+    listRequestTypeApprovers(type.id)
+      .then((rows) => {
+        const sorted = (rows || []).sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0))
+        const stepRows = sorted
+          .filter((r) => r.approver_position_id) // Hiện chỉ hỗ trợ theo position
+          .map((r) => ({ positionId: r.approver_position_id as string }))
+        setApproverSteps(stepRows)
+      })
+      .finally(() => setLoadingApproverSteps(false))
   }
 
   const handleUpdate = async () => {
     if (!editingType) return
     setLoading(true)
     const { code, ...updateData } = formData
+
+    // Nếu là chế độ duyệt tuần tự ("all") thì tự động suy ra min/max level
+    // từ bước 1 và bước cuối cùng trong danh sách approverSteps.
+    if (updateData.approval_mode === "all") {
+      const selectedLevels = approverSteps
+        .map((s) => (s.positionId ? positionById.get(s.positionId)?.level : undefined))
+        .filter((level): level is number => typeof level === "number")
+
+      if (selectedLevels.length > 0) {
+        const minLevel = Math.min(...selectedLevels)
+        const maxLevel = Math.max(...selectedLevels)
+        updateData.min_approver_level = minLevel
+        updateData.max_approver_level = maxLevel
+      } else {
+        updateData.min_approver_level = null
+        updateData.max_approver_level = null
+      }
+    }
+
     const result = await updateRequestType(editingType.id, {
       ...updateData,
       custom_fields: updateData.custom_fields.length > 0 ? updateData.custom_fields : null,
     })
-    setLoading(false)
-    if (result.success) {
-      toast.success("Đã cập nhật loại phiếu")
-      setEditingType(null)
-      resetForm()
-    } else {
+    if (!result.success) {
+      setLoading(false)
       toast.error(result.error || "Không thể cập nhật loại phiếu")
+      return
     }
+
+    // Nếu chế độ duyệt là "all", ghi lại cấu hình bước duyệt theo approverSteps
+    if (updateData.approval_mode === "all") {
+      const positionIds = approverSteps
+        .map((s) => s.positionId)
+        .filter((id): id is string => !!id)
+
+      const resetResult = await resetRequestTypeApprovers({
+        request_type_id: editingType.id,
+        approver_position_ids: positionIds,
+      })
+
+      if (!resetResult.success) {
+        setLoading(false)
+        toast.error(resetResult.error || "Không thể lưu cấu hình thứ tự người duyệt")
+        return
+      }
+    } else if (updateData.approval_mode === "any") {
+      // Nếu chuyển từ all -> any, xóa cấu hình bước duyệt
+      await resetRequestTypeApprovers({
+        request_type_id: editingType.id,
+        approver_position_ids: [],
+      })
+    }
+
+    setLoading(false)
+    toast.success("Đã cập nhật loại phiếu")
+    setEditingType(null)
+    resetForm()
   }
 
   const handleDelete = async (id: string) => {
@@ -226,6 +290,9 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
   }, {} as Record<number, string[]>)
 
   const positionLevels = Object.keys(levelPositions).map(Number).sort((a, b) => a - b)
+
+  // Helper: options position theo id
+  const positionById = new Map(positions.map((p) => [p.id, p]))
 
   const formFieldsContent = (
     <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
@@ -415,57 +482,144 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Level chức vụ tối thiểu</Label>
-              <Select
-                value={formData.min_approver_level?.toString() || "none"}
-                onValueChange={(value) => setFormData((prev) => ({
-                  ...prev,
-                  min_approver_level: value === "none" ? null : parseInt(value)
-                }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Không giới hạn" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Không giới hạn</SelectItem>
-                  {positionLevels.map((level) => (
-                    <SelectItem key={level} value={level.toString()}>
-                      Level {level} - {levelPositions[level].join(", ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {formData.approval_mode === "any" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Level chức vụ tối thiểu</Label>
+                <Select
+                  value={formData.min_approver_level?.toString() || "none"}
+                  onValueChange={(value) => setFormData((prev) => ({
+                    ...prev,
+                    min_approver_level: value === "none" ? null : parseInt(value)
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Không giới hạn" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Không giới hạn</SelectItem>
+                    {positionLevels.map((level) => (
+                      <SelectItem key={level} value={level.toString()}>
+                        Level {level} - {levelPositions[level].join(", ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Level chức vụ tối đa</Label>
+                <Select
+                  value={formData.max_approver_level?.toString() || "none"}
+                  onValueChange={(value) => setFormData((prev) => ({
+                    ...prev,
+                    max_approver_level: value === "none" ? null : parseInt(value)
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Không giới hạn" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Không giới hạn</SelectItem>
+                    {positionLevels.map((level) => (
+                      <SelectItem key={level} value={level.toString()}>
+                        Level {level} - {levelPositions[level].join(", ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Level chức vụ tối đa</Label>
-              <Select
-                value={formData.max_approver_level?.toString() || "none"}
-                onValueChange={(value) => setFormData((prev) => ({
-                  ...prev,
-                  max_approver_level: value === "none" ? null : parseInt(value)
-                }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Không giới hạn" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Không giới hạn</SelectItem>
-                  {positionLevels.map((level) => (
-                    <SelectItem key={level} value={level.toString()}>
-                      Level {level} - {levelPositions[level].join(", ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          )}
           <p className="text-sm text-muted-foreground">
             {formData.approval_mode === "any"
               ? "Phiếu sẽ được duyệt khi có ít nhất 1 người trong danh sách đồng ý"
-              : "Phiếu chỉ được duyệt khi tất cả người trong danh sách đều đồng ý"}
+              : "Phiếu sẽ được duyệt tuần tự theo các bước bên dưới. Bước 1 tương ứng level tối thiểu, bước cuối là level tối đa."}
           </p>
+
+          {formData.approval_mode === "all" && editingType && (
+            <div className="mt-4 border-t pt-4 space-y-3">
+              <h5 className="text-sm font-medium">Thứ tự bước duyệt (1 → 2 → 3 ...)</h5>
+              <p className="text-xs text-muted-foreground">
+                Mỗi bước chọn một chức vụ (position). Khi tạo phiếu, nhân viên sẽ chọn người duyệt thuộc các chức vụ này;
+                hệ thống duyệt tuần tự từ Bước 1 đến bước cuối cùng.
+              </p>
+
+              {loadingApproverSteps ? (
+                <p className="text-sm text-muted-foreground">Đang tải cấu hình bước duyệt...</p>
+              ) : (
+                <>
+                  {approverSteps.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      Chưa cấu hình bước duyệt. Thêm ít nhất 1 bước để bật duyệt tuần tự.
+                    </p>
+                  )}
+
+                  <div className="space-y-2">
+                    {approverSteps.map((step, index) => {
+                      const pos = step.positionId ? positionById.get(step.positionId) : undefined
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center gap-2 border rounded-md px-3 py-2 bg-muted/40"
+                        >
+                          <span className="text-xs text-muted-foreground w-12">Bước {index + 1}</span>
+                          <Select
+                            value={step.positionId || "none"}
+                            onValueChange={(value) => {
+                              setApproverSteps((prev) => {
+                                const next = [...prev]
+                                next[index] = { positionId: value === "none" ? null : value }
+                                return next
+                              })
+                            }}
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue
+                                placeholder="Chọn chức vụ duyệt ở bước này"
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Chưa chọn</SelectItem>
+                              {positions.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  Level {p.level} - {p.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-600"
+                            onClick={() =>
+                              setApproverSteps((prev) => prev.filter((_, i) => i !== index))
+                            }
+                            title="Xóa bước này"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() =>
+                      setApproverSteps((prev) => [...prev, { positionId: null }])
+                    }
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Thêm bước duyệt
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -543,12 +697,23 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                       placeholder="VD: Nhập mô tả..."
                     />
                   </div>
-                  <div className="flex items-center justify-between pt-5">
-                    <Label className="text-xs">Bắt buộc nhập</Label>
-                    <Switch
-                      checked={field.required}
-                      onCheckedChange={(checked) => updateCustomField(field.id, { required: checked })}
-                    />
+                  <div className="flex flex-col justify-between pt-5 gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Bắt buộc nhập</Label>
+                      <Switch
+                        checked={field.required}
+                        onCheckedChange={(checked) => updateCustomField(field.id, { required: checked })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Cho phép sửa khi đang duyệt</Label>
+                      <Switch
+                        checked={field.editable_while_approving || false}
+                        onCheckedChange={(checked) =>
+                          updateCustomField(field.id, { editable_while_approving: checked })
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
 

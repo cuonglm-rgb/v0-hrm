@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers, getRequestAssignedApprovers } from "@/lib/actions/request-type-actions"
+import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers, getRequestAssignedApprovers, listRequestTypeApprovers } from "@/lib/actions/request-type-actions"
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
@@ -91,6 +91,13 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
   const [selectedApprovers, setSelectedApprovers] = useState<string[]>([])
   const [loadingApprovers, setLoadingApprovers] = useState(false)
 
+  // Cấu hình bước duyệt theo loại phiếu (approval_mode = "all")
+  const [approverStepsMeta, setApproverStepsMeta] = useState<
+    { id: string; positionName: string; positionLevel: number }[]
+  >([])
+  // Mỗi phần tử trong mảng là 1 bước, chứa danh sách id người duyệt đã chọn cho bước đó
+  const [stepSelectedApprovers, setStepSelectedApprovers] = useState<string[][]>([])
+
   // Filter states
   const [filterType, setFilterType] = useState<string>("all")
   const [filterStatus, setFilterStatus] = useState<string>("all")
@@ -137,6 +144,45 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       setSelectedApprovers([])
     }
   }, [selectedTypeId])
+
+  // Load cấu hình bước duyệt (request_type_approvers) khi loại phiếu dùng approval_mode = "all"
+  useEffect(() => {
+    if (!selectedTypeId || selectedType?.approval_mode !== "all") {
+      setApproverStepsMeta([])
+      setStepSelectedApprovers([])
+      return
+    }
+
+    let cancelled = false
+    setApproverStepsMeta([])
+    setStepSelectedApprovers([])
+
+    listRequestTypeApprovers(selectedTypeId)
+      .then((rows) => {
+        if (cancelled || !rows) return
+        const sorted = rows
+          .filter((r: any) => r.approver_position_id && r.position)
+          .sort((a: any, b: any) => (a.display_order ?? 0) - (b.display_order ?? 0))
+
+        const meta = sorted.map((r: any) => ({
+          id: r.id as string,
+          positionName: (r.position as any)?.name as string,
+          positionLevel: (r.position as any)?.level as number,
+        }))
+
+        setApproverStepsMeta(meta)
+        setStepSelectedApprovers(new Array(meta.length).fill([]))
+      })
+      .catch((err) => {
+        console.error("Error loading request type approver steps:", err)
+        setApproverStepsMeta([])
+        setStepSelectedApprovers([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedTypeId, selectedType?.approval_mode])
 
   // Reset timeSlots khi đổi loại phiếu
   useEffect(() => {
@@ -408,6 +454,34 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       ? timeSlots.filter(s => s.from_time && s.to_time)
       : undefined
     
+    // Chuẩn bị danh sách người duyệt theo chế độ
+    let assignedApproverIds: string[] | undefined
+    let assignedApproversWithOrder: { approver_id: string; display_order: number }[] | undefined
+    if (selectedType.approval_mode === "all" && approverStepsMeta.length > 0) {
+      // Mỗi bước phải chọn ít nhất 1 người
+      const allStepsValid = stepSelectedApprovers.length === approverStepsMeta.length &&
+        stepSelectedApprovers.every((stepIds) => stepIds && stepIds.length > 0)
+
+      if (!allStepsValid) {
+        setError("Vui lòng chọn ít nhất 1 người duyệt cho mỗi bước")
+        setLoading(false)
+        return
+      }
+
+      const records: { approver_id: string; display_order: number }[] = []
+      stepSelectedApprovers.forEach((stepIds, index) => {
+        const displayOrder = index + 1
+        stepIds.forEach((id) => {
+          records.push({ approver_id: id, display_order: displayOrder })
+        })
+      })
+
+      assignedApproversWithOrder = records
+      assignedApproverIds = undefined
+    } else {
+      assignedApproverIds = selectedApprovers.length > 0 ? selectedApprovers : undefined
+    }
+
     const requestData = {
       from_date: selectedType.requires_date_range ? formData.get("from_date") as string : undefined,
       to_date: selectedType.requires_date_range ? formData.get("to_date") as string : undefined,
@@ -417,7 +491,8 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       to_time: (selectedType.requires_time_range && !selectedType.allows_multiple_time_slots) ? formData.get("to_time") as string : undefined,
       reason: formData.get("reason") as string,
       attachment_url: attachmentUrl || undefined,
-      assigned_approver_ids: selectedApprovers.length > 0 ? selectedApprovers : undefined,
+      assigned_approver_ids: assignedApproverIds,
+      assigned_approvers_with_order: assignedApproversWithOrder,
       custom_data: customData,
       time_slots: validTimeSlots,
     }
@@ -844,15 +919,55 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     <Users className="h-4 w-4" />
                     Người duyệt *
                   </Label>
-                  <ApproverSelect
-                    approvers={eligibleApprovers}
-                    selected={selectedApprovers}
-                    onChange={setSelectedApprovers}
-                    loading={loadingApprovers}
-                    placeholder="Tìm người duyệt..."
-                  />
-                  {eligibleApprovers.length > 0 && selectedApprovers.length === 0 && (
-                    <p className="text-sm text-destructive">Vui lòng chọn ít nhất 1 người duyệt</p>
+
+                  {/* Chế độ chỉ cần 1 người duyệt */}
+                  {(selectedType.approval_mode === "any" || approverStepsMeta.length === 0) && (
+                    <>
+                      <ApproverSelect
+                        approvers={eligibleApprovers}
+                        selected={selectedApprovers}
+                        onChange={setSelectedApprovers}
+                        loading={loadingApprovers}
+                        placeholder="Tìm người duyệt..."
+                      />
+                      {eligibleApprovers.length > 0 && selectedApprovers.length === 0 && (
+                        <p className="text-sm text-destructive">Vui lòng chọn ít nhất 1 người duyệt</p>
+                      )}
+                    </>
+                  )}
+
+                  {/* Chế độ duyệt tuần tự theo bước (approval_mode = "all") */}
+                  {selectedType.approval_mode === "all" && approverStepsMeta.length > 0 && (
+                    <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground">
+                        Loại phiếu này đang cấu hình duyệt tuần tự theo từng bước. Mỗi bước có thể chọn nhiều người duyệt; chỉ cần 1 người trong bước đó duyệt là sang bước tiếp theo.
+                      </p>
+                      {approverStepsMeta.map((step, index) => {
+                        const stepApprovers = eligibleApprovers.filter(
+                          (a) => a.position_level === step.positionLevel
+                        )
+                        return (
+                          <div key={step.id} className="space-y-1 border rounded-md p-2 bg-muted/40">
+                            <p className="text-xs font-medium">
+                              Duyệt {index + 1} - {step.positionName} (Level {step.positionLevel})
+                            </p>
+                            <ApproverSelect
+                              approvers={stepApprovers}
+                              selected={stepSelectedApprovers[index] || []}
+                              onChange={(ids) => {
+                                setStepSelectedApprovers((prev) => {
+                                  const next = [...prev]
+                                  next[index] = ids
+                                  return next
+                                })
+                              }}
+                              loading={loadingApprovers}
+                              placeholder="Chọn người duyệt cho bước này..."
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
 
@@ -870,6 +985,11 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             name={`custom_${field.id}`}
                             placeholder={field.placeholder}
                             required={field.required}
+                            disabled={
+                              !!editingRequest &&
+                              (editingRequest.originalData.status !== "pending" ||
+                                !field.editable_while_approving)
+                            }
                             defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
                           />
                         )}
@@ -879,6 +999,11 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             placeholder={field.placeholder}
                             required={field.required}
                             rows={3}
+                            disabled={
+                              !!editingRequest &&
+                              (editingRequest.originalData.status !== "pending" ||
+                                !field.editable_while_approving)
+                            }
                             defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
                           />
                         )}
@@ -888,6 +1013,11 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             name={`custom_${field.id}`}
                             placeholder={field.placeholder}
                             required={field.required}
+                            disabled={
+                              !!editingRequest &&
+                              (editingRequest.originalData.status !== "pending" ||
+                                !field.editable_while_approving)
+                            }
                             defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
                           />
                         )}
@@ -896,6 +1026,11 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             name={`custom_${field.id}`}
                             required={field.required}
                             defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
+                            disabled={
+                              !!editingRequest &&
+                              (editingRequest.originalData.status !== "pending" ||
+                                !field.editable_while_approving)
+                            }
                           >
                             <SelectTrigger>
                               <SelectValue placeholder={field.placeholder || "Chọn..."} />
@@ -977,7 +1112,13 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                   disabled={
                     loading || 
                     (selectedType.requires_attachment && !attachmentUrl) ||
-                    (eligibleApprovers.length > 0 && selectedApprovers.length === 0)
+                    (
+                      selectedType.approval_mode === "any"
+                        ? (eligibleApprovers.length > 0 && selectedApprovers.length === 0)
+                        : (selectedType.approval_mode === "all" &&
+                          approverStepsMeta.length > 0 &&
+                          stepSelectedApprovers.filter((id) => !!id).length !== approverStepsMeta.length)
+                    )
                   }
                 >
                   {loading ? (editingRequest ? "Đang cập nhật..." : "Đang gửi...") : (editingRequest ? "Cập nhật" : "Gửi phiếu")}

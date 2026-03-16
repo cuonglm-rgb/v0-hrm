@@ -297,6 +297,8 @@ export interface CustomField {
   required: boolean
   placeholder?: string
   options?: string[] // Cho select type
+  /** Cho phép người tạo sửa trường này khi phiếu đang duyệt */
+  editable_while_approving?: boolean
 }
 
 export interface RequestType {

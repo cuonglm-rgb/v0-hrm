@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
+import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField, RequestTypeApproverWithRelations } from "@/lib/types/database"
 import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { validateTimeSlot, validateNoOverlap } from "@/lib/utils/time-slot-utils"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
@@ -10,6 +10,7 @@ import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE
 import { getEmployeeViolations } from "./payroll/violations"
 import type { ShiftInfo } from "./payroll/types"
 import { differenceInDays, parseISO, startOfDay } from "date-fns"
+import { getCurrentSequentialStep, isApproverAtCurrentStep } from "@/lib/utils/approval-utils"
 
 // =============================================
 // REQUEST TYPES (Loại phiếu)
@@ -404,9 +405,10 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
 
   // Nếu không phải HR/Admin, chỉ lấy phiếu mà user được chỉ định duyệt
   // Bước 1: Lấy danh sách request_id mà user được chỉ định làm người duyệt
+  // và thông tin thứ tự duyệt (display_order) + trạng thái hiện tại
   const { data: assignedRequests } = await supabase
     .from("request_assigned_approvers")
-    .select("request_id, status")
+    .select("request_id, status, display_order")
     .eq("approver_id", currentEmployee.id)
 
   if (!assignedRequests || assignedRequests.length === 0) {
@@ -414,9 +416,48 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
   }
 
   const assignedRequestIds = assignedRequests.map(r => r.request_id)
-  const approvalMap = new Map(assignedRequests.map(a => [a.request_id, a.status]))
 
-  // Bước 2: Lấy chi tiết các phiếu đó
+  // Bước 2: Lấy toàn bộ người duyệt của các phiếu đó để xác định bước hiện tại
+  const { data: allApprovers } = await supabase
+    .from("request_assigned_approvers")
+    .select("request_id, status, display_order")
+    .in("request_id", assignedRequestIds)
+
+  const approvalMap = new Map<string, string>(assignedRequests.map(a => [a.request_id, a.status]))
+
+  // Tính toán xem với từng phiếu, display_order nào đang là bước duyệt hiện tại
+  const currentStepByRequest = new Map<string, number | null>()
+
+  if (allApprovers) {
+    for (const row of allApprovers) {
+      const requestId = row.request_id as string
+      if (!currentStepByRequest.has(requestId)) {
+        const pendingForRequest = allApprovers.filter((r: any) => r.request_id === requestId && r.status === "pending")
+        if (pendingForRequest.length === 0) {
+          currentStepByRequest.set(requestId, null)
+        } else {
+          const minOrder = Math.min(...pendingForRequest.map((r: any) => r.display_order || 1))
+          currentStepByRequest.set(requestId, minOrder)
+        }
+      }
+    }
+  }
+
+  // Chỉ giữ lại những phiếu mà user đang ở đúng bước duyệt hiện tại
+  const visibleAssignedRequestIds = assignedRequests
+    .filter((r: any) => {
+      if (r.status !== "pending") return false
+      const currentStep = currentStepByRequest.get(r.request_id)
+      if (currentStep == null) return false
+      return (r.display_order || 1) === currentStep
+    })
+    .map((r: any) => r.request_id)
+
+  if (visibleAssignedRequestIds.length === 0) {
+    return []
+  }
+
+  // Bước 3: Lấy chi tiết các phiếu mà user đang ở bước duyệt hiện tại
   let query = supabase
     .from("employee_requests")
     .select(`
@@ -426,7 +467,7 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
       request_type:request_types!request_type_id(*),
       time_slots:request_time_slots(*)
     `)
-    .in("id", assignedRequestIds)
+    .in("id", visibleAssignedRequestIds)
     .order("created_at", { ascending: false })
 
   if (filters?.status) query = query.eq("status", filters.status)
@@ -489,7 +530,8 @@ export async function createEmployeeRequest(input: {
   to_time?: string
   reason?: string
   attachment_url?: string
-  assigned_approver_ids?: string[] // Danh sách người duyệt được chỉ định
+  assigned_approver_ids?: string[] // Danh sách người duyệt được chỉ định (legacy, không mang thông tin bước)
+  assigned_approvers_with_order?: { approver_id: string; display_order: number }[] // Hỗ trợ nhiều người / bước
   custom_data?: Record<string, string> // Dữ liệu từ custom fields
   time_slots?: { from_time: string; to_time: string }[] // Nhiều khung giờ
 }) {
@@ -512,7 +554,11 @@ export async function createEmployeeRequest(input: {
   }
 
   // Validate người duyệt bắt buộc
-  if (!input.assigned_approver_ids || input.assigned_approver_ids.length === 0) {
+  const hasApproversByIds = !!input.assigned_approver_ids && input.assigned_approver_ids.length > 0
+  const hasApproversWithOrder =
+    !!input.assigned_approvers_with_order && input.assigned_approvers_with_order.length > 0
+
+  if (!hasApproversByIds && !hasApproversWithOrder) {
     return { success: false, error: "Vui lòng chọn ít nhất 1 người duyệt" }
   }
 
@@ -734,22 +780,44 @@ export async function createEmployeeRequest(input: {
 
   // Lưu danh sách người duyệt được chỉ định
   if (newRequest) {
-    const approverRecords = input.assigned_approver_ids!.map((approverId, index) => ({
-      request_id: newRequest.id,
-      approver_id: approverId,
-      display_order: index + 1,
-      status: "pending" as const,
-    }))
+    const records: {
+      request_id: string
+      approver_id: string
+      display_order: number
+      status: "pending"
+    }[] = []
 
-    const { error: approverError } = await supabase
-      .from("request_assigned_approvers")
-      .insert(approverRecords)
+    if (hasApproversWithOrder) {
+      for (const row of input.assigned_approvers_with_order!) {
+        records.push({
+          request_id: newRequest.id,
+          approver_id: row.approver_id,
+          display_order: row.display_order,
+          status: "pending",
+        })
+      }
+    } else if (hasApproversByIds) {
+      input.assigned_approver_ids!.forEach((approverId, index) => {
+        records.push({
+          request_id: newRequest.id,
+          approver_id: approverId,
+          display_order: index + 1,
+          status: "pending",
+        })
+      })
+    }
 
-    if (approverError) {
-      console.error("Error saving assigned approvers:", approverError)
-      // Xóa phiếu nếu không lưu được người duyệt
-      await supabase.from("employee_requests").delete().eq("id", newRequest.id)
-      return { success: false, error: "Không thể lưu danh sách người duyệt" }
+    if (records.length > 0) {
+      const { error: approverError } = await supabase
+        .from("request_assigned_approvers")
+        .insert(records)
+
+      if (approverError) {
+        console.error("Error saving assigned approvers:", approverError)
+        // Xóa phiếu nếu không lưu được người duyệt
+        await supabase.from("employee_requests").delete().eq("id", newRequest.id)
+        return { success: false, error: "Không thể lưu danh sách người duyệt" }
+      }
     }
   }
 
@@ -875,53 +943,89 @@ export async function approveEmployeeRequest(id: string) {
     // Nếu có danh sách người duyệt được chỉ định khi tạo phiếu
     if (assignedApprovers && assignedApprovers.length > 0) {
       // Kiểm tra người duyệt hiện tại có trong danh sách không (HR/Admin được bypass)
-      const isAssigned = assignedApprovers.some(a => a.approver_id === approverEmployee.id)
+      const myRow = assignedApprovers.find((a) => a.approver_id === approverEmployee.id)
+      const isAssigned = !!myRow
       if (!isAssigned && !isHrOrAdmin) {
         return { success: false, error: "Bạn không nằm trong danh sách người duyệt được chỉ định cho phiếu này" }
       }
 
-      // Nếu người duyệt nằm trong danh sách, cập nhật trạng thái duyệt của họ
-      if (isAssigned) {
-        const { error: updateApproverError } = await supabase
-          .from("request_assigned_approvers")
-          .update({
-            status: "approved",
-            approved_at: getNowVN()
-          })
-          .eq("request_id", id)
-          .eq("approver_id", approverEmployee.id)
+      // Tính bước duyệt hiện tại theo display_order
+      const sequentialApprovers = assignedApprovers.map((a: any) => ({
+        display_order: a.display_order as number | null,
+        status: a.status as string,
+      }))
+      const currentStep = getCurrentSequentialStep(sequentialApprovers)
 
-        if (updateApproverError) {
-          console.error("Error updating approver status:", updateApproverError)
-          return { success: false, error: updateApproverError.message }
-        }
+      // Nếu không còn bước nào pending -> phiếu đã xong hoặc dữ liệu không hợp lệ
+      if (currentStep == null) {
+        return { success: false, error: "Phiếu đã được xử lý xong" }
       }
 
-      // Nếu là HR/Admin, cập nhật tất cả người duyệt còn pending thành approved
-      // (vì HR/Admin có quyền duyệt thay cho tất cả)
+      // HR/Admin có thể duyệt bất kỳ bước nào; người thường chỉ được duyệt khi đến lượt
+      if (!isHrOrAdmin && !isApproverAtCurrentStep(myRow?.display_order ?? null, sequentialApprovers)) {
+        return { success: false, error: "Chưa đến lượt bạn duyệt phiếu này" }
+      }
+
+      // Nếu là HR/Admin, cập nhật tất cả người duyệt còn pending thành approved (bỏ qua thứ tự)
       if (isHrOrAdmin) {
         const { error: updateAllApproversError } = await supabase
           .from("request_assigned_approvers")
           .update({
             status: "approved",
-            approved_at: getNowVN()
+            approved_at: getNowVN(),
           })
           .eq("request_id", id)
           .eq("status", "pending")
 
         if (updateAllApproversError) {
           console.error("Error updating all approvers status:", updateAllApproversError)
+          return { success: false, error: updateAllApproversError.message }
+        }
+      } else if (isAssigned) {
+        // Người duyệt thường: duyệt bước hiện tại
+        const now = getNowVN()
+
+        // 1) Cập nhật trạng thái cho bản ghi của chính họ
+        const { error: updateSelfError } = await supabase
+          .from("request_assigned_approvers")
+          .update({
+            status: "approved",
+            approved_at: now,
+          })
+          .eq("request_id", id)
+          .eq("approver_id", approverEmployee.id)
+
+        if (updateSelfError) {
+          console.error("Error updating approver status:", updateSelfError)
+          return { success: false, error: updateSelfError.message }
+        }
+
+        // 2) Tự động coi như cả bước đã hoàn thành:
+        // tất cả bản ghi cùng display_order còn pending sẽ được auto-approved
+        const { error: autoStepError } = await supabase
+          .from("request_assigned_approvers")
+          .update({
+            status: "approved",
+            approved_at: now,
+          })
+          .eq("request_id", id)
+          .eq("display_order", myRow?.display_order ?? currentStep)
+          .eq("status", "pending")
+
+        if (autoStepError) {
+          console.error("Error auto-approving step approvers:", autoStepError)
+          return { success: false, error: autoStepError.message }
         }
       }
 
-      // Kiểm tra xem tất cả người duyệt đã duyệt chưa
+      // Kiểm tra lại tất cả người duyệt sau khi cập nhật
       const { data: updatedApprovers } = await supabase
         .from("request_assigned_approvers")
         .select("*")
         .eq("request_id", id)
 
-      const allApproved = updatedApprovers?.every(a => a.status === "approved")
-      const anyRejected = updatedApprovers?.some(a => a.status === "rejected")
+      const anyRejected = updatedApprovers?.some((a) => a.status === "rejected")
+      const anyPending = updatedApprovers?.some((a) => a.status === "pending")
 
       if (anyRejected) {
         // Nếu có người từ chối -> phiếu bị từ chối
@@ -938,8 +1042,8 @@ export async function approveEmployeeRequest(id: string) {
           console.error("Error rejecting request:", error)
           return { success: false, error: error.message }
         }
-      } else if (allApproved) {
-        // Tất cả đã duyệt -> phiếu được duyệt
+      } else if (!anyPending) {
+        // Không còn ai pending -> phiếu được duyệt
         const { error } = await supabase
           .from("employee_requests")
           .update({
@@ -954,12 +1058,11 @@ export async function approveEmployeeRequest(id: string) {
           return { success: false, error: error.message }
         }
       }
-      // Nếu chưa đủ người duyệt -> giữ nguyên status pending
 
       revalidatePath("/dashboard/leave")
       revalidatePath("/dashboard/leave-approval")
 
-      const pendingCount = updatedApprovers?.filter(a => a.status === "pending").length || 0
+      const pendingCount = updatedApprovers?.filter((a) => a.status === "pending").length || 0
       if (pendingCount > 0) {
         return { success: true, message: `Đã duyệt. Còn ${pendingCount} người cần duyệt nữa.` }
       }
@@ -1310,35 +1413,50 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
       .eq("request_id", id)
 
     if (assignedApprovers && assignedApprovers.length > 0) {
-      // Kiểm tra người duyệt hiện tại có trong danh sách không (HR/Admin được bypass)
-      const isAssigned = assignedApprovers.some(a => a.approver_id === approverEmployee.id)
+      const myRow = assignedApprovers.find((a) => a.approver_id === approverEmployee.id)
+      const isAssigned = !!myRow
+
       if (!isAssigned && !isHrOrAdmin) {
         return { success: false, error: "Bạn không nằm trong danh sách người duyệt được chỉ định cho phiếu này" }
       }
 
-      // Nếu người duyệt nằm trong danh sách, cập nhật trạng thái từ chối của họ
-      if (isAssigned) {
-        await supabase
-          .from("request_assigned_approvers")
-          .update({
-            status: "rejected",
-            approved_at: getNowVN()
-          })
-          .eq("request_id", id)
-          .eq("approver_id", approverEmployee.id)
+      // Tính bước duyệt hiện tại
+      const sequentialApprovers = assignedApprovers.map((a: any) => ({
+        display_order: a.display_order as number | null,
+        status: a.status as string,
+      }))
+      const currentStep = getCurrentSequentialStep(sequentialApprovers)
+
+      if (currentStep == null) {
+        return { success: false, error: "Phiếu đã được xử lý xong" }
       }
 
-      // Nếu là HR/Admin, cập nhật tất cả người duyệt còn pending thành rejected
-      // (vì HR/Admin có quyền từ chối thay cho tất cả)
+      if (!isHrOrAdmin && !isApproverAtCurrentStep(myRow?.display_order ?? null, sequentialApprovers)) {
+        return { success: false, error: "Chưa đến lượt bạn duyệt phiếu này" }
+      }
+
+      const now = getNowVN()
+
       if (isHrOrAdmin) {
+        // HR/Admin: từ chối thay cho tất cả
         await supabase
           .from("request_assigned_approvers")
           .update({
             status: "rejected",
-            approved_at: getNowVN()
+            approved_at: now,
           })
           .eq("request_id", id)
           .eq("status", "pending")
+      } else if (isAssigned) {
+        // Người duyệt thường: chỉ cập nhật bản ghi của mình
+        await supabase
+          .from("request_assigned_approvers")
+          .update({
+            status: "rejected",
+            approved_at: now,
+          })
+          .eq("request_id", id)
+          .eq("approver_id", approverEmployee.id)
       }
     }
   } else {
@@ -1394,6 +1512,7 @@ export async function updateEmployeeRequest(
     reason?: string
     attachment_url?: string
     assigned_approver_ids?: string[]
+    assigned_approvers_with_order?: { approver_id: string; display_order: number }[]
     custom_data?: Record<string, string>
     time_slots?: { from_time: string; to_time: string }[]
   }
@@ -1436,7 +1555,11 @@ export async function updateEmployeeRequest(
   }
 
   // Validate người duyệt bắt buộc khi update
-  if (input.assigned_approver_ids !== undefined && input.assigned_approver_ids.length === 0) {
+  if (
+    input.assigned_approver_ids !== undefined &&
+    input.assigned_approver_ids.length === 0 &&
+    (!input.assigned_approvers_with_order || input.assigned_approvers_with_order.length === 0)
+  ) {
     return { success: false, error: "Vui lòng chọn ít nhất 1 người duyệt" }
   }
 
@@ -1462,7 +1585,12 @@ export async function updateEmployeeRequest(
   }
 
   // Cập nhật danh sách người duyệt nếu có
-  if (input.assigned_approver_ids && input.assigned_approver_ids.length > 0) {
+  const hasUpdatedApproversByIds =
+    !!input.assigned_approver_ids && input.assigned_approver_ids.length > 0
+  const hasUpdatedApproversWithOrder =
+    !!input.assigned_approvers_with_order && input.assigned_approvers_with_order.length > 0
+
+  if (hasUpdatedApproversByIds || hasUpdatedApproversWithOrder) {
     // Bước 1: Xóa toàn bộ danh sách người duyệt cũ
     const { error: deleteError } = await supabase
       .from("request_assigned_approvers")
@@ -1476,20 +1604,42 @@ export async function updateEmployeeRequest(
     }
 
     // Bước 2: Thêm danh sách người duyệt mới
-    const approverRecords = input.assigned_approver_ids.map((approverId, index) => ({
-      request_id: id,
-      approver_id: approverId,
-      display_order: index + 1,
-      status: "pending" as const,
-    }))
+    const approverRecords: {
+      request_id: string
+      approver_id: string
+      display_order: number
+      status: "pending"
+    }[] = []
 
-    const { error: insertError } = await supabase
-      .from("request_assigned_approvers")
-      .insert(approverRecords)
+    if (hasUpdatedApproversWithOrder) {
+      for (const row of input.assigned_approvers_with_order!) {
+        approverRecords.push({
+          request_id: id,
+          approver_id: row.approver_id,
+          display_order: row.display_order,
+          status: "pending",
+        })
+      }
+    } else if (hasUpdatedApproversByIds) {
+      input.assigned_approver_ids!.forEach((approverId, index) => {
+        approverRecords.push({
+          request_id: id,
+          approver_id: approverId,
+          display_order: index + 1,
+          status: "pending",
+        })
+      })
+    }
 
-    if (insertError) {
-      console.error("Error inserting new approvers:", insertError)
-      return { success: false, error: `Lỗi khi thêm người duyệt mới: ${insertError.message}` }
+    if (approverRecords.length > 0) {
+      const { error: insertError } = await supabase
+        .from("request_assigned_approvers")
+        .insert(approverRecords)
+
+      if (insertError) {
+        console.error("Error inserting new approvers:", insertError)
+        return { success: false, error: `Lỗi khi thêm người duyệt mới: ${insertError.message}` }
+      }
     }
   }
 
@@ -1587,7 +1737,58 @@ export async function listRequestTypeApprovers(requestTypeId: string) {
     return []
   }
 
-  return data || []
+  return (data || []) as RequestTypeApproverWithRelations[]
+}
+
+/**
+ * Ghi lại toàn bộ danh sách người duyệt theo thứ tự (display_order) cho 1 loại phiếu.
+ * Hiện tại chỉ hỗ trợ cấu hình theo position (approver_position_id).
+ * Hàm sẽ:
+ * - Xóa tất cả request_type_approvers cũ của loại phiếu
+ * - Thêm lại các bản ghi mới với display_order = index + 1
+ */
+export async function resetRequestTypeApprovers(input: {
+  request_type_id: string
+  approver_position_ids: string[]
+}) {
+  const supabase = await createClient()
+
+  // Xóa cấu hình cũ
+  const { error: deleteError } = await supabase
+    .from("request_type_approvers")
+    .delete()
+    .eq("request_type_id", input.request_type_id)
+
+  if (deleteError && deleteError.code !== "PGRST116") {
+    console.error("Error deleting old request_type_approvers:", deleteError)
+    return { success: false, error: deleteError.message }
+  }
+
+  // Nếu không còn bước nào -> coi như xóa hết cấu hình
+  if (input.approver_position_ids.length === 0) {
+    revalidatePath("/dashboard/leave-approval")
+    return { success: true }
+  }
+
+  const rows = input.approver_position_ids.map((positionId, index) => ({
+    request_type_id: input.request_type_id,
+    approver_employee_id: null,
+    approver_position_id: positionId,
+    approver_role_code: null,
+    display_order: index + 1,
+  }))
+
+  const { error: insertError } = await supabase
+    .from("request_type_approvers")
+    .insert(rows)
+
+  if (insertError) {
+    console.error("Error inserting request_type_approvers:", insertError)
+    return { success: false, error: insertError.message }
+  }
+
+  revalidatePath("/dashboard/leave-approval")
+  return { success: true }
 }
 
 export async function addRequestTypeApprover(input: {
