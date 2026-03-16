@@ -736,7 +736,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     />
                   </div>
                 )}
-                {selectedType.requires_time_range && !selectedType.allows_multiple_time_slots && (
+                {selectedType.requires_time_range && !selectedType.allows_multiple_time_slots && selectedType.code !== "full_day_makeup" && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label>Từ giờ *</Label>

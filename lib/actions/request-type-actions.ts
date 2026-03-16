@@ -657,13 +657,19 @@ export async function createEmployeeRequest(input: {
         }
       }
 
+      // Nếu user không chọn giờ cho full_day_makeup → mặc định theo ca làm
+      if (!input.from_time || !input.to_time) {
+        input.from_time = shiftInfo.startTime
+        input.to_time = shiftInfo.endTime
+      }
+
       normalizedMakeupCustomData = { [LINKED_DEFICIT_LINKS_KEY]: links }
       if (links.length === 1) (normalizedMakeupCustomData as Record<string, string>)[LINKED_DEFICIT_DATE_KEY] = links[0].deficit_date
     } else {
       normalizedMakeupCustomData = { [LINKED_DEFICIT_DATE_KEY]: firstDeficitDate }
     }
-
-    if (!input.from_time || !input.to_time) {
+    // late_early_makeup vẫn bắt buộc nhập giờ bù
+    if (requestType.code === "late_early_makeup" && (!input.from_time || !input.to_time)) {
       return { success: false, error: "Vui lòng nhập giờ bắt đầu và kết thúc làm bù" }
     }
 

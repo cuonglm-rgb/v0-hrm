@@ -12,7 +12,7 @@ import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/req
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
-import { LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
+import { LINKED_DEFICIT_DATE_KEY, LINKED_DEFICIT_LINKS_KEY, getMakeupDeficitLinks } from "@/lib/utils/makeup-utils"
 import {
   Dialog,
   DialogContent,
@@ -830,17 +830,45 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                   </div>
                 )}
 
-                {viewingRequest.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] && (
-                  <div className="flex items-start gap-3">
-                    <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                    <div>
-                      <p className="text-sm font-medium">Ngày thiếu công gốc</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDateVN(viewingRequest.originalData.custom_data[LINKED_DEFICIT_DATE_KEY])}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                {/* Ngày thiếu công gốc cho phiếu làm bù */}
+                {viewingRequest.originalData.custom_data && (() => {
+                  const cd = viewingRequest.originalData.custom_data as Record<string, unknown>
+                  const linksRaw = cd[LINKED_DEFICIT_LINKS_KEY]
+                  const hasLinks = Array.isArray(linksRaw) && linksRaw.length > 0
+                  if (hasLinks) {
+                    const links = getMakeupDeficitLinks(cd)
+                    return (
+                      <div className="flex items-start gap-3">
+                        <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Ngày thiếu công gốc</p>
+                          <ul className="text-sm text-muted-foreground list-disc pl-4">
+                            {links.map((link, idx) => (
+                              <li key={`${link.deficit_date}-${idx}`}>
+                                {formatDateVN(link.deficit_date)} – {link.amount} ngày
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )
+                  }
+                  const single = cd[LINKED_DEFICIT_DATE_KEY] as string | undefined
+                  if (single) {
+                    return (
+                      <div className="flex items-start gap-3">
+                        <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm font-medium">Ngày thiếu công gốc</p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatDateVN(single)}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
 
                 {viewingRequest.reason && (
                   <div className="flex items-start gap-3">
@@ -874,12 +902,16 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                   <div className="border-t pt-3 mt-3">
                     <p className="text-sm font-medium mb-2">Thông tin bổ sung</p>
                     {Object.entries(viewingRequest.originalData.custom_data).map(([key, value]) => {
+                      // Ẩn các field kỹ thuật của làm bù (đã hiển thị riêng phía trên)
+                      if (key === LINKED_DEFICIT_DATE_KEY || key === LINKED_DEFICIT_LINKS_KEY) {
+                        return null
+                      }
                       const field = viewingRequest.originalData.request_type?.custom_fields?.find((f: { id: string }) => f.id === key)
                       return (
                         <div key={key} className="flex items-start gap-3 mb-2">
                           <div className="text-sm">
                             <span className="text-muted-foreground">{field?.label || key}:</span>{" "}
-                            <span>{value}</span>
+                            <span>{String(value)}</span>
                           </div>
                         </div>
                       )
