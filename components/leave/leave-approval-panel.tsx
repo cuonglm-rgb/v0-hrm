@@ -12,6 +12,7 @@ import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/req
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
+import { LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 import {
   Dialog,
   DialogContent,
@@ -825,6 +826,18 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                         }
                         return <p className="text-sm text-muted-foreground">{viewingRequest.time}</p>
                       })()}
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] && (
+                  <div className="flex items-start gap-3">
+                    <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Ngày thiếu công gốc</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDateVN(viewingRequest.originalData.custom_data[LINKED_DEFICIT_DATE_KEY])}
+                      </p>
                     </div>
                   </div>
                 )}

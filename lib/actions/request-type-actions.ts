@@ -6,6 +6,7 @@ import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, Custo
 import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { validateTimeSlot, validateNoOverlap } from "@/lib/utils/time-slot-utils"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
+import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 import { differenceInDays, parseISO, startOfDay } from "date-fns"
 
 // =============================================
@@ -552,6 +553,71 @@ export async function createEmployeeRequest(input: {
 
     if (requestedDays > remaining) {
       return { success: false, error: `Số dư phép không đủ. Bạn có ${remaining} ngày, yêu cầu ${requestedDays} ngày.` }
+    }
+  }
+
+  // Validate phiếu làm bù
+  if (requestType && isMakeupRequestType(requestType.code)) {
+    const linkedDate = input.custom_data?.[LINKED_DEFICIT_DATE_KEY]
+    if (!linkedDate) {
+      return { success: false, error: "Vui lòng chọn ngày thiếu công gốc" }
+    }
+    if (!input.request_date) {
+      return { success: false, error: "Vui lòng chọn ngày làm bù" }
+    }
+
+    if (requestType.code === "late_early_makeup" && !isSameMonth(input.request_date, linkedDate)) {
+      return { success: false, error: "Phiếu đi muộn/về sớm làm bù chỉ được tạo trong cùng tháng với ngày thiếu công" }
+    }
+
+    if (requestType.code === "full_day_makeup") {
+      const { data: satSchedules } = await supabase
+        .from("saturday_work_schedule")
+        .select("employee_id, work_date, is_working")
+        .eq("employee_id", employee.id)
+
+      const { data: holidays } = await supabase
+        .from("holidays")
+        .select("holiday_date")
+        .eq("holiday_date", input.request_date)
+
+      if (!isEmployeeOffDay(input.request_date, satSchedules || [], employee.id, holidays || [])) {
+        return { success: false, error: "Ngày làm bù phải là ngày nghỉ của nhân viên (Chủ nhật, Thứ 7 nghỉ theo lịch, hoặc ngày lễ)" }
+      }
+    }
+
+    if (!input.from_time || !input.to_time) {
+      return { success: false, error: "Vui lòng nhập giờ bắt đầu và kết thúc làm bù" }
+    }
+
+    const { data: existingOT } = await supabase
+      .from("employee_requests")
+      .select("id, from_time, to_time, request_type:request_types!request_type_id(code)")
+      .eq("employee_id", employee.id)
+      .eq("status", "approved")
+      .eq("request_date", input.request_date)
+
+    const otConflict = (existingOT || []).some((req: any) => {
+      if (req.request_type?.code !== "overtime") return false
+      if (!req.from_time || !req.to_time || !input.from_time || !input.to_time) return false
+      return req.from_time < input.to_time && req.to_time > input.from_time
+    })
+    if (otConflict) {
+      return { success: false, error: "Khung giờ làm bù trùng với phiếu tăng ca đã duyệt. Vui lòng chọn khung giờ khác." }
+    }
+
+    if (requestType.code === "full_day_makeup" && linkedDate) {
+      const { data: existingMakeup } = await supabase
+        .from("employee_requests")
+        .select("id, custom_data, request_type:request_types!request_type_id(code)")
+        .eq("employee_id", employee.id)
+        .eq("status", "approved")
+      const alreadyConsumed = (existingMakeup || []).some(
+        (r: any) => r.request_type?.code === "full_day_makeup" && r.custom_data?.[LINKED_DEFICIT_DATE_KEY] === linkedDate
+      )
+      if (alreadyConsumed) {
+        return { success: false, error: "Ngày thiếu công gốc này đã có phiếu làm bù cả ngày được duyệt. Mỗi ngày thiếu chỉ được bù một lần." }
+      }
     }
   }
 

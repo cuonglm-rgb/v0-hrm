@@ -11,6 +11,7 @@ import { getEmployeeViolations } from "./violations"
 import { processAdjustments } from "./generate-payroll"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
+import { MAKEUP_CODES, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
@@ -120,6 +121,54 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const overtimeDates = new Set<string>()
   const overtimeWithinShift = new Set<string>()
 
+  const { data: employeeRequests } = await supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types!request_type_id(code, name, affects_payroll, deduct_leave_balance, requires_date_range, requires_single_date)
+    `)
+    .eq("employee_id", emp.id)
+    .eq("status", "approved")
+    .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
+
+  const makeupDates = new Set<string>()
+  if (employeeRequests) {
+    for (const request of employeeRequests) {
+      const reqType = request.request_type as any
+      if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
+      makeupDates.add(request.request_date)
+    }
+  }
+
+  const leaveDates = new Set<string>()
+  if (employeeRequests) {
+    for (const request of employeeRequests) {
+      const reqType = request.request_type as any
+      if (!reqType || reqType.code === "overtime") continue
+      if ((MAKEUP_CODES as readonly string[]).includes(reqType.code)) continue
+      if (request.from_date && request.to_date) {
+        const parseDate = (dateStr: string) => {
+          const [y, m, d] = dateStr.split('-').map(Number)
+          return new Date(Date.UTC(y, m - 1, d))
+        }
+        const reqFromDate = parseDate(request.from_date)
+        const reqToDate = parseDate(request.to_date)
+        const periodStart = parseDate(startDate)
+        const periodEnd = parseDate(endDate)
+        const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+        const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+        const current = new Date(reqStart)
+        while (current <= reqEnd) {
+          const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+          leaveDates.add(dateStr)
+          current.setDate(current.getDate() + 1)
+        }
+      } else if (request.request_date) {
+        leaveDates.add(request.request_date)
+      }
+    }
+  }
+
   if (overtimeRequestDates) {
     for (const req of overtimeRequestDates) {
       const reqType = req.request_type as any
@@ -166,12 +215,15 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     }
   }
 
-  // Đếm ngày công - giống hệt generate-payroll.ts
+  // Đếm ngày công (ngày làm bù full_day_makeup không tăng working days — chỉ consume deficit)
   let workingDaysCount = 0
   const countedDates = new Set<string>()
+  const attendanceDates = new Set<string>()
   if (allAttendanceLogs) {
     for (const log of allAttendanceLogs) {
       const logDate = log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out)
+      attendanceDates.add(logDate)
+      if (makeupDates.has(logDate)) continue
       if (!overtimeDates.has(logDate) && !countedDates.has(logDate)) {
         workingDaysCount++
         countedDates.add(logDate)
@@ -179,8 +231,22 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     }
   }
 
+  const consumedDeficitDates = new Set<string>()
+  if (employeeRequests) {
+    for (const request of employeeRequests) {
+      const reqType = request.request_type as any
+      if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
+      const deficitDate = request.custom_data?.[LINKED_DEFICIT_DATE_KEY]
+      if (!deficitDate) continue
+      if (!attendanceDates.has(request.request_date)) continue
+      consumedDeficitDates.add(deficitDate)
+    }
+  }
+  const consumed_days = consumedDeficitDates.size
+
   console.log(`📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
-  console.log(`📊 Ngày công từ chấm công: ${workingDaysCount} ngày`)
+  console.log(`📊 Ngày công từ chấm công (trừ ngày làm bù): ${workingDaysCount} ngày`)
+  console.log(`📊 Consumed deficit: ${consumed_days} ngày`)
   console.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
 
   // Lấy danh sách ngày lễ và ngày nghỉ công ty
@@ -214,20 +280,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       .map(s => s.work_date)
   )
 
-  // Process leave requests
-  const { data: employeeRequests } = await supabase
-    .from("employee_requests")
-    .select(`
-      *,
-      request_type:request_types!request_type_id(
-        code, name, affects_payroll, deduct_leave_balance,
-        requires_date_range, requires_single_date
-      )
-    `)
-    .eq("employee_id", emp.id)
-    .eq("status", "approved")
-    .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
-
+  // Process leave requests (employeeRequests đã query ở trên)
   let paidLeaveDays = 0
   let unpaidLeaveDays = 0
   let workFromHomeDays = 0
@@ -275,6 +328,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       const affectsPayroll = reqType.affects_payroll === true
 
       if (code === "overtime") continue
+      if ((MAKEUP_CODES as readonly string[]).includes(code)) continue
       if (!affectsPayroll && code !== "unpaid_leave") continue
 
       let days = 0
@@ -328,37 +382,6 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         workFromHomeDays += days
       } else if (affectsPayroll) {
         paidLeaveDays += days
-      }
-    }
-  }
-
-  // Tạo Set các ngày có leave request để tránh tính trùng
-  const leaveDates = new Set<string>()
-  if (employeeRequests) {
-    for (const request of employeeRequests) {
-      const reqType = request.request_type as any
-      if (!reqType) continue
-      
-      if (request.from_date && request.to_date) {
-        const parseDate = (dateStr: string) => {
-          const [y, m, d] = dateStr.split('-').map(Number)
-          return new Date(Date.UTC(y, m - 1, d))
-        }
-        const reqFromDate = parseDate(request.from_date)
-        const reqToDate = parseDate(request.to_date)
-        const periodStart = parseDate(startDate)
-        const periodEnd = parseDate(endDate)
-        const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
-        const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
-        
-        const current = new Date(reqStart)
-        while (current <= reqEnd) {
-          const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
-          leaveDates.add(dateStr)
-          current.setDate(current.getDate() + 1)
-        }
-      } else if (request.request_date) {
-        leaveDates.add(request.request_date)
       }
     }
   }
@@ -442,7 +465,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
 
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
-  const actualAttendanceDays = workingDaysCount - (halfDays * 0.5)
+  const actualAttendanceDays = workingDaysCount - (halfDays * 0.5) + consumed_days
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
   const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
   const forgotCheckoutCount = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
@@ -542,6 +565,9 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   console.log(`  - Thực lĩnh: ${netSalary.toLocaleString()} VNĐ`)
   console.log(`========== KẾT THÚC TÍNH LƯƠNG: ${emp.full_name} ==========\n`)
 
+  const consumedDeficitDetailStr =
+    consumedDeficitDates.size > 0 ? [...consumedDeficitDates].sort().join(",") : null
+
   await supabase
     .from("payroll_items")
     .update({
@@ -554,6 +580,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       total_deduction: totalDeduction,
       net_salary: netSalary,
       standard_working_days: STANDARD_WORKING_DAYS,
+      consumed_deficit_days: consumed_days,
+      consumed_deficit_detail: consumedDeficitDetailStr,
     })
     .eq("id", payroll_item_id)
 

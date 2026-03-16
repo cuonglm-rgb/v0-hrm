@@ -1,0 +1,43 @@
+import { isSaturdayOffByDefault } from "./saturday-utils"
+
+export const MAKEUP_CODES = ["late_early_makeup", "full_day_makeup"] as const
+export type MakeupCode = typeof MAKEUP_CODES[number]
+export const LINKED_DEFICIT_DATE_KEY = "linked_deficit_date"
+
+export function isMakeupRequestType(code: string): code is MakeupCode {
+  return MAKEUP_CODES.includes(code as MakeupCode)
+}
+
+export function isEmployeeOffDay(
+  date: Date | string,
+  saturdaySchedules: { employee_id: string; work_date: string; is_working: boolean }[],
+  employeeId: string,
+  holidays: { holiday_date: string }[] = []
+): boolean {
+  const d = typeof date === "string" ? new Date(date + "T00:00:00Z") : date
+  const day = d.getUTCDay()
+
+  if (day === 0) return true
+
+  const dateStr = typeof date === "string"
+    ? date
+    : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+  if (holidays.some(h => h.holiday_date === dateStr)) return true
+
+  if (day === 6) {
+    const empSchedules = saturdaySchedules.filter(s => s.employee_id === employeeId)
+    const schedule = empSchedules.find(s => s.work_date === dateStr)
+
+    if (schedule) return !schedule.is_working
+    if (empSchedules.length > 0) return true
+
+    return isSaturdayOffByDefault(d)
+  }
+
+  return false
+}
+
+export function isSameMonth(dateA: string, dateB: string): boolean {
+  return dateA.slice(0, 7) === dateB.slice(0, 7)
+}

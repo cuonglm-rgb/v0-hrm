@@ -12,6 +12,7 @@ import { calculateStandardWorkingDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
+import { MAKEUP_CODES, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
@@ -202,6 +203,56 @@ async function processEmployeePayroll(
   const overtimeDates = new Set<string>()
   const overtimeWithinShift = new Set<string>()
 
+  // Query approved requests sớm để có makeupDates + leaveDates trước khi đếm công
+  const { data: employeeRequests } = await supabase
+    .from("employee_requests")
+    .select(`
+      *,
+      request_type:request_types!request_type_id(code),
+      time_slots:request_time_slots(*)
+    `)
+    .eq("employee_id", emp.id)
+    .eq("status", "approved")
+    .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
+
+  const makeupDates = new Set<string>()
+  if (employeeRequests) {
+    for (const request of employeeRequests) {
+      const reqType = request.request_type as any
+      if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
+      makeupDates.add(request.request_date)
+    }
+  }
+
+  const leaveDates = new Set<string>()
+  if (employeeRequests) {
+    for (const request of employeeRequests) {
+      const reqType = request.request_type as any
+      if (!reqType || reqType.code === "overtime") continue
+      if ((MAKEUP_CODES as readonly string[]).includes(reqType.code)) continue
+      if (request.from_date && request.to_date) {
+        const parseDate = (dateStr: string) => {
+          const [y, m, d] = dateStr.split('-').map(Number)
+          return new Date(Date.UTC(y, m - 1, d))
+        }
+        const reqFromDate = parseDate(request.from_date)
+        const reqToDate = parseDate(request.to_date)
+        const periodStart = parseDate(startDate)
+        const periodEnd = parseDate(endDate)
+        const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+        const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+        const current = new Date(reqStart)
+        while (current <= reqEnd) {
+          const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+          leaveDates.add(dateStr)
+          current.setDate(current.getDate() + 1)
+        }
+      } else if (request.request_date) {
+        leaveDates.add(request.request_date)
+      }
+    }
+  }
+
   if (overtimeRequestDates) {
     for (const req of overtimeRequestDates) {
       const reqType = req.request_type as any
@@ -256,12 +307,15 @@ async function processEmployeePayroll(
     .eq("employee_id", emp.id)
     .or(`and(check_in.gte.${startDate},check_in.lte.${endDate}T23:59:59),and(check_in.is.null,check_out.gte.${startDate},check_out.lte.${endDate}T23:59:59)`)
 
-  // Đếm ngày công
+  // Đếm ngày công (ngày làm bù full_day_makeup KHÔNG tăng working days — chỉ dùng để consume deficit)
   let workingDaysCount = 0
   const countedDates = new Set<string>()
+  const attendanceDates = new Set<string>()
   if (allAttendanceLogs) {
     for (const log of allAttendanceLogs) {
       const logDate = log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out)
+      attendanceDates.add(logDate)
+      if (makeupDates.has(logDate)) continue
       if (!overtimeDates.has(logDate) && !countedDates.has(logDate)) {
         workingDaysCount++
         countedDates.add(logDate)
@@ -269,8 +323,23 @@ async function processEmployeePayroll(
     }
   }
 
+  // Consumed deficits: mỗi linked_deficit_date chỉ được consume tối đa 1 lần (tránh 2 phiếu bù cùng 1 ngày = +2 công)
+  const consumedDeficitDates = new Set<string>()
+  if (employeeRequests) {
+    for (const request of employeeRequests) {
+      const reqType = request.request_type as any
+      if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
+      const deficitDate = request.custom_data?.[LINKED_DEFICIT_DATE_KEY]
+      if (!deficitDate) continue
+      if (!attendanceDates.has(request.request_date)) continue
+      consumedDeficitDates.add(deficitDate)
+    }
+  }
+  const consumed_days = consumedDeficitDates.size
+
   console.log(`📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
-  console.log(`📊 Ngày công từ chấm công: ${workingDaysCount} ngày`)
+  console.log(`📊 Ngày công từ chấm công (trừ ngày làm bù): ${workingDaysCount} ngày`)
+  console.log(`📊 Consumed deficit (bù thiếu, cap 1/deficit): ${consumed_days} ngày`)
   console.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
 
   // Lấy danh sách ngày lễ và ngày nghỉ công ty
@@ -308,49 +377,6 @@ async function processEmployeePayroll(
   const leaveResult = await processLeaveRequests(
     supabase, emp.id, startDate, endDate, year, emp.official_date, shiftMap, emp.shift_id
   )
-
-  // Query lại employeeRequests để lấy leaveDates
-  const { data: employeeRequests } = await supabase
-    .from("employee_requests")
-    .select(`
-      *,
-      request_type:request_types!request_type_id(code),
-      time_slots:request_time_slots(*)
-    `)
-    .eq("employee_id", emp.id)
-    .eq("status", "approved")
-    .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
-
-  // Tạo Set các ngày có leave request
-  const leaveDates = new Set<string>()
-  if (employeeRequests) {
-    for (const request of employeeRequests) {
-      const reqType = request.request_type as any
-      if (!reqType || reqType.code === "overtime") continue
-      
-      if (request.from_date && request.to_date) {
-        const parseDate = (dateStr: string) => {
-          const [y, m, d] = dateStr.split('-').map(Number)
-          return new Date(Date.UTC(y, m - 1, d))
-        }
-        const reqFromDate = parseDate(request.from_date)
-        const reqToDate = parseDate(request.to_date)
-        const periodStart = parseDate(startDate)
-        const periodEnd = parseDate(endDate)
-        const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
-        const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
-        
-        const current = new Date(reqStart)
-        while (current <= reqEnd) {
-          const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
-          leaveDates.add(dateStr)
-          current.setDate(current.getDate() + 1)
-        }
-      } else if (request.request_date) {
-        leaveDates.add(request.request_date)
-      }
-    }
-  }
 
   // Tính số ngày lễ và ngày nghỉ công ty mà nhân viên không đi làm và không có leave request
   let holidayWorkDays = 0
@@ -420,7 +446,7 @@ async function processEmployeePayroll(
 
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
-  const actualAttendanceDays = workingDaysCount - (halfDays * 0.5)
+  const actualAttendanceDays = workingDaysCount - (halfDays * 0.5) + consumed_days
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
   const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
   const forgotCheckoutCount = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
@@ -435,7 +461,7 @@ async function processEmployeePayroll(
   console.log(`  - Đi muộn: ${lateCount} lần`)
   console.log(`  - Quên chấm công đến: ${forgotCheckinCount} lần`)
   console.log(`  - Quên chấm công về: ${forgotCheckoutCount} lần`)
-  console.log(`  - Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} - ${halfDays * 0.5})`)
+  console.log(`  - Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} - ${halfDays * 0.5} + consumed ${consumed_days})`)
 
   // Tính ngày đủ giờ cho phụ cấp
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
@@ -528,10 +554,14 @@ async function processEmployeePayroll(
   if (absentDays > 0) noteItems.push(`Không tính công: ${absentDays}`)
   const penaltyCount = adjustmentResult.details.filter(d => d.category === 'penalty').length
   if (penaltyCount > 0) noteItems.push(`Phạt: ${penaltyCount} lần`)
+  if (consumed_days > 0) noteItems.push(`Consume deficit: ${consumed_days} ngày`)
   if (otResult.totalOTHours > 0) noteItems.push(`OT: ${otResult.totalOTHours}h`)
   if (kpiBonus > 0) noteItems.push(`KPI: ${kpiBonus.toLocaleString()}đ`)
 
-  // Insert payroll item
+  const consumedDeficitDetailStr =
+    consumedDeficitDates.size > 0 ? [...consumedDeficitDates].sort().join(",") : null
+
+  // Insert payroll item (lưu consumed theo tháng run để audit)
   const { data: payrollItem, error: insertError } = await supabase
     .from("payroll_items")
     .insert({
@@ -547,6 +577,8 @@ async function processEmployeePayroll(
       net_salary: netSalary,
       standard_working_days: STANDARD_WORKING_DAYS,
       note: noteItems.join(", ") || null,
+      consumed_deficit_days: consumed_days,
+      consumed_deficit_detail: consumedDeficitDetailStr,
     })
     .select()
     .single()
@@ -683,6 +715,7 @@ async function processLeaveRequests(
       const affectsPayroll = reqType.affects_payroll === true
 
       if (code === "overtime") continue
+      if ((MAKEUP_CODES as readonly string[]).includes(code)) continue
       if (!affectsPayroll && code !== "unpaid_leave") continue
 
       const { from_time: effFromTime, to_time: effToTime } = getEffectiveTimeRange(request)

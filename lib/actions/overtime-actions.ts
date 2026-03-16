@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import type { OTSetting, OvertimeRecordWithRelations, EmployeeOTRateWithRelations, Holiday } from "@/lib/types/database"
 import { getLastDayOfMonthVN, getNowVN } from "@/lib/utils/date-utils"
 import { lunarToSolarDate } from "@/lib/utils/lunar-calendar"
+import { MAKEUP_CODES } from "@/lib/utils/makeup-utils"
 
 // =============================================
 // OT CONFIG (Giờ công chuẩn OT)
@@ -784,6 +785,20 @@ export async function calculateOvertimePay(
 
   console.log(`[OT] Found ${overtimeRequests.length} approved OT requests from employee_requests`)
 
+  // Lấy phiếu làm bù đã duyệt để trừ thời gian trùng
+  const makeupRequests = (otRequests || []).filter(
+    (r: any) => (MAKEUP_CODES as readonly string[]).includes(r.request_type?.code)
+  )
+  const makeupIntervalsByDate = new Map<string, { from: number; to: number }[]>()
+  for (const req of makeupRequests) {
+    if (!req.request_date || !req.from_time || !req.to_time) continue
+    const [fH, fM] = req.from_time.split(":").map(Number)
+    const [tH, tM] = req.to_time.split(":").map(Number)
+    const intervals = makeupIntervalsByDate.get(req.request_date) || []
+    intervals.push({ from: fH * 60 + fM, to: tH * 60 + tM })
+    makeupIntervalsByDate.set(req.request_date, intervals)
+  }
+
   // Xử lý phiếu từ employee_requests
   for (const request of overtimeRequests) {
     // Lấy danh sách khung giờ (ưu tiên request_time_slots, fallback về from_time/to_time)
@@ -800,14 +815,25 @@ export async function calculateOvertimePay(
       timeSlots.push({ from_time: request.from_time, to_time: request.to_time })
     }
 
-    // Tính tổng số giờ từ tất cả khung giờ
+    // Tính tổng số giờ từ tất cả khung giờ, trừ thời gian trùng với làm bù
+    const dateMakeupIntervals = makeupIntervalsByDate.get(request.request_date) || []
     let hours = 0
     for (const slot of timeSlots) {
       const [fromH, fromM] = slot.from_time.split(":").map(Number)
       const [toH, toM] = slot.to_time.split(":").map(Number)
-      let slotHours = (toH * 60 + toM - fromH * 60 - fromM) / 60
-      if (slotHours < 0) slotHours += 24 // Qua đêm
-      hours += slotHours
+      let slotFrom = fromH * 60 + fromM
+      let slotTo = toH * 60 + toM
+      if (slotTo < slotFrom) slotTo += 24 * 60
+
+      let slotMinutes = slotTo - slotFrom
+      for (const mi of dateMakeupIntervals) {
+        const overlapStart = Math.max(slotFrom, mi.from)
+        const overlapEnd = Math.min(slotTo, mi.to)
+        if (overlapEnd > overlapStart) {
+          slotMinutes -= (overlapEnd - overlapStart)
+        }
+      }
+      hours += Math.max(0, slotMinutes) / 60
     }
 
     if (hours <= 0) continue

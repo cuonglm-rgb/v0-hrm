@@ -45,6 +45,8 @@ export async function getEmployeeViolations(
     .select(`
       request_date,
       request_time,
+      from_time,
+      to_time,
       request_type:request_types!request_type_id(code)
     `)
     .eq("employee_id", employeeId)
@@ -56,6 +58,8 @@ export async function getEmployeeViolations(
   // Map để lưu giờ trong phiếu quên chấm công (để bổ sung check_in/check_out)
   const forgotCheckinTimeByDate = new Map<string, string>()
   const forgotCheckoutTimeByDate = new Map<string, string>()
+  // Map phiếu làm bù đi muộn/về sớm: date -> to_time (giờ kết thúc ca mới)
+  const makeupShiftEndByDate = new Map<string, string>()
   
   console.log(`[Violations] Tìm thấy ${approvedRequests?.length || 0} phiếu đã duyệt`)
   
@@ -74,6 +78,15 @@ export async function getEmployeeViolations(
       if (reqType.code === "forgot_checkout" && req.request_time) {
         forgotCheckoutTimeByDate.set(req.request_date, req.request_time)
         console.log(`[Violations] Phiếu quên chấm công về ngày ${req.request_date} lúc ${req.request_time}`)
+      }
+
+      if (reqType.code === "late_early_makeup" && req.to_time) {
+        const toTime = req.to_time.slice(0, 5)
+        const existing = makeupShiftEndByDate.get(req.request_date)
+        if (!existing || toTime > existing) {
+          makeupShiftEndByDate.set(req.request_date, toTime)
+        }
+        console.log(`[Violations] Phiếu làm bù ngày ${req.request_date} -> effectiveShiftEnd = ${toTime}`)
       }
     }
   }
@@ -141,6 +154,12 @@ export async function getEmployeeViolations(
       }
       if (specialDay?.custom_end_time) {
         effectiveShiftEnd = specialDay.custom_end_time.slice(0, 5)
+      }
+
+      const makeupEnd = makeupShiftEndByDate.get(dateStr)
+      if (makeupEnd && makeupEnd > effectiveShiftEnd) {
+        console.log(`[Violations] Ngày ${dateStr}: Nâng effectiveShiftEnd từ ${effectiveShiftEnd} lên ${makeupEnd} (phiếu làm bù)`)
+        effectiveShiftEnd = makeupEnd
       }
 
       const [shiftH, shiftM] = effectiveShiftStart.split(":").map(Number)
@@ -246,6 +265,10 @@ export async function getEmployeeViolations(
             earlyMinutes = shiftEndMinutes - checkOutMinutes
           }
         }
+
+        // Bù trừ: đi sớm được trừ vào về sớm (1 phút đi sớm = 1 phút không tính vi phạm về sớm)
+        const earlyArrivalMinutes = Math.max(0, shiftStartMinutes - checkInMinutes)
+        earlyMinutes = Math.max(0, earlyMinutes - earlyArrivalMinutes)
       }
 
       if (isSpecialDay) {

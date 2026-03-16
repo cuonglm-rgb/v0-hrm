@@ -25,6 +25,7 @@ import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { validateTimeSlot, validateNoOverlap, addTimeSlot, removeTimeSlot, getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
+import { isMakeupRequestType, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 import { Plus, X, Calendar, FileText, Paperclip, Upload, Loader2, Filter, Search, Users, Edit, Clock, User, CheckCircle, XCircle, AlertCircle } from "lucide-react"
 import { usePagination } from "@/hooks/use-pagination"
 import { DataPagination } from "@/components/shared/data-pagination"
@@ -360,6 +361,18 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       }
     }
 
+    // Thu thập linked_deficit_date cho phiếu làm bù
+    if (isMakeupRequestType(selectedType.code)) {
+      const deficitDate = formData.get("linked_deficit_date") as string
+      if (!deficitDate) {
+        setError("Vui lòng chọn ngày thiếu công gốc")
+        setLoading(false)
+        return
+      }
+      if (!customData) customData = {}
+      customData[LINKED_DEFICIT_DATE_KEY] = deficitDate
+    }
+
     // Chuẩn bị time_slots cho multi-slot
     const validTimeSlots = selectedType.allows_multiple_time_slots
       ? timeSlots.filter(s => s.from_time && s.to_time)
@@ -605,13 +618,34 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                 )}
                 {selectedType.requires_single_date && (
                   <div className="grid gap-2">
-                    <Label>Ngày *</Label>
-                    <Input 
-                      type="date" 
-                      name="request_date" 
-                      required 
+                    <Label>{isMakeupRequestType(selectedType.code) ? "Ngày làm bù *" : "Ngày *"}</Label>
+                    <Input
+                      type="date"
+                      name="request_date"
+                      required
                       defaultValue={editingRequest?.originalData.request_date || ""}
                     />
+                  </div>
+                )}
+                {isMakeupRequestType(selectedType.code) && (
+                  <div className="grid gap-2">
+                    <Label>Ngày thiếu công gốc *</Label>
+                    <Input
+                      type="date"
+                      name="linked_deficit_date"
+                      required
+                      defaultValue={editingRequest?.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] || ""}
+                    />
+                    {selectedType.code === "late_early_makeup" && (
+                      <p className="text-xs text-muted-foreground">
+                        Phải cùng tháng với ngày làm bù. Checkout trước giờ kết thúc trong phiếu sẽ bị tính vi phạm.
+                      </p>
+                    )}
+                    {selectedType.code === "full_day_makeup" && (
+                      <p className="text-xs text-muted-foreground">
+                        Ngày làm bù phải là ngày nghỉ của bạn (Chủ nhật hoặc Thứ 7 theo lịch).
+                      </p>
+                    )}
                   </div>
                 )}
                 {selectedType.requires_time && (
@@ -1132,6 +1166,18 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                         }
                         return <p className="text-sm text-muted-foreground">{viewingRequest.time}</p>
                       })()}
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] && (
+                  <div className="flex items-start gap-3">
+                    <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Ngày thiếu công gốc</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDateVN(viewingRequest.originalData.custom_data[LINKED_DEFICIT_DATE_KEY])}
+                      </p>
                     </div>
                   </div>
                 )}

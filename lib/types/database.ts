@@ -142,6 +142,10 @@ export interface PayrollItem {
   net_salary: number
   standard_working_days: number
   note: string | null
+  /** Số ngày thiếu công đã được bù (consume) trong tháng payroll này */
+  consumed_deficit_days?: number
+  /** Danh sách linked_deficit_date đã consume (VD: 2026-02-28,2026-03-10) để audit theo tháng */
+  consumed_deficit_detail?: string | null
   created_at: string
 }
 
