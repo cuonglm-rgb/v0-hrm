@@ -562,7 +562,7 @@ export function RequestTypeManagement({ requestTypes, positions = [] }: RequestT
                           key={index}
                           className="flex items-center gap-2 border rounded-md px-3 py-2 bg-muted/40"
                         >
-                          <span className="text-xs text-muted-foreground w-12">Bước {index + 1}</span>
+                          <span className="text-xs text-muted-foreground w-12">Duyệt {index + 1}</span>
                           <Select
                             value={step.positionId || "none"}
                             onValueChange={(value) => {

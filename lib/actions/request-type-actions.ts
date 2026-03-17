@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField, RequestTypeApproverWithRelations } from "@/lib/types/database"
 import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
@@ -417,17 +417,19 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
 
   const assignedRequestIds = assignedRequests.map(r => r.request_id)
 
-  // Bước 2: Lấy toàn bộ người duyệt của các phiếu đó để xác định bước hiện tại
-  const { data: allApprovers } = await supabase
+  // Bước 2: Lấy toàn bộ người duyệt của các phiếu đó để xác định bước hiện tại.
+  // Dùng service client để thấy TẤT CẢ assignees (bypass RLS), tránh người bước 2 thấy phiếu chưa qua bước 1.
+  const serviceSupabase = createServiceClient()
+  const { data: allApprovers } = await serviceSupabase
     .from("request_assigned_approvers")
     .select("request_id, status, display_order")
     .in("request_id", assignedRequestIds)
 
   const approvalMap = new Map<string, string>(assignedRequests.map(a => [a.request_id, a.status]))
+  const myDisplayOrderByRequest = new Map<string, number>(assignedRequests.map((a: any) => [a.request_id, a.display_order ?? 1]))
 
-  // Tính toán xem với từng phiếu, display_order nào đang là bước duyệt hiện tại
+  // Tính bước hiện tại từng phiếu (để UI biết phiếu nào user được phép duyệt ngay)
   const currentStepByRequest = new Map<string, number | null>()
-
   if (allApprovers) {
     for (const row of allApprovers) {
       const requestId = row.request_id as string
@@ -443,21 +445,10 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
     }
   }
 
-  // Chỉ giữ lại những phiếu mà user đang ở đúng bước duyệt hiện tại
-  const visibleAssignedRequestIds = assignedRequests
-    .filter((r: any) => {
-      if (r.status !== "pending") return false
-      const currentStep = currentStepByRequest.get(r.request_id)
-      if (currentStep == null) return false
-      return (r.display_order || 1) === currentStep
-    })
-    .map((r: any) => r.request_id)
+  // Lấy TẤT CẢ phiếu mà user được chỉ định duyệt (mọi trạng thái: chờ duyệt, đã duyệt, từ chối)
+  const uniqueRequestIds = [...new Set(assignedRequestIds)]
 
-  if (visibleAssignedRequestIds.length === 0) {
-    return []
-  }
-
-  // Bước 3: Lấy chi tiết các phiếu mà user đang ở bước duyệt hiện tại
+  // Bước 2: Lấy chi tiết các phiếu đó
   let query = supabase
     .from("employee_requests")
     .select(`
@@ -467,7 +458,7 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
       request_type:request_types!request_type_id(*),
       time_slots:request_time_slots(*)
     `)
-    .in("id", visibleAssignedRequestIds)
+    .in("id", uniqueRequestIds)
     .order("created_at", { ascending: false })
 
   if (filters?.status) query = query.eq("status", filters.status)
@@ -481,10 +472,21 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
     return []
   }
 
-  return (data || []).map(r => ({
-    ...r,
-    my_approval_status: approvalMap.get(r.id) || undefined
-  })) as (EmployeeRequestWithRelations & { my_approval_status?: string })[]
+  return (data || []).map(r => {
+    const myStatus = approvalMap.get(r.id)
+    const currentStep = currentStepByRequest.get(r.id)
+    const myOrder = myDisplayOrderByRequest.get(r.id) ?? 1
+    const canApproveNow =
+      r.status === "pending" &&
+      myStatus === "pending" &&
+      currentStep != null &&
+      myOrder === currentStep
+    return {
+      ...r,
+      my_approval_status: myStatus,
+      can_approve_now: canApproveNow,
+    }
+  }) as (EmployeeRequestWithRelations & { my_approval_status?: string; can_approve_now?: boolean })[]
 }
 
 export async function getMyEmployeeRequests(): Promise<EmployeeRequestWithRelations[]> {
@@ -797,11 +799,12 @@ export async function createEmployeeRequest(input: {
         })
       }
     } else if (hasApproversByIds) {
-      input.assigned_approver_ids!.forEach((approverId, index) => {
+      // Chế độ "chỉ cần 1 người duyệt": tất cả cùng bước (display_order 1), 1 người đồng ý là đủ
+      input.assigned_approver_ids!.forEach((approverId) => {
         records.push({
           request_id: newRequest.id,
           approver_id: approverId,
-          display_order: index + 1,
+          display_order: 1,
           status: "pending",
         })
       })
@@ -920,8 +923,6 @@ export async function approveEmployeeRequest(id: string) {
     return { success: false, error: canApprove.reason || "Bạn không có quyền duyệt loại phiếu này" }
   }
 
-  const approvalMode = requestType?.approval_mode || "any"
-
   // Kiểm tra xem người duyệt có phải HR/Admin không
   const { data: approverRoles } = await supabase
     .from("user_roles")
@@ -932,24 +933,82 @@ export async function approveEmployeeRequest(id: string) {
     ur.role?.code === 'admin' || ur.role?.code === 'hr'
   )
 
-  // Nếu approval_mode = "all", cần kiểm tra người duyệt được chỉ định khi tạo phiếu
-  if (approvalMode === "all") {
-    // Lấy danh sách người duyệt được chỉ định khi tạo phiếu
-    const { data: assignedApprovers } = await supabase
-      .from("request_assigned_approvers")
-      .select("*")
-      .eq("request_id", id)
+  const approvalMode = requestType?.approval_mode || "any"
 
-    // Nếu có danh sách người duyệt được chỉ định khi tạo phiếu
+  // Luồng duyệt tuần tự theo danh sách request_assigned_approvers:
+  // - Ưu tiên dùng khi có cấu hình nhiều người/bước (display_order)
+  // - Không phụ thuộc hoàn toàn vào approval_mode của request_type
+  // Dùng service client để đọc TẤT CẢ assignees (bypass RLS), tránh trường hợp mỗi user chỉ thấy dòng của mình -> anyPending sai -> phiếu bị duyệt sớm
+  const serviceSupabase = createServiceClient()
+  const { data: assignedApprovers } = await serviceSupabase
+    .from("request_assigned_approvers")
+    .select("*")
+    .eq("request_id", id)
+
+  const hasSequentialApprovers = assignedApprovers && assignedApprovers.length > 0
+
+  // Nếu có cấu hình người duyệt được chỉ định
+  if (hasSequentialApprovers) {
     if (assignedApprovers && assignedApprovers.length > 0) {
-      // Kiểm tra người duyệt hiện tại có trong danh sách không (HR/Admin được bypass)
       const myRow = assignedApprovers.find((a) => a.approver_id === approverEmployee.id)
       const isAssigned = !!myRow
       if (!isAssigned && !isHrOrAdmin) {
         return { success: false, error: "Bạn không nằm trong danh sách người duyệt được chỉ định cho phiếu này" }
       }
 
-      // Tính bước duyệt hiện tại theo display_order
+      // Chế độ "chỉ cần 1 người duyệt": 1 người đồng ý → tất cả coi như đã duyệt, phiếu approved (kể cả phiếu cũ lưu 2 bước)
+      if (approvalMode === "any") {
+        const now = getNowVN()
+        const { error: updateAllError } = await serviceSupabase
+          .from("request_assigned_approvers")
+          .update({ status: "approved", approved_at: now })
+          .eq("request_id", id)
+          .eq("status", "pending")
+
+        if (updateAllError) {
+          console.error("Error updating all approvers (any mode):", updateAllError)
+          return { success: false, error: updateAllError.message }
+        }
+
+        const { data: afterApprovers } = await serviceSupabase
+          .from("request_assigned_approvers")
+          .select("status")
+          .eq("request_id", id)
+
+        const anyRejected = afterApprovers?.some((a) => a.status === "rejected")
+        if (anyRejected) {
+          const { error } = await supabase
+            .from("employee_requests")
+            .update({
+              status: "rejected",
+              approver_id: approverEmployee.id,
+              approved_at: getNowVN(),
+            })
+            .eq("id", id)
+          if (error) {
+            console.error("Error rejecting request:", error)
+            return { success: false, error: error.message }
+          }
+        } else {
+          const { error } = await supabase
+            .from("employee_requests")
+            .update({
+              status: "approved",
+              approver_id: approverEmployee.id,
+              approved_at: getNowVN(),
+            })
+            .eq("id", id)
+          if (error) {
+            console.error("Error approving request (any mode):", error)
+            return { success: false, error: error.message }
+          }
+        }
+        revalidatePath("/dashboard/leave")
+        revalidatePath("/dashboard/leave-approval")
+        return { success: true }
+      }
+
+      // Chế độ "cần tất cả người duyệt": luồng tuần tự theo bước
       const sequentialApprovers = assignedApprovers.map((a: any) => ({
         display_order: a.display_order as number | null,
         status: a.status as string,
@@ -966,25 +1025,27 @@ export async function approveEmployeeRequest(id: string) {
         return { success: false, error: "Chưa đến lượt bạn duyệt phiếu này" }
       }
 
-      // Nếu là HR/Admin, cập nhật tất cả người duyệt còn pending thành approved (bỏ qua thứ tự)
+      // Trong luồng tuần tự: chỉ duyệt bước hiện tại (currentStep), không duyệt hết tất cả bước.
+      // HR/Admin cũng chỉ duyệt một bước mỗi lần để giữ đúng thứ tự.
+      const now = getNowVN()
       if (isHrOrAdmin) {
-        const { error: updateAllApproversError } = await supabase
+        // HR/Admin: duyệt toàn bộ người ở bước hiện tại (currentStep)
+        const { error: updateStepError } = await supabase
           .from("request_assigned_approvers")
           .update({
             status: "approved",
-            approved_at: getNowVN(),
+            approved_at: now,
           })
           .eq("request_id", id)
+          .eq("display_order", currentStep)
           .eq("status", "pending")
 
-        if (updateAllApproversError) {
-          console.error("Error updating all approvers status:", updateAllApproversError)
-          return { success: false, error: updateAllApproversError.message }
+        if (updateStepError) {
+          console.error("Error updating step approvers (HR/Admin):", updateStepError)
+          return { success: false, error: updateStepError.message }
         }
       } else if (isAssigned) {
         // Người duyệt thường: duyệt bước hiện tại
-        const now = getNowVN()
-
         // 1) Cập nhật trạng thái cho bản ghi của chính họ
         const { error: updateSelfError } = await supabase
           .from("request_assigned_approvers")
@@ -1018,8 +1079,8 @@ export async function approveEmployeeRequest(id: string) {
         }
       }
 
-      // Kiểm tra lại tất cả người duyệt sau khi cập nhật
-      const { data: updatedApprovers } = await supabase
+      // Kiểm tra lại tất cả người duyệt sau khi cập nhật (dùng service client để thấy đủ mọi dòng, tránh RLS)
+      const { data: updatedApprovers } = await serviceSupabase
         .from("request_assigned_approvers")
         .select("*")
         .eq("request_id", id)
@@ -1068,10 +1129,13 @@ export async function approveEmployeeRequest(id: string) {
       }
       return { success: true }
     }
+  }
 
-    // Nếu không có người duyệt được chỉ định khi tạo phiếu
-    // -> Sử dụng bảng request_approvals để track
-    // Cập nhật trạng thái duyệt của người này vào request_approvals
+  // Nếu không có cấu hình request_assigned_approvers (duyệt tuần tự),
+  // fallback về cơ chế cũ dựa trên request_approvals + approval_mode
+
+  // Nếu approval_mode = "all", lưu vào request_approvals và check đủ người duyệt
+  if (approvalMode === "all") {
     const { error: approvalError } = await supabase
       .from("request_approvals")
       .upsert({
@@ -1128,24 +1192,6 @@ export async function approveEmployeeRequest(id: string) {
   }
 
   // Nếu approval_mode = "any" -> Duyệt trực tiếp
-  // Nhưng vẫn cần cập nhật trạng thái người duyệt trong request_assigned_approvers
-  const { data: assignedApproversAny } = await supabase
-    .from("request_assigned_approvers")
-    .select("*")
-    .eq("request_id", id)
-
-  if (assignedApproversAny && assignedApproversAny.length > 0) {
-    // Cập nhật trạng thái người duyệt hiện tại
-    await supabase
-      .from("request_assigned_approvers")
-      .update({
-        status: "approved",
-        approved_at: getNowVN()
-      })
-      .eq("request_id", id)
-      .eq("approver_id", approverEmployee.id)
-  }
-
   const { error } = await supabase
     .from("employee_requests")
     .update({
@@ -1500,6 +1546,51 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
   return { success: true }
 }
 
+/** Chính sách chỉnh sửa phiếu: sau bước 1 chỉ được sửa trường tùy chỉnh (editable_while_approving); sau bước cuối không được sửa. */
+export async function getRequestEditPolicy(requestId: string): Promise<{
+  canEdit: boolean
+  onlyCustomFields: boolean
+  editableCustomFieldIds: string[]
+}> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { canEdit: false, onlyCustomFields: false, editableCustomFieldIds: [] }
+
+  const { data: request } = await supabase
+    .from("employee_requests")
+    .select("id, status, employee_id, request_type_id")
+    .eq("id", requestId)
+    .single()
+
+  if (!request) return { canEdit: false, onlyCustomFields: false, editableCustomFieldIds: [] }
+  if (request.status !== "pending") return { canEdit: false, onlyCustomFields: false, editableCustomFieldIds: [] }
+
+  const { data: employee } = await supabase.from("employees").select("id").eq("user_id", user.id).single()
+  if (!employee || employee.id !== request.employee_id) return { canEdit: false, onlyCustomFields: false, editableCustomFieldIds: [] }
+
+  const { data: requestType } = await supabase
+    .from("request_types")
+    .select("custom_fields")
+    .eq("id", request.request_type_id)
+    .single()
+
+  const serviceSupabase = createServiceClient()
+  const { data: assignees } = await serviceSupabase
+    .from("request_assigned_approvers")
+    .select("status")
+    .eq("request_id", requestId)
+
+  const hasAnyApproved = assignees?.some((a: { status: string }) => a.status === "approved") ?? false
+  const customFields = (requestType?.custom_fields as { id: string; editable_while_approving?: boolean }[] | null) ?? []
+
+  if (hasAnyApproved) {
+    const editableIds = customFields.filter((f) => f.editable_while_approving).map((f) => f.id)
+    return { canEdit: true, onlyCustomFields: true, editableCustomFieldIds: editableIds }
+  }
+
+  return { canEdit: true, onlyCustomFields: false, editableCustomFieldIds: customFields.map((f) => f.id) }
+}
+
 export async function updateEmployeeRequest(
   id: string,
   input: {
@@ -1525,7 +1616,7 @@ export async function updateEmployeeRequest(
   // Lấy thông tin phiếu hiện tại
   const { data: currentRequest } = await supabase
     .from("employee_requests")
-    .select("employee_id, status")
+    .select("employee_id, status, request_type_id")
     .eq("id", id)
     .single()
 
@@ -1549,6 +1640,64 @@ export async function updateEmployeeRequest(
     return { success: false, error: "Bạn không có quyền sửa phiếu này" }
   }
 
+  // Sau khi có người duyệt ở bước 1 trở lên: chỉ cho sửa trường tùy chỉnh có editable_while_approving.
+  // Sau khi bước cuối duyệt (status !== pending) đã chặn ở trên.
+  const serviceSupabase = createServiceClient()
+  const { data: assignees } = await serviceSupabase
+    .from("request_assigned_approvers")
+    .select("status")
+    .eq("request_id", id)
+
+  const hasAnyApproved = assignees?.some((a: { status: string }) => a.status === "approved") ?? false
+
+  if (hasAnyApproved) {
+    const { data: requestType } = await supabase
+      .from("request_types")
+      .select("custom_fields")
+      .eq("id", currentRequest.request_type_id ?? "")
+      .single()
+
+    const customFields = (requestType?.custom_fields as { id: string; editable_while_approving?: boolean }[] | null) ?? []
+    const allowedCustomKeys = new Set(customFields.filter((f) => f.editable_while_approving).map((f) => f.id))
+
+    const hasDisallowedUpdate =
+      input.from_date !== undefined ||
+      input.to_date !== undefined ||
+      input.request_date !== undefined ||
+      input.request_time !== undefined ||
+      input.from_time !== undefined ||
+      input.to_time !== undefined ||
+      input.reason !== undefined ||
+      input.attachment_url !== undefined ||
+      input.assigned_approver_ids !== undefined ||
+      input.assigned_approvers_with_order !== undefined ||
+      input.time_slots !== undefined
+
+    if (hasDisallowedUpdate) {
+      return { success: false, error: "Phiếu đã có người duyệt, chỉ được sửa một số trường tùy chỉnh (nếu loại phiếu cho phép)." }
+    }
+
+    if (input.custom_data !== undefined) {
+      const { data: current } = await supabase.from("employee_requests").select("custom_data").eq("id", id).single()
+      const existing = (current?.custom_data as Record<string, string> | null) ?? {}
+      const merged: Record<string, string> = { ...existing }
+      for (const key of Object.keys(input.custom_data)) {
+        if (allowedCustomKeys.has(key)) merged[key] = input.custom_data[key]
+      }
+      const { error: updateError } = await supabase
+        .from("employee_requests")
+        .update({ custom_data: Object.keys(merged).length ? merged : null })
+        .eq("id", id)
+      if (updateError) {
+        console.error("Error updating employee request (custom only):", updateError)
+        return { success: false, error: updateError.message }
+      }
+    }
+    revalidatePath("/dashboard/leave")
+    revalidatePath("/dashboard/leave-approval")
+    return { success: true }
+  }
+
   // Validate date range
   if (input.from_date && input.to_date && input.from_date > input.to_date) {
     return { success: false, error: "Ngày bắt đầu phải trước ngày kết thúc" }
@@ -1563,7 +1712,7 @@ export async function updateEmployeeRequest(
     return { success: false, error: "Vui lòng chọn ít nhất 1 người duyệt" }
   }
 
-  // Cập nhật phiếu
+  // Cập nhật phiếu (chưa có ai duyệt)
   const { error } = await supabase
     .from("employee_requests")
     .update({
@@ -2348,7 +2497,9 @@ async function checkAndUpdateRequestStatus(requestId: string) {
 // =============================================
 
 export async function getRequestAssignedApprovers(requestId: string) {
-  const supabase = await createClient()
+  // Dùng service client để trả về đầy đủ danh sách người duyệt (mọi bước), bypass RLS.
+  // Tránh người duyệt bước 1 chỉ thấy mình, không thấy người bước 2 và ngược lại.
+  const supabase = createServiceClient()
 
   const { data, error } = await supabase
     .from("request_assigned_approvers")

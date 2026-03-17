@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers, getRequestAssignedApprovers, listRequestTypeApprovers } from "@/lib/actions/request-type-actions"
+import { createEmployeeRequest, updateEmployeeRequest, cancelEmployeeRequest, getEligibleApprovers, getRequestAssignedApprovers, listRequestTypeApprovers, getRequestEditPolicy } from "@/lib/actions/request-type-actions"
 import { uploadRequestAttachment } from "@/lib/actions/upload-actions"
 import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, CustomField } from "@/lib/types/database"
 import { formatDateVN, calculateDays, calculateLeaveDays } from "@/lib/utils/date-utils"
@@ -73,6 +73,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
 
   // Edit mode
   const [editingRequest, setEditingRequest] = useState<UnifiedRequest | null>(null)
+  const [editPolicy, setEditPolicy] = useState<{ canEdit: boolean; onlyCustomFields: boolean; editableCustomFieldIds: string[] } | null>(null)
 
   // Detail view mode
   const [viewingRequest, setViewingRequest] = useState<UnifiedRequest | null>(null)
@@ -260,6 +261,15 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     setPage(1)
   }, [filterType, filterStatus, filterFromDate, filterToDate, searchText, setPage])
 
+  // Chính sách chỉnh sửa: sau bước 1 chỉ được sửa trường tùy chỉnh (editable_while_approving)
+  useEffect(() => {
+    if (open && editingRequest) {
+      getRequestEditPolicy(editingRequest.id).then(setEditPolicy)
+    } else if (!open) {
+      setEditPolicy(null)
+    }
+  }, [open, editingRequest?.id])
+
   // Stats
   const stats = useMemo(() => ({
     total: allRequests.length,
@@ -355,7 +365,32 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     setError(null)
 
     const formData = new FormData(e.currentTarget)
-    
+
+    // Sau bước 1 duyệt: chỉ gửi custom_data (chỉ trường được cấu hình editable_while_approving)
+    if (editingRequest && editPolicy?.onlyCustomFields && editPolicy.editableCustomFieldIds.length > 0) {
+      const customData: Record<string, string> = {}
+      for (const field of selectedType.custom_fields ?? []) {
+        if (!editPolicy.editableCustomFieldIds.includes(field.id)) continue
+        if (field.type === "image") {
+          const imageData = customFieldImages[field.id]
+          if (imageData?.url) customData[field.id] = imageData.url
+        } else {
+          const value = formData.get(`custom_${field.id}`) as string
+          if (value) customData[field.id] = value
+        }
+      }
+      const result = await updateEmployeeRequest(editingRequest.id, { custom_data: customData })
+      setLoading(false)
+      if (!result.success) setError(result.error ?? "Không thể cập nhật")
+      else {
+        setOpen(false)
+        setEditingRequest(null)
+        setEditPolicy(null)
+        setCustomFieldImages({})
+      }
+      return
+    }
+
     // Validate multi time slots nếu loại phiếu hỗ trợ
     if (selectedType.allows_multiple_time_slots) {
       const filledSlots = timeSlots.filter(s => s.from_time || s.to_time)
@@ -655,7 +690,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
       </div>
 
       {/* Nút tạo phiếu */}
-      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]); setEditingRequest(null); setCustomFieldImages({}); setTimeSlots([{ from_time: "", to_time: "" }]) } }}>
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setSelectedType(null); setError(null); setAttachmentUrl(null); setAttachmentName(null); setSelectedApprovers([]); setEligibleApprovers([]); setEditingRequest(null); setEditPolicy(null); setCustomFieldImages({}); setTimeSlots([{ from_time: "", to_time: "" }]) } }}>
         <DialogTrigger asChild>
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
@@ -700,6 +735,11 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                 <DialogDescription>{editingRequest ? selectedType.name : selectedType.description}</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                {editPolicy?.onlyCustomFields && (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    Phiếu đã có người duyệt, bạn chỉ được sửa một số trường tùy chỉnh bên dưới.
+                  </p>
+                )}
                 {selectedType.requires_date_range && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
@@ -708,6 +748,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                         type="date" 
                         name="from_date" 
                         required 
+                        disabled={editPolicy?.onlyCustomFields}
                         defaultValue={editingRequest?.originalData.from_date || ""}
                       />
                     </div>
@@ -717,6 +758,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                         type="date" 
                         name="to_date" 
                         required 
+                        disabled={editPolicy?.onlyCustomFields}
                         defaultValue={editingRequest?.originalData.to_date || ""}
                       />
                     </div>
@@ -729,12 +771,13 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                       type="date"
                       name="request_date"
                       required
+                      disabled={editPolicy?.onlyCustomFields}
                       defaultValue={editingRequest?.originalData.request_date || ""}
                     />
                   </div>
                 )}
                 {/* late_early_makeup tạm thời làm bù cùng ngày → ẩn trường ngày thiếu công gốc, backend sẽ tự gán = request_date */}
-                {isMakeupRequestType(selectedType.code) && selectedType.code === "full_day_makeup" && (
+                {isMakeupRequestType(selectedType.code) && selectedType.code === "full_day_makeup" && !editPolicy?.onlyCustomFields && (
                   <div className="grid gap-2">
                     <Label>Ngày thiếu công gốc * (tổng ≤ 1 ngày)</Label>
                     {deficitLinks.map((link, index) => (
@@ -795,6 +838,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     <TimeInput 
                       name="request_time" 
                       required 
+                      disabled={editPolicy?.onlyCustomFields}
                       value={editingRequest?.originalData.request_time || undefined}
                     />
                   </div>
@@ -806,6 +850,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                       <TimeInput 
                         name="from_time" 
                         required 
+                        disabled={editPolicy?.onlyCustomFields}
                         value={editingRequest?.originalData.from_time || undefined}
                       />
                     </div>
@@ -814,12 +859,13 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                       <TimeInput 
                         name="to_time" 
                         required 
+                        disabled={editPolicy?.onlyCustomFields}
                         value={editingRequest?.originalData.to_time || undefined}
                       />
                     </div>
                   </div>
                 )}
-                {selectedType.allows_multiple_time_slots && (
+                {selectedType.allows_multiple_time_slots && !editPolicy?.onlyCustomFields && (
                   <div className="space-y-3">
                     <Label>Khung giờ *</Label>
                     {timeSlots.map((slot, index) => (
@@ -866,6 +912,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     placeholder="Nhập lý do..." 
                     required={selectedType.requires_reason}
                     rows={3}
+                    disabled={editPolicy?.onlyCustomFields}
                     defaultValue={editingRequest?.reason || ""}
                   />
                 </div>
@@ -886,7 +933,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                           variant="outline"
                           className="w-full gap-2"
                           onClick={() => fileInputRef.current?.click()}
-                          disabled={uploading}
+                          disabled={uploading || !!editPolicy?.onlyCustomFields}
                         >
                           {uploading ? (
                             <>
@@ -904,7 +951,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                         <div className="flex items-center gap-2 w-full p-2 border rounded-md bg-muted/50">
                           <Paperclip className="h-4 w-4 text-muted-foreground" />
                           <span className="flex-1 truncate text-sm">{attachmentName}</span>
-                          <Button type="button" variant="ghost" size="sm" onClick={handleRemoveAttachment}>
+                          <Button type="button" variant="ghost" size="sm" disabled={editPolicy?.onlyCustomFields} onClick={handleRemoveAttachment}>
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
@@ -913,7 +960,8 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                   </div>
                 )}
                 
-                {/* Phần chọn người duyệt */}
+                {/* Phần chọn người duyệt - ẩn khi đã qua bước 1 (chỉ được sửa trường tùy chỉnh) */}
+                {!editPolicy?.onlyCustomFields && (
                 <div className="grid gap-2">
                   <Label className="flex items-center gap-2">
                     <Users className="h-4 w-4" />
@@ -970,6 +1018,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Custom fields */}
                 {selectedType.custom_fields && selectedType.custom_fields.length > 0 && (
@@ -987,8 +1036,9 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             required={field.required}
                             disabled={
                               !!editingRequest &&
-                              (editingRequest.originalData.status !== "pending" ||
-                                !field.editable_while_approving)
+                              (editPolicy?.onlyCustomFields
+                                ? !editPolicy.editableCustomFieldIds.includes(field.id)
+                                : (editingRequest.originalData.status !== "pending" || !field.editable_while_approving))
                             }
                             defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
                           />
@@ -1001,8 +1051,9 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             rows={3}
                             disabled={
                               !!editingRequest &&
-                              (editingRequest.originalData.status !== "pending" ||
-                                !field.editable_while_approving)
+                              (editPolicy?.onlyCustomFields
+                                ? !editPolicy.editableCustomFieldIds.includes(field.id)
+                                : (editingRequest.originalData.status !== "pending" || !field.editable_while_approving))
                             }
                             defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
                           />
@@ -1015,8 +1066,9 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             required={field.required}
                             disabled={
                               !!editingRequest &&
-                              (editingRequest.originalData.status !== "pending" ||
-                                !field.editable_while_approving)
+                              (editPolicy?.onlyCustomFields
+                                ? !editPolicy.editableCustomFieldIds.includes(field.id)
+                                : (editingRequest.originalData.status !== "pending" || !field.editable_while_approving))
                             }
                             defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
                           />
@@ -1028,8 +1080,9 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                             defaultValue={editingRequest?.originalData.custom_data?.[field.id] || ""}
                             disabled={
                               !!editingRequest &&
-                              (editingRequest.originalData.status !== "pending" ||
-                                !field.editable_while_approving)
+                              (editPolicy?.onlyCustomFields
+                                ? !editPolicy.editableCustomFieldIds.includes(field.id)
+                                : (editingRequest.originalData.status !== "pending" || !field.editable_while_approving))
                             }
                           >
                             <SelectTrigger>
@@ -1059,7 +1112,11 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                                 variant="outline"
                                 className="w-full gap-2"
                                 onClick={() => customFieldInputRefs.current[field.id]?.click()}
-                                disabled={uploadingFieldId === field.id}
+                                disabled={
+                                  uploadingFieldId === field.id ||
+                                  (!!editingRequest &&
+                                    (editPolicy?.onlyCustomFields ? !editPolicy.editableCustomFieldIds.includes(field.id) : false))
+                                }
                               >
                                 {uploadingFieldId === field.id ? (
                                   <>
@@ -1086,6 +1143,10 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                                     variant="destructive" 
                                     size="sm" 
                                     className="absolute top-2 right-2"
+                                    disabled={
+                                      !!editingRequest &&
+                                      (editPolicy?.onlyCustomFields ? !editPolicy.editableCustomFieldIds.includes(field.id) : false)
+                                    }
                                     onClick={() => handleRemoveCustomFieldImage(field.id)}
                                   >
                                     <X className="h-4 w-4" />
@@ -1106,19 +1167,20 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                 {error && <p className="text-sm text-destructive">{error}</p>}
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => { setSelectedType(null); setEditingRequest(null) }}>Quay lại</Button>
+                <Button type="button" variant="outline" onClick={() => { setSelectedType(null); setEditingRequest(null); setEditPolicy(null) }}>Quay lại</Button>
                 <Button 
                   type="submit" 
                   disabled={
-                    loading || 
-                    (selectedType.requires_attachment && !attachmentUrl) ||
-                    (
-                      selectedType.approval_mode === "any"
-                        ? (eligibleApprovers.length > 0 && selectedApprovers.length === 0)
-                        : (selectedType.approval_mode === "all" &&
-                          approverStepsMeta.length > 0 &&
-                          stepSelectedApprovers.filter((id) => !!id).length !== approverStepsMeta.length)
-                    )
+                    loading ||
+                    (!!editPolicy?.onlyCustomFields && (editPolicy.editableCustomFieldIds?.length ?? 0) === 0) ||
+                    (!editPolicy?.onlyCustomFields &&
+                      ( (selectedType.requires_attachment && !attachmentUrl) ||
+                        (selectedType.approval_mode === "any"
+                          ? (eligibleApprovers.length > 0 && selectedApprovers.length === 0)
+                          : (selectedType.approval_mode === "all" &&
+                              approverStepsMeta.length > 0 &&
+                              stepSelectedApprovers.filter((id) => !!id).length !== approverStepsMeta.length)
+                        )))
                   }
                 >
                   {loading ? (editingRequest ? "Đang cập nhật..." : "Đang gửi...") : (editingRequest ? "Cập nhật" : "Gửi phiếu")}
@@ -1491,6 +1553,29 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Hiển thị người duyệt/từ chối cuối cùng khi phiếu đã được xử lý (giống màn người duyệt) */}
+                {(viewingRequest.status === "approved" || viewingRequest.status === "rejected") && viewingRequest.originalData.approver && (
+                  <div className={`mt-3 p-3 rounded-lg ${viewingRequest.status === "approved" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"}`}>
+                    <div className="flex items-center gap-2">
+                      {viewingRequest.status === "approved" ? (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      )}
+                      <div>
+                        <p className={`text-sm font-medium ${viewingRequest.status === "approved" ? "text-green-800" : "text-red-800"}`}>
+                          {viewingRequest.status === "approved" ? "Đã duyệt bởi" : "Đã từ chối bởi"}: {viewingRequest.originalData.approver.full_name}
+                        </p>
+                        {viewingRequest.originalData.approved_at && (
+                          <p className={`text-xs ${viewingRequest.status === "approved" ? "text-green-600" : "text-red-600"}`}>
+                            Lúc: {new Date(viewingRequest.originalData.approved_at).toLocaleString("vi-VN")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

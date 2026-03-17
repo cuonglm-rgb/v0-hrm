@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -37,7 +38,7 @@ interface ApproverInfo {
 }
 
 interface LeaveApprovalPanelProps {
-  employeeRequests: (EmployeeRequestWithRelations & { my_approval_status?: string })[]
+  employeeRequests: (EmployeeRequestWithRelations & { my_approval_status?: string; can_approve_now?: boolean })[]
   approverInfo?: ApproverInfo | null
 }
 
@@ -57,10 +58,12 @@ interface UnifiedApprovalRequest {
   createdAt: string
   myApprovalStatus?: string
   approvalMode?: string
-  originalData: EmployeeRequestWithRelations & { my_approval_status?: string }
+  canApproveNow?: boolean
+  originalData: EmployeeRequestWithRelations & { my_approval_status?: string; can_approve_now?: boolean }
 }
 
 export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveApprovalPanelProps) {
+  const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -73,6 +76,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     approver_id: string
     status: string
     display_order: number
+    approved_at?: string | null
     approver?: { id: string; full_name: string; employee_code: string } | null
   }>>([])
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -104,6 +108,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       createdAt: r.created_at,
       myApprovalStatus: r.my_approval_status,
       approvalMode: r.request_type?.approval_mode,
+      canApproveNow: (r as { can_approve_now?: boolean }).can_approve_now,
       originalData: r,
     })).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -161,6 +166,9 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       // Filter by status
       if (filterStatus !== "all" && r.status !== filterStatus) return false
 
+      // Chỉ hiển thị phiếu "chờ duyệt" khi đã đến lượt tài khoản này (tránh phiếu chưa qua bước trước vẫn lên danh sách)
+      if (filterStatus === "pending" && r.status === "pending" && r.canApproveNow === false) return false
+
       // Filter by type
       if (filterType !== "all" && r.typeCode !== filterType) return false
 
@@ -196,11 +204,22 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     setPage(1)
   }, [filterStatus, filterType, filterFromDate, filterToDate, searchText, setPage])
 
+  // Sau khi refresh (sau duyệt/từ chối), cập nhật viewingRequest từ danh sách mới để modal hiển thị đúng trạng thái
+  useEffect(() => {
+    if (viewDialogOpen && viewingRequest) {
+      const updated = allRequests.find((r) => r.id === viewingRequest.id)
+      if (updated && (updated.status !== viewingRequest.status || updated.myApprovalStatus !== viewingRequest.myApprovalStatus)) {
+        setViewingRequest(updated)
+      }
+    }
+  }, [viewDialogOpen, viewingRequest?.id, allRequests])
+
   const handleApprove = async (request: UnifiedApprovalRequest) => {
     setLoadingId(request.id)
     const result = await approveEmployeeRequest(request.id)
     setLoadingId(null)
     if (result.success) {
+      router.refresh()
       if (result.message) {
         toast.success(result.message)
       } else {
@@ -219,6 +238,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     const result = await rejectEmployeeRequest(request.id, reason || undefined)
     setLoadingId(null)
     if (result.success) {
+      router.refresh()
       toast.success("Đã từ chối phiếu")
     } else {
       toast.error(result.error || "Có lỗi xảy ra khi từ chối phiếu")
@@ -287,6 +307,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
 
     setBulkLoading(false)
     setSelectedIds(new Set())
+    if (successCount > 0) router.refresh()
 
     if (failCount === 0) {
       toast.success(`Đã duyệt thành công ${successCount} phiếu`)
@@ -319,6 +340,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
 
     setBulkLoading(false)
     setSelectedIds(new Set())
+    if (successCount > 0) router.refresh()
 
     if (failCount === 0) {
       toast.success(`Đã từ chối thành công ${successCount} phiếu`)
@@ -345,26 +367,27 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     setSelectedIds(newSelected)
   }
 
-  // Kiểm tra xem user có thể duyệt phiếu cụ thể không (dựa trên level)
+  // Kiểm tra xem user có thể duyệt phiếu cụ thể không (level + đúng lượt với duyệt tuần tự)
   const canApproveRequest = (request: UnifiedApprovalRequest): boolean => {
     if (!approverInfo) return false
     const requestType = request.originalData.request_type
     if (!requestType) return true
-    
     const { positionLevel } = approverInfo
     if (requestType.min_approver_level && positionLevel < requestType.min_approver_level) return false
     if (requestType.max_approver_level && positionLevel > requestType.max_approver_level) return false
-    
+    // Duyệt tuần tự: chỉ được duyệt khi đúng bước (can_approve_now); HR/Admin không có field này nên undefined !== false
+    if (request.canApproveNow === false) return false
     return true
   }
 
-  // Lọc ra các phiếu pending có thể duyệt
+  // Lọc ra các phiếu pending mà user có thể duyệt ngay (đúng bước, chưa duyệt)
   const pendingRequests = useMemo(() => {
     return filteredRequests.filter(r => 
       r.status === "pending" && 
       canApproveRequest(r) &&
       r.myApprovalStatus !== "approved" &&
-      r.myApprovalStatus !== "rejected"
+      r.myApprovalStatus !== "rejected" &&
+      r.canApproveNow !== false
     )
   }, [filteredRequests, approverInfo])
 
@@ -947,16 +970,26 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                 ) : (
                   <div className="space-y-2">
                     {assignedApprovers.map((approver, index) => (
-                      <div key={approver.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground w-5">{index + 1}.</span>
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <div>
+                      <div key={approver.id} className="flex items-center justify-between gap-3 p-2 bg-muted/30 rounded-md">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {approver.display_order != null ? `Duyệt ${approver.display_order}` : `${index + 1}.`}
+                          </span>
+                          <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
                             <p className="text-sm font-medium">{approver.approver?.full_name || "N/A"}</p>
                             <p className="text-xs text-muted-foreground">{approver.approver?.employee_code || ""}</p>
+                            {(approver.status === "approved" || approver.status === "rejected") && approver.approved_at && (
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {new Date(approver.approved_at).toLocaleString("vi-VN", {
+                                  dateStyle: "short",
+                                  timeStyle: "short",
+                                })}
+                              </p>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0">
                           {getApproverStatusIcon(approver.status)}
                           <span className={`text-xs ${approver.status === 'approved' ? 'text-green-600' : approver.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
                             {getApproverStatusText(approver.status)}
