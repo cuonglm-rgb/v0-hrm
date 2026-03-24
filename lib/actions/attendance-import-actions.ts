@@ -304,20 +304,52 @@ export async function importAttendanceFromExcel(
     const minDate = dateArray.sort()[0]
     const maxDate = dateArray.sort()[dateArray.length - 1]
 
-    // Query tất cả attendance logs trong khoảng thời gian
-    const { data: existingLogs } = await supabase
-      .from("attendance_logs")
-      .select("id, employee_id, check_in, check_out")
+    // Query attendance logs trong khoảng thời gian, filter theo date range
+    // Tạo timestamp range cho VN timezone (UTC+7)
+    const minTimestamp = `${minDate}T00:00:00+07:00`
+    const maxTimestamp = `${maxDate}T23:59:59+07:00`
+    
+    // Lấy tất cả employee IDs liên quan
+    const employeeIds = [...new Set(validRows.map(r => r.employeeId))]
+    
+    // Query theo từng batch employee để tránh bị giới hạn 1000 rows
+    const allExistingLogs: Array<{ id: string; employee_id: string; check_in: string | null; check_out: string | null }> = []
+    const EMP_BATCH = 50
+    for (let i = 0; i < employeeIds.length; i += EMP_BATCH) {
+      const empBatch = employeeIds.slice(i, i + EMP_BATCH)
+      const { data: batchLogs } = await supabase
+        .from("attendance_logs")
+        .select("id, employee_id, check_in, check_out")
+        .in("employee_id", empBatch)
+        .gte("check_in", minTimestamp)
+        .lte("check_in", maxTimestamp)
+        .limit(5000)
+      if (batchLogs) allExistingLogs.push(...batchLogs)
+      
+      // Cũng query records chỉ có check_out (check_in null)
+      const { data: checkOutOnlyLogs } = await supabase
+        .from("attendance_logs")
+        .select("id, employee_id, check_in, check_out")
+        .in("employee_id", empBatch)
+        .is("check_in", null)
+        .gte("check_out", minTimestamp)
+        .lte("check_out", maxTimestamp)
+        .limit(5000)
+      if (checkOutOnlyLogs) allExistingLogs.push(...checkOutOnlyLogs)
+    }
+    const existingLogs = allExistingLogs
 
     // Tạo map để tra cứu nhanh: "employeeId_date" -> log id
     const existingMap = new Map<string, string>()
     existingLogs?.forEach((log) => {
-      // Lấy date từ check_in hoặc check_out
+      // Lấy date từ check_in hoặc check_out, convert sang VN timezone
       let logDate: string | null = null
-      if (log.check_in) {
-        logDate = log.check_in.split("T")[0]
-      } else if (log.check_out) {
-        logDate = log.check_out.split("T")[0]
+      const ts = log.check_in || log.check_out
+      if (ts) {
+        // Convert UTC timestamp sang VN date (UTC+7)
+        const d = new Date(ts)
+        const vnDate = new Date(d.getTime() + 7 * 60 * 60 * 1000)
+        logDate = vnDate.toISOString().split("T")[0]
       }
       
       if (logDate && logDate >= minDate && logDate <= maxDate) {
@@ -363,12 +395,56 @@ export async function importAttendanceFromExcel(
     }
 
     // Phase 4: Batch insert (chunks of 100)
+    // Nếu gặp duplicate constraint, insert từng record để skip duplicates
     const BATCH_SIZE = 100
     for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
       const batch = toInsert.slice(i, i + BATCH_SIZE)
       const { error } = await supabase.from("attendance_logs").insert(batch)
       if (error) {
-        errors.push(`Lỗi insert batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`)
+        if (error.message.includes("duplicate key") || error.message.includes("idx_attendance_one_per_day")) {
+          // Batch có duplicate → insert từng record để skip cái bị trùng
+          for (const record of batch) {
+            const { error: singleError } = await supabase.from("attendance_logs").insert(record)
+            if (singleError) {
+              if (singleError.message.includes("duplicate key") || singleError.message.includes("idx_attendance_one_per_day")) {
+                // Record đã tồn tại → update thay vì skip
+                // Tìm record cũ để update
+                const dateStr = record.check_in ? record.check_in.split("T")[0] : record.check_out?.split("T")[0]
+                if (dateStr) {
+                  const dayStart = `${dateStr}T00:00:00+07:00`
+                  const dayEnd = `${dateStr}T23:59:59+07:00`
+                  const { data: existing } = await supabase
+                    .from("attendance_logs")
+                    .select("id")
+                    .eq("employee_id", record.employee_id)
+                    .gte("check_in", dayStart)
+                    .lte("check_in", dayEnd)
+                    .limit(1)
+                    .single()
+                  if (existing) {
+                    const { error: updateError } = await supabase
+                      .from("attendance_logs")
+                      .update({
+                        check_in: record.check_in,
+                        check_out: record.check_out,
+                        source: record.source,
+                      })
+                      .eq("id", existing.id)
+                    if (!updateError) {
+                      imported++
+                    }
+                  }
+                }
+              } else {
+                errors.push(`Lỗi insert: ${singleError.message}`)
+              }
+            } else {
+              imported++
+            }
+          }
+        } else {
+          errors.push(`Lỗi insert batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`)
+        }
       } else {
         imported += batch.length
       }
