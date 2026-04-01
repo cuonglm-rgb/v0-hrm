@@ -1439,7 +1439,23 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                   </div>
                 )}
 
-                {viewingRequest.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] && (
+                {viewingRequest.originalData.custom_data?.[LINKED_DEFICIT_LINKS_KEY] && Array.isArray(viewingRequest.originalData.custom_data[LINKED_DEFICIT_LINKS_KEY]) && (
+                  <div className="flex items-start gap-3">
+                    <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Ngày thiếu công gốc</p>
+                      <ul className="text-sm text-muted-foreground list-disc pl-4">
+                        {getMakeupDeficitLinks(viewingRequest.originalData.custom_data as Record<string, unknown>).map((link, idx) => (
+                          <li key={`${link.deficit_date}-${idx}`}>
+                            {formatDateVN(link.deficit_date)} – {link.amount} ngày
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {viewingRequest.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] && !viewingRequest.originalData.custom_data?.[LINKED_DEFICIT_LINKS_KEY] && (
                   <div className="flex items-start gap-3">
                     <Calendar className="h-4 w-4 mt-0.5 text-muted-foreground" />
                     <div>
@@ -1483,6 +1499,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                   <div className="border-t pt-3 mt-3">
                     <p className="text-sm font-medium mb-2">Thông tin bổ sung</p>
                     {Object.entries(viewingRequest.originalData.custom_data).map(([key, value]) => {
+                      if (key === LINKED_DEFICIT_DATE_KEY || key === LINKED_DEFICIT_LINKS_KEY) return null
                       const requestType = requestTypes.find(rt => rt.id === viewingRequest.originalData.request_type_id)
                       const field = requestType?.custom_fields?.find(f => f.id === key)
                       const isImage = field?.type === "image" || (typeof value === "string" && (value.includes("/storage/") || value.match(/\.(jpg|jpeg|png|gif|webp)$/i)))
