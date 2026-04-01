@@ -702,6 +702,30 @@ export async function createEmployeeRequest(input: {
         else if (v.isHalfDay) deficitAmountByDate[v.date] = 0.5
         else if (deficitAmountByDate[v.date] === undefined) deficitAmountByDate[v.date] = 0
       }
+
+      // Lấy saturday schedules và holidays cho các ngày thiếu công
+      // để kiểm tra ngày nào là ngày làm việc nhưng không có attendance log (vắng cả ngày)
+      const { data: deficitSatSchedules } = await supabase
+        .from("saturday_work_schedule")
+        .select("employee_id, work_date, is_working")
+        .eq("employee_id", employee.id)
+        .in("work_date", deficitDates)
+
+      const { data: deficitHolidays } = await supabase
+        .from("holidays")
+        .select("holiday_date")
+        .in("holiday_date", deficitDates)
+
+      // Nếu ngày thiếu công là ngày làm việc (không phải off day) nhưng không có violation
+      // → nhân viên vắng cả ngày (không chấm công) → deficit = 1
+      for (const dd of deficitDates) {
+        if (deficitAmountByDate[dd] === undefined) {
+          const isOff = isEmployeeOffDay(dd, deficitSatSchedules || [], employee.id, deficitHolidays || [])
+          if (!isOff) {
+            deficitAmountByDate[dd] = 1
+          }
+        }
+      }
       const { data: existingMakeup } = await supabase
         .from("employee_requests")
         .select("id, custom_data, request_type:request_types!request_type_id(code)")
