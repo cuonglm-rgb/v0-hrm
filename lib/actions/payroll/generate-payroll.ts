@@ -1316,14 +1316,22 @@ export async function processAdjustments(
 
         // Late/Early penalties
         if (rules?.trigger === "late") {
+          console.log(`[Penalty] Đang xử lý phạt đi muộn:`)
+          console.log(`[Penalty] - exemptWithRequest: ${exemptWithRequest}`)
+          console.log(`[Penalty] - exemptRequestTypes: ${JSON.stringify(exemptRequestTypes)}`)
+          console.log(`[Penalty] - thresholdMinutes: ${thresholdMinutes}`)
+          
           for (const v of violationsWithoutOT) {
             if (v.isAbsent) continue
             
             const shouldPenalize = v.lateMinutes > thresholdMinutes || v.earlyMinutes > thresholdMinutes
             if (!shouldPenalize) continue
 
+            // Kiểm tra miễn phạt dựa trên config exempt_request_types
             if (exemptWithRequest && v.hasApprovedRequest) {
+              console.log(`[Penalty] Ngày ${v.date}: có phiếu ${JSON.stringify(v.approvedRequestTypes)}`)
               const hasExemptRequest = v.approvedRequestTypes.some((t: string) => exemptRequestTypes.includes(t))
+              console.log(`[Penalty] Ngày ${v.date}: hasExemptRequest = ${hasExemptRequest}`)
               if (hasExemptRequest) continue
             }
 

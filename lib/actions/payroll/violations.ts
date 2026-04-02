@@ -43,6 +43,8 @@ export async function getEmployeeViolations(
   const { data: approvedRequests } = await supabase
     .from("employee_requests")
     .select(`
+      from_date,
+      to_date,
       request_date,
       request_time,
       from_time,
@@ -51,8 +53,7 @@ export async function getEmployeeViolations(
     `)
     .eq("employee_id", employeeId)
     .eq("status", "approved")
-    .gte("request_date", startDate)
-    .lte("request_date", endDate)
+    .or(`and(from_date.lte.${endDate},to_date.gte.${startDate}),and(request_date.gte.${startDate},request_date.lte.${endDate})`)
 
   const approvedByDate = new Map<string, string[]>()
   // Map để lưu giờ trong phiếu quên chấm công (để bổ sung check_in/check_out)
@@ -66,27 +67,45 @@ export async function getEmployeeViolations(
   for (const req of approvedRequests || []) {
     const reqType = req.request_type as any
     if (reqType?.code) {
-      const types = approvedByDate.get(req.request_date) || []
-      types.push(reqType.code)
-      approvedByDate.set(req.request_date, types)
-      
-      // Lưu giờ trong phiếu quên chấm công
-      if (reqType.code === "forgot_checkin" && req.request_time) {
-        forgotCheckinTimeByDate.set(req.request_date, req.request_time)
-        console.log(`[Violations] Phiếu quên chấm công đến ngày ${req.request_date} lúc ${req.request_time}`)
-      }
-      if (reqType.code === "forgot_checkout" && req.request_time) {
-        forgotCheckoutTimeByDate.set(req.request_date, req.request_time)
-        console.log(`[Violations] Phiếu quên chấm công về ngày ${req.request_date} lúc ${req.request_time}`)
-      }
-
-      if (reqType.code === "late_early_makeup" && req.to_time) {
-        const toTime = req.to_time.slice(0, 5)
-        const existing = makeupShiftEndByDate.get(req.request_date)
-        if (!existing || toTime > existing) {
-          makeupShiftEndByDate.set(req.request_date, toTime)
+      // Xử lý phiếu có date range (from_date -> to_date)
+      if (req.from_date && req.to_date) {
+        const fromDate = new Date(req.from_date)
+        const toDate = new Date(req.to_date)
+        
+        // Lặp qua tất cả các ngày trong khoảng
+        for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = toDateStringVN(d)
+          console.log(`[Violations] Phiếu date range: ngày=${dateStr}, loại=${reqType.code}`)
+          const types = approvedByDate.get(dateStr) || []
+          types.push(reqType.code)
+          approvedByDate.set(dateStr, types)
         }
-        console.log(`[Violations] Phiếu làm bù ngày ${req.request_date} -> effectiveShiftEnd = ${toTime}`)
+      }
+      // Xử lý phiếu chỉ có 1 ngày (request_date)
+      else if (req.request_date) {
+        console.log(`[Violations] Phiếu single date: ngày=${req.request_date}, loại=${reqType.code}`)
+        const types = approvedByDate.get(req.request_date) || []
+        types.push(reqType.code)
+        approvedByDate.set(req.request_date, types)
+        
+        // Lưu giờ trong phiếu quên chấm công (chỉ cho single date)
+        if (reqType.code === "forgot_checkin" && req.request_time) {
+          forgotCheckinTimeByDate.set(req.request_date, req.request_time)
+          console.log(`[Violations] Phiếu quên chấm công đến ngày ${req.request_date} lúc ${req.request_time}`)
+        }
+        if (reqType.code === "forgot_checkout" && req.request_time) {
+          forgotCheckoutTimeByDate.set(req.request_date, req.request_time)
+          console.log(`[Violations] Phiếu quên chấm công về ngày ${req.request_date} lúc ${req.request_time}`)
+        }
+
+        if (reqType.code === "late_early_makeup" && req.to_time) {
+          const toTime = req.to_time.slice(0, 5)
+          const existing = makeupShiftEndByDate.get(req.request_date)
+          if (!existing || toTime > existing) {
+            makeupShiftEndByDate.set(req.request_date, toTime)
+          }
+          console.log(`[Violations] Phiếu làm bù ngày ${req.request_date} -> effectiveShiftEnd = ${toTime}`)
+        }
       }
     }
   }
@@ -276,7 +295,14 @@ export async function getEmployeeViolations(
         if (allowEarlyLeave) earlyMinutes = 0
       }
 
-      const finalIsAbsent = hasCheckOut && hasCheckIn && lateMinutes > 60 && !hasApprovedRequest
+      // =============================================
+      // LOGIC TÍNH "VẮNG MẶT" (isAbsent)
+      // =============================================
+      // Đã BỎ logic tự động đánh dấu vắng mặt khi đi muộn > 60 phút
+      // Lý do: Nhân viên đi muộn vẫn được tính công, chỉ bị phạt đi muộn
+      // isAbsent chỉ dùng cho các trường hợp đặc biệt khác (nếu có)
+      // =============================================
+      const finalIsAbsent = false
 
       violations.push({
         date: dateStr,
