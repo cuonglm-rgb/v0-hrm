@@ -140,12 +140,45 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     }
   }
 
+  // Helper function to calculate day fraction for a request
+  const calculateRequestDayFraction = (request: any): number => {
+    const reqType = request.request_type as any
+    const fromTime = request.from_time
+    const toTime = request.to_time
+    
+    if (!fromTime || !toTime) return 1
+    
+    const fromMinutes = parseTime(fromTime)
+    const toMinutes = parseTime(toTime)
+    const morningHours = (breakStartMin - shiftStartMin) / 60
+    const afternoonHours = (shiftEndMin - breakEndMin) / 60
+    const totalWorkHours = morningHours + afternoonHours
+    
+    let leaveHours = (toMinutes - fromMinutes) / 60
+    if (leaveHours <= 0) leaveHours = totalWorkHours
+    
+    // Check if it's morning or afternoon half-day
+    if (fromMinutes <= shiftStartMin + 30 && toMinutes >= breakStartMin - 30 && toMinutes <= breakEndMin + 30) {
+      return 0.5
+    }
+    if (fromMinutes >= breakStartMin - 30 && fromMinutes <= breakEndMin + 30 && toMinutes >= shiftEndMin - 30) {
+      return 0.5
+    }
+    if (leaveHours <= totalWorkHours / 2 + 0.5) {
+      return 0.5
+    }
+    return 1
+  }
+
   const leaveDates = new Set<string>()
+  const halfDayLeaveDates = new Map<string, number>() // date -> 0.5 for half-day leaves
+  
   if (employeeRequests) {
     for (const request of employeeRequests) {
       const reqType = request.request_type as any
       if (!reqType || reqType.code === "overtime") continue
       if ((MAKEUP_CODES as readonly string[]).includes(reqType.code)) continue
+      
       if (request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
           const [y, m, d] = dateStr.split('-').map(Number)
@@ -157,6 +190,17 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         const periodEnd = parseDate(endDate)
         const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
         const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+        const diffTime = reqEnd.getTime() - reqStart.getTime()
+        const fullDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1
+        
+        // Check if single-day leave with time range (potential half-day)
+        if (fullDays === 1 && (request.from_time || request.to_time)) {
+          const dayFraction = calculateRequestDayFraction(request)
+          if (dayFraction === 0.5) {
+            halfDayLeaveDates.set(request.from_date, 0.5)
+          }
+        }
+        
         const current = new Date(reqStart)
         while (current <= reqEnd) {
           const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
@@ -165,6 +209,14 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         }
       } else if (request.request_date) {
         leaveDates.add(request.request_date)
+        
+        // Check if this is a half-day leave
+        if (reqType.requires_single_date && (request.from_time || request.to_time)) {
+          const dayFraction = calculateRequestDayFraction(request)
+          if (dayFraction === 0.5) {
+            halfDayLeaveDates.set(request.request_date, 0.5)
+          }
+        }
       }
     }
   }
@@ -217,6 +269,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
 
   // Đếm ngày công (ngày làm bù full_day_makeup không tăng working days — chỉ consume deficit)
   let workingDaysCount = 0
+  let fullDayCount = 0
+  let halfDayAttendanceCount = 0
   const countedDates = new Set<string>()
   const attendanceDates = new Set<string>()
   if (allAttendanceLogs) {
@@ -225,7 +279,17 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       attendanceDates.add(logDate)
       if (makeupDates.has(logDate)) continue
       if (!overtimeDates.has(logDate) && !countedDates.has(logDate)) {
-        workingDaysCount++
+        // Check if this day has a half-day leave request
+        const halfDayFraction = halfDayLeaveDates.get(logDate)
+        if (halfDayFraction) {
+          // Count as 0.5 day (the other 0.5 is in paidLeaveDays)
+          workingDaysCount += 0.5
+          halfDayAttendanceCount++
+        } else {
+          // Count as full day
+          workingDaysCount++
+          fullDayCount++
+        }
         countedDates.add(logDate)
       }
     }
@@ -261,7 +325,10 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   }
 
   console.log(`\n📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
-  console.log(`📊 Ngày công từ chấm công (trừ ngày làm bù): ${workingDaysCount} ngày`)
+  console.log(`📊 Ngày công từ chấm công (trừ ngày làm bù):`)
+  console.log(`   - Full days: ${fullDayCount} ngày`)
+  console.log(`   - Half days: ${halfDayAttendanceCount} ngày (= ${halfDayAttendanceCount * 0.5} ngày công)`)
+  console.log(`   - Tổng: ${workingDaysCount} ngày`)
   console.log(`📊 Consumed deficit: ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` (${consumedDetailPairs.join(", ")})` : ""}`)
   console.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
 

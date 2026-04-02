@@ -670,7 +670,9 @@ export function PayrollDetailPanel({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">{item.working_days || 0}</TableCell>
+                    <TableCell className="text-right">
+                      {item.working_days ? item.working_days.toFixed(1).replace(/\.0$/, '') : 0}
+                    </TableCell>
                     <TableCell className="text-right">{item.leave_days || 0}</TableCell>
                     <TableCell className="text-right">{item.unpaid_leave_days || 0}</TableCell>
                     <TableCell className="text-right">{formatCurrency(item.base_salary)}</TableCell>
@@ -790,7 +792,7 @@ export function PayrollDetailPanel({
                   {selectedItem.working_days > 0 && (
                     <div className="flex justify-between items-center py-1 gap-4">
                       <span className="text-sm text-muted-foreground flex-1 min-w-0">
-                        Lương theo ngày công ({selectedItem.working_days} ngày)
+                        Lương theo ngày công ({selectedItem.working_days.toFixed(1).replace(/\.0$/, '')} ngày)
                       </span>
                       <span className="text-sm text-green-600 whitespace-nowrap tabular-nums">
                         +{formatCurrency((selectedItem.base_salary / (selectedItem.standard_working_days || standardWorkingDays)) * selectedItem.working_days)}
