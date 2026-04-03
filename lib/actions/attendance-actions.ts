@@ -243,7 +243,6 @@ export async function listAttendance(filters?: {
         shift:work_shifts(id, name, start_time, end_time, break_start, break_end, break_minutes)
       )
     `)
-    .order("check_in", { ascending: false, nullsFirst: false })
 
   if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id)
   
@@ -254,6 +253,10 @@ export async function listAttendance(filters?: {
   if (filters?.to) {
     query = query.or(`check_in.lte.${filters.to},and(check_in.is.null,check_out.lte.${filters.to})`)
   }
+
+  // Order by check_in or check_out (for logs with null check_in)
+  // Use coalesce to handle null check_in
+  query = query.order("check_in", { ascending: false, nullsLast: true })
 
   const { data, error } = await query
 

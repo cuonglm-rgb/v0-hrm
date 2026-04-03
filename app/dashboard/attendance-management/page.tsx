@@ -12,6 +12,9 @@ import { SaturdaySchedulePanel } from "@/components/attendance/saturday-schedule
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar, CloudRain, CalendarClock } from "lucide-react"
 
+// Disable caching for this page to always show fresh data
+export const revalidate = 0
+
 export default async function AttendanceManagementPage() {
   const supabase = await createClient()
   const {

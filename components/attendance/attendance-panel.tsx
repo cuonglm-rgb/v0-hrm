@@ -214,7 +214,7 @@ function getLateEarlyMakeupForDate(
   date: string,
   employeeId: string | undefined,
   leaveRequests: EmployeeRequestWithRelations[]
-): { to_time: string } | null {
+): EmployeeRequestWithRelations | null {
   if (!employeeId) return null
   const req = leaveRequests.find(
     (r) =>
@@ -224,8 +224,7 @@ function getLateEarlyMakeupForDate(
       r.request_date === date &&
       r.to_time
   )
-  if (!req?.to_time) return null
-  return { to_time: req.to_time.slice(0, 5) }
+  return req || null
 }
 
 // Hàm kiểm tra xem ngày có phải ngày lễ không
@@ -317,8 +316,9 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
         const hasOnlyTimeViolation = (isLate || isEarlyLeave) && !noCheckIn && !noCheckOut
         const makeup = employeeId ? getLateEarlyMakeupForDate(dateStr, employeeId, leaveRequests) : null
         let madeUp = false
-        if (makeup && log.check_out && hasOnlyTimeViolation) {
-          const [toH, toM] = makeup.to_time.split(":").map(Number)
+        if (makeup?.to_time && log.check_out && hasOnlyTimeViolation) {
+          const toTime = makeup.to_time.slice(0, 5)
+          const [toH, toM] = toTime.split(":").map(Number)
           const toMinutes = toH * 60 + toM
           const outDate = new Date(log.check_out)
           const outMinutes = outDate.getHours() * 60 + outDate.getMinutes()
@@ -736,11 +736,35 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                   </TableRow>
                 ) : (
                   paginatedAttendance.map(({ date, log, leaveRequest, holiday, specialDay }) => {
-                    // Kiểm tra nếu là làm nửa ngày (check in/out trong giờ nghỉ trưa) - cần xác định trước khi gọi checkViolations
+                    // Kiểm tra nếu là làm nửa ngày
                     let isHalfDayWork = false
                     let isAfternoonOnly = false // Nghỉ buổi sáng, làm buổi chiều
                     let isMorningOnly = false // Làm buổi sáng, nghỉ buổi chiều
-                    if (log && log.check_in && log.check_out && shift) {
+                    
+                    // Ưu tiên: Kiểm tra phiếu nghỉ nửa ngày trước
+                    if (leaveRequest && leaveRequest.from_time && leaveRequest.to_time) {
+                      // Có phiếu nghỉ nửa ngày
+                      isHalfDayWork = true
+                      
+                      // Xác định nghỉ buổi nào dựa vào thời gian trong phiếu
+                      const fromTime = leaveRequest.from_time.slice(0, 5)
+                      const toTime = leaveRequest.to_time.slice(0, 5)
+                      const [fromH, fromM] = fromTime.split(":").map(Number)
+                      const [toH, toM] = toTime.split(":").map(Number)
+                      const fromMinutes = fromH * 60 + fromM
+                      const toMinutes = toH * 60 + toM
+                      
+                      // Nếu nghỉ từ sáng đến trưa (ví dụ: 08:00-12:00) → nghỉ buổi sáng
+                      if (fromMinutes < 720 && toMinutes <= 780) { // 720 = 12:00, 780 = 13:00
+                        isAfternoonOnly = true
+                      }
+                      // Nếu nghỉ từ trưa đến chiều (ví dụ: 13:00-17:00) → nghỉ buổi chiều
+                      else if (fromMinutes >= 720 && toMinutes > 780) {
+                        isMorningOnly = true
+                      }
+                    }
+                    // Nếu không có phiếu nghỉ nửa ngày, kiểm tra dựa vào giờ check in/out
+                    else if (log && log.check_in && log.check_out && shift) {
                       const checkInDate = new Date(log.check_in)
                       const checkOutDate = new Date(log.check_out)
                       const checkInMinutes = checkInDate.getHours() * 60 + checkInDate.getMinutes()
@@ -787,20 +811,61 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                     const noCheckIn = violations.some((v) => v.type === "no_checkin")
                     const noCheckOut = violations.some((v) => v.type === "no_checkout")
 
+                    // Kiểm tra phiếu đi muộn/về sớm/quên chấm công đã duyệt
+                    const lateArrivalRequest = employeeId ? leaveRequests.find(
+                      (r) =>
+                        r.employee_id === employeeId &&
+                        r.status === "approved" &&
+                        (r.request_type as { code?: string })?.code === "late_arrival" &&
+                        r.request_date === date
+                    ) : null
+
+                    const earlyLeaveRequest = employeeId ? leaveRequests.find(
+                      (r) =>
+                        r.employee_id === employeeId &&
+                        r.status === "approved" &&
+                        (r.request_type as { code?: string })?.code === "early_leave" &&
+                        r.request_date === date
+                    ) : null
+
+                    const forgotCheckinRequest = employeeId ? leaveRequests.find(
+                      (r) =>
+                        r.employee_id === employeeId &&
+                        r.status === "approved" &&
+                        (r.request_type as { code?: string })?.code === "forgot_checkin" &&
+                        r.request_date === date
+                    ) : null
+
+                    const forgotCheckoutRequest = employeeId ? leaveRequests.find(
+                      (r) =>
+                        r.employee_id === employeeId &&
+                        r.status === "approved" &&
+                        (r.request_type as { code?: string })?.code === "forgot_checkout" &&
+                        r.request_date === date
+                    ) : null
+
                     const makeup = employeeId ? getLateEarlyMakeupForDate(date, employeeId, leaveRequests) : null
                     const hasOnlyTimeViolation = (isLate || isEarlyLeave) && !noCheckIn && !noCheckOut
                     let madeUp = false
                     let madeUpTooltip = ""
-                    if (makeup && log?.check_out && hasOnlyTimeViolation) {
-                      const [toH, toM] = makeup.to_time.split(":").map(Number)
+                    if (makeup?.to_time && log?.check_out && hasOnlyTimeViolation) {
+                      const toTime = makeup.to_time.slice(0, 5)
+                      const [toH, toM] = toTime.split(":").map(Number)
                       const toMinutes = toH * 60 + toM
                       const outDate = new Date(log.check_out)
                       const outMinutes = outDate.getHours() * 60 + outDate.getMinutes()
                       if (outMinutes >= toMinutes) {
                         madeUp = true
-                        madeUpTooltip = `Đã làm bù (checkout đủ giờ theo phiếu đến ${makeup.to_time})`
+                        madeUpTooltip = `Đã làm bù (checkout đủ giờ theo phiếu đến ${toTime})`
                       }
                     }
+
+                    // Kiểm tra xem có phiếu đi muộn/về sớm/quên chấm công được duyệt không
+                    const hasApprovedLateRequest = isLate && (lateArrivalRequest || makeup)
+                    const hasApprovedEarlyRequest = isEarlyLeave && (earlyLeaveRequest || makeup)
+                    const hasApprovedForgotCheckinRequest = noCheckIn && forgotCheckinRequest
+                    const hasApprovedForgotCheckoutRequest = noCheckOut && forgotCheckoutRequest
+                    const hasApprovedTimeRequest = hasApprovedLateRequest || hasApprovedEarlyRequest || hasApprovedForgotCheckinRequest || hasApprovedForgotCheckoutRequest
 
                     // Nếu không có log chấm công
                     const hasNoAttendance = !log
@@ -958,14 +1023,32 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                                   : "bg-yellow-100 text-yellow-800 gap-1"
                               }>
                                 <Calendar className="h-3 w-3" />
-                                {leaveUsageMap.get(date) === "exceeded" ? "Quỹ phép hết" : "Nghỉ nửa ngày phép năm"}
+                                {leaveUsageMap.get(date) === "exceeded" 
+                                  ? "Quỹ phép hết" 
+                                  : leaveTypeName === "Nghỉ phép năm" 
+                                    ? "Nghỉ nửa ngày phép năm"
+                                    : leaveTypeName === "Nghỉ không phép"
+                                      ? "Nghỉ không phép nửa ngày"
+                                      : `${leaveTypeName} (nửa ngày)`
+                                }
                               </Badge>
                             ) : (
                               <Badge className="bg-yellow-100 text-yellow-800 gap-1">
                                 <AlertTriangle className="h-3 w-3" />
-                                Nghỉ nửa ngày không phép
+                                Nghỉ không phép nửa ngày
                               </Badge>
                             )
+                          ) : hasApprovedTimeRequest ? (
+                            // Có phiếu đi muộn/về sớm/quên chấm công được duyệt
+                            <Badge className="bg-blue-100 text-blue-800 gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {forgotCheckinRequest?.request_type?.name || 
+                               forgotCheckoutRequest?.request_type?.name || 
+                               lateArrivalRequest?.request_type?.name || 
+                               earlyLeaveRequest?.request_type?.name || 
+                               makeup?.request_type?.name || 
+                               "Có phiếu"}
+                            </Badge>
                           ) : madeUp ? (
                             <Tooltip>
                               <TooltipTrigger asChild>
