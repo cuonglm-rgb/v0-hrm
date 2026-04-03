@@ -12,7 +12,7 @@ export class PayrollLogger {
 
   section(title: string) {
     const separator = "=".repeat(60)
-    this.log(`\n${separator}`)
+    this.log(`${separator}`)
     this.log(title)
     this.log(separator)
   }
@@ -22,19 +22,21 @@ export class PayrollLogger {
   }
 
   item(label: string, value: string | number) {
-    this.log(`  - ${label}: ${value}`)
+    this.log(`  ${label}: ${value}`)
   }
 
   detail(message: string) {
-    this.log(`  ${message}`)
+    this.log(message)
   }
 
   violation(date: string, checkIn: string | null, checkOut: string | null, hasCheckInRequest: boolean, hasCheckOutRequest: boolean, isHalfDay?: boolean) {
-    const checkInDisplay = checkIn || "không có"
-    const checkOutDisplay = checkOut || "không có"
-    const halfDayNote = isHalfDay ? " (chỉ làm ca sáng)" : ""
+    const checkInDisplay = checkIn || "—"
+    const checkOutDisplay = checkOut || "—"
+    const halfDayNote = isHalfDay ? " [Chỉ làm ca sáng]" : ""
+    const checkInNote = hasCheckInRequest ? " [Có phiếu]" : ""
+    const checkOutNote = hasCheckOutRequest ? " [Có phiếu]" : ""
     
-    this.log(`[Violations] Ngày ${date}: check_in=${checkInDisplay}, check_out=${checkOutDisplay}, phiếu_checkin=${hasCheckInRequest}, phiếu_checkout=${hasCheckOutRequest}${halfDayNote}`)
+    this.log(`  ${date}: Vào ${checkInDisplay}${checkInNote} | Ra ${checkOutDisplay}${checkOutNote}${halfDayNote}`)
   }
 
   getLog(): string {

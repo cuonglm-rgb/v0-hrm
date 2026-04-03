@@ -1160,21 +1160,18 @@ export async function processAdjustments(
           const exemptWithRequest = rules?.exempt_with_request === true
           const exemptRequestTypes = rules?.exempt_request_types || []
           
-          console.log(`[Allowance] - Ngưỡng đi muộn: ${lateThresholdMinutes} phút`)
-          console.log(`[Allowance] - Miễn trừ nếu có phiếu: ${exemptWithRequest ? 'Có' : 'Không'}`)
-          if (exemptWithRequest) {
-            console.log(`[Allowance] - Loại phiếu được miễn: ${exemptRequestTypes.join(', ')}`)
-          }
+          console.log(`[Allowance] - Loại phiếu được miễn: ${exemptRequestTypes.length > 0 ? exemptRequestTypes.join(', ') : '—'}`)
           
           // Lấy danh sách ngày có phiếu được duyệt (nếu bật miễn trừ)
           // Map: date -> Set<request_type_code>
           const exemptDatesByType = new Map<string, Set<string>>()
+          const requestTypeNames = new Map<string, string>() // code -> name
           if (exemptWithRequest && exemptRequestTypes.length > 0) {
             const { data: approvedRequests } = await supabase
               .from("employee_requests")
               .select(`
                 request_date, from_date, to_date,
-                request_type:request_types!request_type_id(code)
+                request_type:request_types!request_type_id(code, name)
               `)
               .eq("employee_id", emp.id)
               .eq("status", "approved")
@@ -1183,6 +1180,11 @@ export async function processAdjustments(
             for (const req of approvedRequests || []) {
               const reqType = req.request_type as any
               if (!reqType || !exemptRequestTypes.includes(reqType.code)) continue
+              
+              // Lưu tên phiếu
+              if (!requestTypeNames.has(reqType.code)) {
+                requestTypeNames.set(reqType.code, reqType.name)
+              }
               
               // Xử lý phiếu có date range
               if (req.from_date && req.to_date) {
@@ -1213,7 +1215,6 @@ export async function processAdjustments(
                 exemptDatesByType.get(req.request_date)!.add(reqType.code)
               }
             }
-            console.log(`[Allowance] - Số ngày có phiếu miễn trừ: ${exemptDatesByType.size} ngày`)
           }
           
           // Lấy danh sách ngày có phiếu unpaid_leave để loại bỏ khỏi tính phụ cấp
@@ -1254,7 +1255,6 @@ export async function processAdjustments(
               }
             }
           }
-          console.log(`[Allowance] - Số ngày có phiếu unpaid_leave: ${unpaidLeaveDates.size} ngày`)
           if (unpaidLeaveDates.size > 0) {
             const sortedDates = Array.from(unpaidLeaveDates).sort()
             console.log(`[Allowance] - Danh sách ngày unpaid_leave: ${sortedDates.join(', ')}`)
@@ -1283,6 +1283,7 @@ export async function processAdjustments(
           
           // Đếm ngày vi phạm nhưng được miễn trừ do có phiếu
           const violationDaysWithExemptList: string[] = []
+          const violationDaysWithExemptTypes = new Map<string, Set<string>>() // date -> Set<request_type_code>
           const violationDaysWithExempt = violationsWithoutOT.filter((v) => {
             // Loại trừ ngày nghỉ không lương
             if (unpaidLeaveDates.has(v.date)) return false
@@ -1298,12 +1299,19 @@ export async function processAdjustments(
             // Miễn trừ theo cấu hình: ngày có bất kỳ loại phiếu nào trong exempt_request_types thì được miễn
             if (exemptWithRequest && exemptDatesByType.has(v.date)) {
               violationDaysWithExemptList.push(v.date)
+              violationDaysWithExemptTypes.set(v.date, exemptDatesByType.get(v.date)!)
               return true
             }
             return false
           }).length
           
-          console.log(`[Allowance] - Ngày vi phạm nhưng được miễn do có phiếu: ${violationDaysWithExempt} ngày`)
+          // Lấy tên phiếu từ các loại phiếu được miễn
+          const exemptTypeNames = Array.from(new Set(
+            Array.from(violationDaysWithExemptTypes.values())
+              .flatMap(codes => Array.from(codes))
+          )).map((code: string) => requestTypeNames.get(code) || code).join(', ')
+          
+          console.log(`[Allowance] - Ngày vi phạm nhưng được miễn do có phiếu${exemptTypeNames ? ` ${exemptTypeNames}` : ''}: ${violationDaysWithExempt} ngày`)
           if (violationDaysWithExemptList.length > 0) {
             console.log(`[Allowance]   → ${violationDaysWithExemptList.join(', ')}`)
           }
@@ -1501,12 +1509,26 @@ export async function processAdjustments(
         const exemptRequestTypes = rules?.exempt_request_types || ["late_arrival", "early_leave"]
         const penaltyConditions = rules?.penalty_conditions || []
 
+        // Query tên phiếu để hiển thị trong log
+        const { data: allRequestTypes } = await supabase
+          .from("request_types")
+          .select("code, name")
+        const requestTypeNameMap = new Map<string, string>()
+        for (const rt of allRequestTypes || []) {
+          requestTypeNameMap.set(rt.code, rt.name)
+        }
+
         // Late/Early penalties
         if (rules?.trigger === "late") {
-          console.log(`[Penalty] Đang xử lý phạt đi muộn:`)
-          console.log(`[Penalty] - exemptWithRequest: ${exemptWithRequest}`)
-          console.log(`[Penalty] - exemptRequestTypes: ${JSON.stringify(exemptRequestTypes)}`)
-          console.log(`[Penalty] - thresholdMinutes: ${thresholdMinutes}`)
+          console.log(`\n[Penalty] Xử lý phạt đi muộn/về sớm:`)
+          console.log(`[Penalty] - Ngưỡng: ${thresholdMinutes} phút`)
+          console.log(`[Penalty] - Miễn phạt nếu có phiếu: ${exemptWithRequest ? 'Có' : 'Không'}`)
+          if (exemptWithRequest && exemptRequestTypes.length > 0) {
+            console.log(`[Penalty] - Loại phiếu được miễn: ${exemptRequestTypes.join(', ')}`)
+          }
+          
+          const penalizedDays: string[] = []
+          const exemptedDays: string[] = []
           
           for (const v of violationsWithoutOT) {
             if (v.isAbsent) continue
@@ -1515,12 +1537,20 @@ export async function processAdjustments(
             if (!shouldPenalize) continue
 
             // Kiểm tra miễn phạt dựa trên config exempt_request_types
+            let isExempted = false
             if (exemptWithRequest && v.hasApprovedRequest) {
-              console.log(`[Penalty] Ngày ${v.date}: có phiếu ${JSON.stringify(v.approvedRequestTypes)}`)
               const hasExemptRequest = v.approvedRequestTypes.some((t: string) => exemptRequestTypes.includes(t))
-              console.log(`[Penalty] Ngày ${v.date}: hasExemptRequest = ${hasExemptRequest}`)
-              if (hasExemptRequest) continue
+              if (hasExemptRequest) {
+                isExempted = true
+                // Chuyển code thành tên phiếu
+                const requestTypeNames = v.approvedRequestTypes
+                  .map((code: string) => requestTypeNameMap.get(code) || code)
+                  .join(', ')
+                exemptedDays.push(`${v.date} (có phiếu: ${requestTypeNames})`)
+              }
             }
+            
+            if (isExempted) continue
 
             const existing = globalPenaltyByDate.get(v.date)
             if (!existing) {
@@ -1537,6 +1567,8 @@ export async function processAdjustments(
                 ? `Đi muộn ${v.lateMinutes} phút` 
                 : `Về sớm ${v.earlyMinutes} phút`
 
+              penalizedDays.push(`${v.date} (${reason}, phạt ${penaltyAmount.toLocaleString()}đ)`)
+
               globalPenaltyByDate.set(v.date, {
                 date: v.date,
                 reason,
@@ -1544,6 +1576,18 @@ export async function processAdjustments(
                 adjustmentTypeId: adjType.id,
               })
             }
+          }
+          
+          if (exemptedDays.length > 0) {
+            console.log(`[Penalty] - Ngày được miễn phạt: ${exemptedDays.length} ngày`)
+            exemptedDays.forEach(day => console.log(`[Penalty]   → ${day}`))
+          }
+          
+          if (penalizedDays.length > 0) {
+            console.log(`[Penalty] - Ngày bị phạt: ${penalizedDays.length} ngày`)
+            penalizedDays.forEach(day => console.log(`[Penalty]   → ${day}`))
+          } else {
+            console.log(`[Penalty] - Không có ngày nào bị phạt`)
           }
         }
 
