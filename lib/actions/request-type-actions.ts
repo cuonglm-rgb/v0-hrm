@@ -308,6 +308,7 @@ export async function listEmployeeRequests(filters?: {
       *,
       employee:employees!employee_id(id, full_name, employee_code, department_id),
       approver:employees!approver_id(id, full_name),
+      canceller:employees!employee_requests_cancelled_by_fkey(id, full_name, employee_code),
       request_type:request_types!request_type_id(*),
       time_slots:request_time_slots(*)
     `)
@@ -371,6 +372,7 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
         *,
         employee:employees!employee_id(id, full_name, employee_code, department_id),
         approver:employees!approver_id(id, full_name),
+        canceller:employees!employee_requests_cancelled_by_fkey(id, full_name, employee_code),
         request_type:request_types!request_type_id(*),
         time_slots:request_time_slots(*)
       `)
@@ -455,6 +457,7 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
       *,
       employee:employees!employee_id(id, full_name, employee_code, department_id),
       approver:employees!approver_id(id, full_name),
+      canceller:employees!employee_requests_cancelled_by_fkey(id, full_name, employee_code),
       request_type:request_types!request_type_id(*),
       time_slots:request_time_slots(*)
     `)
@@ -2005,6 +2008,77 @@ export async function cancelEmployeeRequest(id: string) {
   revalidatePath("/dashboard/leave-approval")
   return { success: true }
 }
+
+// Cancel phiếu đã duyệt (chỉ HR/Admin)
+export async function cancelApprovedRequest(id: string, cancellation_reason?: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: "Not authenticated" }
+
+  // Lấy thông tin employee của người hủy
+  const { data: cancellerEmployee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .single()
+
+  if (!cancellerEmployee) return { success: false, error: "Employee not found" }
+
+  // Kiểm tra xem người dùng có phải HR/Admin không
+  const { data: userRoles } = await supabase
+    .from("user_roles")
+    .select(`role:roles!role_id(code)`)
+    .eq("user_id", user.id)
+
+  const isHrOrAdmin = userRoles?.some((ur: any) =>
+    ur.role?.code === 'admin' || ur.role?.code === 'hr_manager'
+  )
+
+  if (!isHrOrAdmin) {
+    return { success: false, error: "Chỉ Administrator hoặc HR Manager mới có quyền hủy phiếu đã duyệt" }
+  }
+
+  // Lấy thông tin phiếu
+  const { data: request } = await supabase
+    .from("employee_requests")
+    .select("*")
+    .eq("id", id)
+    .eq("status", "approved")
+    .single()
+
+  if (!request) {
+    return { success: false, error: "Phiếu không tồn tại hoặc chưa được duyệt" }
+  }
+
+  // Cập nhật trạng thái phiếu về cancelled
+  const { error } = await supabase
+    .from("employee_requests")
+    .update({
+      status: "cancelled",
+      cancellation_reason,
+      cancelled_at: getNowVN(),
+      cancelled_by: cancellerEmployee.id,
+    })
+    .eq("id", id)
+
+  if (error) {
+    console.error("Error cancelling approved request:", error)
+    return { success: false, error: error.message }
+  }
+
+  // Cập nhật trạng thái người duyệt về cancelled nếu có
+  const serviceSupabase = createServiceClient()
+  await serviceSupabase
+    .from("request_assigned_approvers")
+    .update({ status: "cancelled" })
+    .eq("request_id", id)
+
+  revalidatePath("/dashboard/leave")
+  revalidatePath("/dashboard/leave-approval")
+  return { success: true }
+}
+
 
 
 // =============================================

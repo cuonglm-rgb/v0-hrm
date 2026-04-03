@@ -12,7 +12,7 @@ import { calculateStandardWorkingDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
-import { MAKEUP_CODES, getMakeupDeficitLinks } from "@/lib/utils/makeup-utils"
+import { MAKEUP_CODES, getMakeupDeficitLinks, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
@@ -1170,7 +1170,7 @@ export async function processAdjustments(
             const { data: approvedRequests } = await supabase
               .from("employee_requests")
               .select(`
-                request_date, from_date, to_date,
+                request_date, from_date, to_date, custom_data,
                 request_type:request_types!request_type_id(code, name)
               `)
               .eq("employee_id", emp.id)
@@ -1184,6 +1184,19 @@ export async function processAdjustments(
               // Lưu tên phiếu
               if (!requestTypeNames.has(reqType.code)) {
                 requestTypeNames.set(reqType.code, reqType.name)
+              }
+              
+              // Xử lý phiếu late_early_makeup: miễn cho ngày thiếu công gốc (linked_deficit_date)
+              if (reqType.code === "late_early_makeup" && req.custom_data) {
+                const linkedDeficitDate = (req.custom_data as any)[LINKED_DEFICIT_DATE_KEY]
+                if (linkedDeficitDate) {
+                  if (!exemptDatesByType.has(linkedDeficitDate)) {
+                    exemptDatesByType.set(linkedDeficitDate, new Set())
+                  }
+                  exemptDatesByType.get(linkedDeficitDate)!.add(reqType.code)
+                  console.log(`[Allowance] - Phiếu làm bù: ngày ${req.request_date} bù cho ngày thiếu công ${linkedDeficitDate} -> miễn phụ cấp cho ngày ${linkedDeficitDate}`)
+                  continue // Đã xử lý, bỏ qua logic bên dưới
+                }
               }
               
               // Xử lý phiếu có date range
@@ -1527,6 +1540,28 @@ export async function processAdjustments(
             console.log(`[Penalty] - Loại phiếu được miễn: ${exemptRequestTypes.join(', ')}`)
           }
           
+          // Query phiếu late_early_makeup để lấy linked_deficit_date
+          const { data: makeupRequests } = await supabase
+            .from("employee_requests")
+            .select(`request_date, custom_data, request_type:request_types!request_type_id(code)`)
+            .eq("employee_id", emp.id)
+            .eq("status", "approved")
+            .gte("request_date", startDate)
+            .lte("request_date", endDate)
+          
+          // Map: ngày thiếu công gốc -> ngày làm bù
+          const deficitDateToMakeupDate = new Map<string, string>()
+          for (const req of makeupRequests || []) {
+            const reqType = req.request_type as any
+            if (reqType?.code === "late_early_makeup" && req.custom_data) {
+              const linkedDeficitDate = (req.custom_data as any)[LINKED_DEFICIT_DATE_KEY]
+              if (linkedDeficitDate) {
+                deficitDateToMakeupDate.set(linkedDeficitDate, req.request_date)
+                console.log(`[Penalty] - Phiếu làm bù: ngày ${req.request_date} bù cho ngày thiếu công ${linkedDeficitDate}`)
+              }
+            }
+          }
+          
           const penalizedDays: string[] = []
           const exemptedDays: string[] = []
           
@@ -1548,6 +1583,13 @@ export async function processAdjustments(
                   .join(', ')
                 exemptedDays.push(`${v.date} (có phiếu: ${requestTypeNames})`)
               }
+            }
+            
+            // Kiểm tra xem ngày này có phải là ngày thiếu công gốc được làm bù không
+            if (!isExempted && deficitDateToMakeupDate.has(v.date)) {
+              isExempted = true
+              const makeupDate = deficitDateToMakeupDate.get(v.date)
+              exemptedDays.push(`${v.date} (có phiếu làm bù ngày ${makeupDate})`)
             }
             
             if (isExempted) continue

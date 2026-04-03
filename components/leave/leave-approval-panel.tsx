@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { approveEmployeeRequest, rejectEmployeeRequest } from "@/lib/actions/request-type-actions"
+import { approveEmployeeRequest, rejectEmployeeRequest, cancelApprovedRequest } from "@/lib/actions/request-type-actions"
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { getRequestAssignedApprovers } from "@/lib/actions/request-type-actions"
-import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip, ShieldCheck, CheckCircle2, Calendar, User, XCircle, AlertCircle, Loader2 } from "lucide-react"
+import { Check, X, Users, Clock, FileText, Filter, Search, Paperclip, ShieldCheck, CheckCircle2, Calendar, User, XCircle, AlertCircle, Loader2, Ban } from "lucide-react"
 import { toast } from "sonner"
 import { usePagination } from "@/hooks/use-pagination"
 import { DataPagination } from "@/components/shared/data-pagination"
@@ -131,6 +131,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     const pending = allRequests.filter((r) => r.status === "pending")
     const approved = allRequests.filter((r) => r.status === "approved")
     const rejected = allRequests.filter((r) => r.status === "rejected")
+    const cancelled = allRequests.filter((r) => r.status === "cancelled")
     
     // Unique employees with pending requests
     const pendingEmployees = new Set(pending.map((r) => r.employeeCode))
@@ -155,6 +156,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       pending: pending.length,
       approved: approved.length,
       rejected: rejected.length,
+      cancelled: cancelled.length,
       pendingEmployees: pendingEmployees.size,
       pendingLeaveDays,
     }
@@ -242,6 +244,23 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       toast.success("Đã từ chối phiếu")
     } else {
       toast.error(result.error || "Có lỗi xảy ra khi từ chối phiếu")
+    }
+  }
+
+  const handleCancel = async (request: UnifiedApprovalRequest) => {
+    const reason = prompt("Nhập lý do hủy phiếu đã duyệt (không bắt buộc):")
+    if (reason === null) return // User cancelled
+    
+    if (!confirm("Bạn có chắc muốn hủy phiếu đã duyệt này? Hành động này chỉ dành cho Administrator hoặc HR Manager.")) return
+    
+    setLoadingId(request.id)
+    const result = await cancelApprovedRequest(request.id, reason || undefined)
+    setLoadingId(null)
+    if (result.success) {
+      router.refresh()
+      toast.success("Đã hủy phiếu thành công")
+    } else {
+      toast.error(result.error || "Có lỗi xảy ra khi hủy phiếu")
     }
   }
 
@@ -367,6 +386,11 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     setSelectedIds(newSelected)
   }
 
+  // Kiểm tra xem user có phải HR/Admin không (có quyền cancel phiếu đã duyệt)
+  const isHrOrAdmin = useMemo(() => {
+    return approverInfo?.roles.some(role => role === 'admin' || role === 'hr_manager') || false
+  }, [approverInfo])
+
   // Kiểm tra xem user có thể duyệt phiếu cụ thể không (level + đúng lượt với duyệt tuần tự)
   const canApproveRequest = (request: UnifiedApprovalRequest): boolean => {
     if (!approverInfo) return false
@@ -397,6 +421,8 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Đã duyệt</Badge>
       case "rejected":
         return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Từ chối</Badge>
+      case "cancelled":
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Đã hủy</Badge>
       default:
         return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Chờ duyệt</Badge>
     }
@@ -435,7 +461,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       )}
 
       {/* Thống kê */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -461,6 +487,15 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
               <span className="text-sm text-muted-foreground">Từ chối</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats.rejected}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <div className="h-3 w-3 rounded-full bg-orange-400" />
+              <span className="text-sm text-muted-foreground">Đã hủy</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">{stats.cancelled}</p>
           </CardContent>
         </Card>
         <Card>
@@ -516,6 +551,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                   <SelectItem value="pending">Chờ duyệt</SelectItem>
                   <SelectItem value="approved">Đã duyệt</SelectItem>
                   <SelectItem value="rejected">Từ chối</SelectItem>
+                  <SelectItem value="cancelled">Đã hủy</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -741,6 +777,18 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                             </>
                           )}
                         </div>
+                      ) : request.status === "approved" && isHrOrAdmin ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCancel(request)}
+                          disabled={loadingId === request.id}
+                          className="gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
+                          title="Hủy phiếu đã duyệt (chỉ HR/Admin)"
+                        >
+                          <Ban className="h-4 w-4" />
+                          Hủy
+                        </Button>
                       ) : (
                         <span className="text-sm text-muted-foreground">-</span>
                       )}
@@ -952,6 +1000,22 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                     </div>
                   </div>
                 )}
+
+                {/* Lý do hủy */}
+                {viewingRequest.status === "cancelled" && (viewingRequest.originalData as any).cancellation_reason && (
+                  <div className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                    <Ban className="h-4 w-4 mt-0.5 text-orange-600" />
+                    <div>
+                      <p className="text-sm font-medium text-orange-800">Lý do hủy</p>
+                      <p className="text-sm text-orange-700">{(viewingRequest.originalData as any).cancellation_reason}</p>
+                      {(viewingRequest.originalData as any).cancelled_at && (
+                        <p className="text-xs text-orange-600 mt-1">
+                          Hủy lúc: {new Date((viewingRequest.originalData as any).cancelled_at).toLocaleString("vi-VN")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Danh sách người duyệt */}
@@ -1016,6 +1080,28 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
                         {viewingRequest.originalData.approved_at && (
                           <p className={`text-xs ${viewingRequest.status === "approved" ? "text-green-600" : "text-red-600"}`}>
                             Lúc: {new Date(viewingRequest.originalData.approved_at).toLocaleString("vi-VN")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Hiển thị người hủy nếu phiếu đã bị hủy */}
+                {viewingRequest.status === "cancelled" && (viewingRequest.originalData as any).canceller && (
+                  <div className="mt-3 p-3 rounded-lg bg-orange-50 border border-orange-200">
+                    <div className="flex items-center gap-2">
+                      <Ban className="h-4 w-4 text-orange-600" />
+                      <div>
+                        <p className="text-sm font-medium text-orange-800">
+                          Đã hủy bởi: {(viewingRequest.originalData as any).canceller.full_name}
+                        </p>
+                        <p className="text-xs text-orange-600">
+                          {(viewingRequest.originalData as any).canceller.employee_code}
+                        </p>
+                        {(viewingRequest.originalData as any).cancelled_at && (
+                          <p className="text-xs text-orange-600 mt-1">
+                            Lúc: {new Date((viewingRequest.originalData as any).cancelled_at).toLocaleString("vi-VN")}
                           </p>
                         )}
                       </div>

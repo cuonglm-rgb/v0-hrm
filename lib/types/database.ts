@@ -287,7 +287,7 @@ export interface TimeAdjustmentRequestWithRelations extends TimeAdjustmentReques
 // REQUEST TYPES (Loại phiếu)
 // =============================================
 
-export type RequestStatus = "pending" | "approved" | "rejected"
+export type RequestStatus = "pending" | "approved" | "rejected" | "cancelled"
 export type ApprovalMode = "any" | "all"
 
 // Custom field types cho request type
@@ -347,6 +347,9 @@ export interface EmployeeRequest {
   approver_id: string | null
   approved_at: string | null
   rejection_reason: string | null
+  cancelled_at: string | null
+  cancelled_by: string | null
+  cancellation_reason: string | null
   created_at: string
   updated_at: string
 }
