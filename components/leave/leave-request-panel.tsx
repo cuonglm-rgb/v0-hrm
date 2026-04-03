@@ -473,14 +473,14 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
         }
         ;(customData as Record<string, unknown>)[LINKED_DEFICIT_LINKS_KEY] = links
       } else if (selectedType.code === "late_early_makeup") {
-        // Tạm thời: làm bù cùng ngày → linked_deficit_date = request_date
-        const requestDate = formData.get("request_date") as string
-        if (!requestDate) {
-          setError("Vui lòng chọn ngày làm bù")
+        // Lấy ngày thiếu công gốc từ form
+        const linkedDeficitDate = formData.get("linked_deficit_date") as string
+        if (!linkedDeficitDate) {
+          setError("Vui lòng chọn ngày thiếu công gốc")
           setLoading(false)
           return
         }
-        customData[LINKED_DEFICIT_DATE_KEY] = requestDate
+        customData[LINKED_DEFICIT_DATE_KEY] = linkedDeficitDate
       }
     }
 
@@ -776,7 +776,21 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                     />
                   </div>
                 )}
-                {/* late_early_makeup tạm thời làm bù cùng ngày → ẩn trường ngày thiếu công gốc, backend sẽ tự gán = request_date */}
+                {/* Cho phép chọn ngày thiếu công gốc cho phiếu late_early_makeup */}
+                {isMakeupRequestType(selectedType.code) && selectedType.code === "late_early_makeup" && !editPolicy?.onlyCustomFields && (
+                  <div className="grid gap-2">
+                    <Label>Ngày thiếu công gốc *</Label>
+                    <Input
+                      type="date"
+                      name="linked_deficit_date"
+                      required
+                      defaultValue={editingRequest?.originalData.custom_data?.[LINKED_DEFICIT_DATE_KEY] as string || ""}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Phiếu đăng ký làm bù khi đi muộn hoặc về sớm. Giờ checkout phải sau giờ kết thúc trong phiếu, nếu không sẽ bị tính vi phạm. Chỉ được tạo trong cùng tháng với ngày thiếu công.
+                    </p>
+                  </div>
+                )}
                 {isMakeupRequestType(selectedType.code) && selectedType.code === "full_day_makeup" && !editPolicy?.onlyCustomFields && (
                   <div className="grid gap-2">
                     <Label>Ngày thiếu công gốc * (tổng ≤ 1 ngày)</Label>
