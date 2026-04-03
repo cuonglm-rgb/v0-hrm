@@ -21,10 +21,32 @@ interface ToggleCouplingResult {
 }
 
 /**
- * Kiểm tra tính hợp lệ của một khung giờ: from_time phải trước to_time
+ * Kiểm tra tính hợp lệ của một khung giờ
+ * - Nếu cùng ngày (hoặc không có thông tin ngày): from_time phải trước to_time
+ * - Nếu từ 2 ngày trở lên: cho phép to_time nhỏ hơn from_time (qua đêm)
  * Time format: "HH:mm" (ví dụ: "06:00", "17:00")
+ * Date format: "YYYY-MM-DD" (ví dụ: "2026-03-18")
  */
-export function validateTimeSlot(from_time: string, to_time: string): ValidationResult {
+export function validateTimeSlot(
+  from_time: string, 
+  to_time: string,
+  from_date?: string,
+  to_date?: string
+): ValidationResult {
+  // Nếu có thông tin ngày và từ 2 ngày trở lên → cho phép qua đêm
+  if (from_date && to_date && from_date !== to_date) {
+    // Tính số ngày chênh lệch
+    const fromDateObj = new Date(from_date)
+    const toDateObj = new Date(to_date)
+    const daysDiff = Math.floor((toDateObj.getTime() - fromDateObj.getTime()) / (1000 * 60 * 60 * 24))
+    
+    if (daysDiff >= 1) {
+      // Từ 2 ngày trở lên → cho phép giờ kết thúc nhỏ hơn giờ bắt đầu
+      return { valid: true }
+    }
+  }
+  
+  // Cùng ngày hoặc không có thông tin ngày → giờ bắt đầu phải trước giờ kết thúc
   if (from_time >= to_time) {
     return { valid: false, error: "Giờ bắt đầu phải trước giờ kết thúc" }
   }

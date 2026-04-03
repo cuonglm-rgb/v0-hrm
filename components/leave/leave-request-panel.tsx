@@ -412,9 +412,14 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
         }
       }
 
-      // Validate từng slot: from < to
+      // Lấy thông tin ngày để validate
+      const fromDate = selectedType.requires_date_range ? formData.get("from_date") as string : 
+                       selectedType.requires_single_date ? formData.get("request_date") as string : undefined
+      const toDate = selectedType.requires_date_range ? formData.get("to_date") as string : fromDate
+
+      // Validate từng slot: from < to (trừ khi từ 2 ngày trở lên)
       for (const slot of completeSlots) {
-        const result = validateTimeSlot(slot.from_time, slot.to_time)
+        const result = validateTimeSlot(slot.from_time, slot.to_time, fromDate, toDate)
         if (!result.valid) {
           setError(result.error || "Khung giờ không hợp lệ")
           setLoading(false)

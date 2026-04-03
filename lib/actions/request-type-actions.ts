@@ -625,6 +625,44 @@ export async function createEmployeeRequest(input: {
     if (requestedDays > remaining) {
       return { success: false, error: `Số dư phép không đủ. Bạn có ${remaining} ngày, yêu cầu ${requestedDays} ngày.` }
     }
+
+    // Validate ngày nghỉ phép không được trùng với ngày nghỉ của nhân viên
+    if (input.from_date && input.to_date) {
+      // Lấy lịch làm Thứ 7 và ngày lễ
+      const { data: satSchedules } = await supabase
+        .from("saturday_work_schedule")
+        .select("employee_id, work_date, is_working")
+        .eq("employee_id", employee.id)
+
+      const { data: holidays } = await supabase
+        .from("company_holidays")
+        .select("holiday_date")
+
+      // Kiểm tra từng ngày trong khoảng from_date -> to_date
+      const startDate = new Date(input.from_date + "T00:00:00Z")
+      const endDate = new Date(input.to_date + "T00:00:00Z")
+      const offDays: string[] = []
+
+      for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+        const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
+        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [])) {
+          offDays.push(dateStr)
+        }
+      }
+
+      if (offDays.length > 0) {
+        const offDaysStr = offDays.map(d => {
+          const date = new Date(d + "T00:00:00Z")
+          const day = date.getUTCDay()
+          const dayName = day === 0 ? "CN" : day === 6 ? "T7" : `T${day + 1}`
+          return `${d} (${dayName})`
+        }).join(", ")
+        return { 
+          success: false, 
+          error: `Không thể nghỉ phép vào ngày nghỉ của bạn: ${offDaysStr}. Vui lòng chọn ngày làm việc.` 
+        }
+      }
+    }
   }
 
   // Validate phiếu làm bù
@@ -850,9 +888,13 @@ export async function createEmployeeRequest(input: {
 
   // Lưu nhiều khung giờ nếu loại phiếu hỗ trợ
   if (newRequest && requestType?.allows_multiple_time_slots && input.time_slots && input.time_slots.length > 0) {
+    // Lấy thông tin ngày để validate
+    const fromDate = input.from_date || input.request_date
+    const toDate = input.to_date || fromDate
+    
     // Validate từng khung giờ
     for (const slot of input.time_slots) {
-      const slotValidation = validateTimeSlot(slot.from_time, slot.to_time)
+      const slotValidation = validateTimeSlot(slot.from_time, slot.to_time, fromDate, toDate)
       if (!slotValidation.valid) {
         await supabase.from("employee_requests").delete().eq("id", newRequest.id)
         return { success: false, error: slotValidation.error }
@@ -1727,6 +1769,54 @@ export async function updateEmployeeRequest(
     return { success: false, error: "Ngày bắt đầu phải trước ngày kết thúc" }
   }
 
+  // Validate ngày nghỉ phép không được trùng với ngày nghỉ của nhân viên
+  if (input.from_date && input.to_date) {
+    // Lấy thông tin loại phiếu
+    const { data: requestType } = await supabase
+      .from("request_types")
+      .select("code, deduct_leave_balance")
+      .eq("id", currentRequest.request_type_id)
+      .single()
+
+    // Chỉ validate cho phiếu nghỉ phép (deduct_leave_balance hoặc code chứa "annual")
+    if (requestType && (requestType.deduct_leave_balance || requestType.code.includes("annual"))) {
+      // Lấy lịch làm Thứ 7 và ngày lễ
+      const { data: satSchedules } = await supabase
+        .from("saturday_work_schedule")
+        .select("employee_id, work_date, is_working")
+        .eq("employee_id", employee.id)
+
+      const { data: holidays } = await supabase
+        .from("company_holidays")
+        .select("holiday_date")
+
+      // Kiểm tra từng ngày trong khoảng from_date -> to_date
+      const startDate = new Date(input.from_date + "T00:00:00Z")
+      const endDate = new Date(input.to_date + "T00:00:00Z")
+      const offDays: string[] = []
+
+      for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
+        const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
+        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [])) {
+          offDays.push(dateStr)
+        }
+      }
+
+      if (offDays.length > 0) {
+        const offDaysStr = offDays.map(d => {
+          const date = new Date(d + "T00:00:00Z")
+          const day = date.getUTCDay()
+          const dayName = day === 0 ? "CN" : day === 6 ? "T7" : `T${day + 1}`
+          return `${d} (${dayName})`
+        }).join(", ")
+        return { 
+          success: false, 
+          error: `Không thể nghỉ phép vào ngày nghỉ của bạn: ${offDaysStr}. Vui lòng chọn ngày làm việc.` 
+        }
+      }
+    }
+  }
+
   // Validate người duyệt bắt buộc khi update
   if (
     input.assigned_approver_ids !== undefined &&
@@ -1818,9 +1908,27 @@ export async function updateEmployeeRequest(
 
   // Cập nhật time slots nếu có
   if (input.time_slots !== undefined) {
+    // Lấy thông tin ngày để validate (từ input hoặc từ DB nếu không update)
+    let fromDate = input.from_date || input.request_date
+    let toDate = input.to_date || fromDate
+    
+    // Nếu không có trong input, lấy từ DB
+    if (!fromDate) {
+      const { data: currentRequest } = await supabase
+        .from("employee_requests")
+        .select("from_date, to_date, request_date")
+        .eq("id", id)
+        .single()
+      
+      if (currentRequest) {
+        fromDate = currentRequest.from_date || currentRequest.request_date
+        toDate = currentRequest.to_date || fromDate
+      }
+    }
+    
     // Validate từng khung giờ
     for (const slot of input.time_slots) {
-      const slotValidation = validateTimeSlot(slot.from_time, slot.to_time)
+      const slotValidation = validateTimeSlot(slot.from_time, slot.to_time, fromDate, toDate)
       if (!slotValidation.valid) {
         return { success: false, error: slotValidation.error }
       }
