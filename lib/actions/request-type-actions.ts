@@ -691,6 +691,17 @@ export async function createEmployeeRequest(input: {
     }
 
     if (requestType.code === "full_day_makeup") {
+      // RULE TẠM THỜI: Chỉ cho phép làm bù trong cùng tháng với ngày thiếu công
+      // Để mở lại tính năng làm bù sang tháng khác, comment/xóa đoạn code này
+      for (const link of links) {
+        if (!isSameMonth(input.request_date, link.deficit_date)) {
+          return { 
+            success: false, 
+            error: "Phiếu làm bù cả ngày chỉ được tạo trong cùng tháng với ngày thiếu công" 
+          }
+        }
+      }
+
       const totalAmount = links.reduce((s, l) => s + l.amount, 0)
       if (totalAmount > 1) {
         return { success: false, error: "Tổng số ngày bù không được vượt quá 1 ngày" }

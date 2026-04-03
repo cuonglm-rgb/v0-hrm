@@ -3,7 +3,7 @@
 -- =============================================
 -- Thêm 2 loại phiếu mới:
 --   1. late_early_makeup: Đi muộn/về sớm làm bù (cùng tháng)
---   2. full_day_makeup: Làm bù cả ngày (cho phép bù tháng sau)
+--   2. full_day_makeup: Làm bù cả ngày (TẠM THỜI: cùng tháng, có thể mở lại cho phép bù tháng sau)
 -- Cả 2 đều bắt buộc linked_deficit_date trong custom_data
 
 INSERT INTO request_types (
@@ -26,7 +26,7 @@ VALUES
   (
     'Làm bù cả ngày',
     'full_day_makeup',
-    'Phiếu đăng ký làm bù cả ngày vào ngày nghỉ. Được phép làm bù vào tháng sau, ghi nhận vào tháng thực tế làm bù.',
+    'Phiếu đăng ký làm bù cả ngày vào ngày nghỉ. Chỉ được tạo trong cùng tháng với ngày thiếu công.',
     false, true, false, true,
     true, false,
     true, true, false,
