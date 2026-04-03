@@ -31,6 +31,13 @@ export default async function DepartmentsPage() {
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
   const isHROrAdmin = roleCodes.includes("hr") || roleCodes.includes("admin")
+  
+  // Chỉ cho phép Administrator, HR Manager, và Department Manager truy cập
+  const hasAccess = roleCodes.includes("admin") || roleCodes.includes("hr") || roleCodes.includes("manager")
+  
+  if (!hasAccess) {
+    redirect("/dashboard")
+  }
 
   return (
     <DashboardLayout employee={employee} userRoles={userRoles} breadcrumbs={[{ label: "Tổ chức" }]} canApproveRequests={canApproveRequests} canAccessSaturdaySchedule={saturdayPermission.allowed}>
