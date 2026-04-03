@@ -614,6 +614,14 @@ async function processEmployeePayroll(
     .lte("effective_date", endDate)
     .or(`end_date.is.null,end_date.gte.${startDate}`)
 
+  // Capture console.log từ processAdjustments
+  const adjustmentLogs: string[] = []
+  console.log = (...args: any[]) => {
+    const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
+    adjustmentLogs.push(message)
+    originalConsoleLog(...args)
+  }
+
   // Tính toán phụ cấp, khấu trừ, phạt
   const adjustmentResult = await processAdjustments(
     supabase, emp, baseSalary, dailySalary, month, year,
@@ -621,6 +629,12 @@ async function processEmployeePayroll(
     fullAttendanceDays, lateCount, leaveResult.unpaidLeaveDays, absentDays,
     allAttendanceLogs, startDate, endDate
   )
+
+  // Restore console.log
+  console.log = originalConsoleLog
+
+  // Log adjustment details
+  adjustmentLogs.forEach(log => logger.log(log))
 
   // Tính OT
   const otResult = await calculateOvertimePay(emp.id, baseSalary, STANDARD_WORKING_DAYS, startDate, endDate)
