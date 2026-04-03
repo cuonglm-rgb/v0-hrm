@@ -1202,16 +1202,60 @@ export async function processAdjustments(
             console.log(`[Allowance] - Số ngày có phiếu miễn trừ: ${exemptDatesByType.size} ngày`)
           }
           
+          // Lấy danh sách ngày có phiếu unpaid_leave để loại bỏ khỏi tính phụ cấp
+          const unpaidLeaveDates = new Set<string>()
+          const { data: unpaidLeaveRequests } = await supabase
+            .from("employee_requests")
+            .select(`
+              request_date, from_date, to_date,
+              request_type:request_types!request_type_id(code)
+            `)
+            .eq("employee_id", emp.id)
+            .eq("status", "approved")
+            .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
+          
+          for (const req of unpaidLeaveRequests || []) {
+            const reqType = req.request_type as any
+            if (reqType?.code === "unpaid_leave") {
+              if (req.from_date && req.to_date) {
+                const parseDate = (dateStr: string) => {
+                  const [y, m, d] = dateStr.split('-').map(Number)
+                  return new Date(Date.UTC(y, m - 1, d))
+                }
+                const reqFromDate = parseDate(req.from_date)
+                const reqToDate = parseDate(req.to_date)
+                const periodStart = parseDate(startDate)
+                const periodEnd = parseDate(endDate)
+                const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+                const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+                
+                const current = new Date(reqStart)
+                while (current <= reqEnd) {
+                  const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+                  unpaidLeaveDates.add(dateStr)
+                  current.setDate(current.getDate() + 1)
+                }
+              } else if (req.request_date) {
+                unpaidLeaveDates.add(req.request_date)
+              }
+            }
+          }
+          console.log(`[Allowance] - Số ngày có phiếu unpaid_leave: ${unpaidLeaveDates.size} ngày`)
+          
           const allowanceFullDays = violationsWithoutOT.filter((v) => 
             v.hasCheckIn && v.hasCheckOut && !v.isHalfDay && !v.isAbsent &&
             v.lateMinutes <= lateThresholdMinutes && v.earlyMinutes === 0 &&
-            !v.forgotCheckIn && !v.forgotCheckOut  // Loại trừ ngày có quên chấm công
+            !v.forgotCheckIn && !v.forgotCheckOut &&  // Loại trừ ngày có quên chấm công
+            !unpaidLeaveDates.has(v.date)  // Loại trừ ngày nghỉ không lương
           ).length
           
-          console.log(`[Allowance] - Ngày đủ điều kiện (chấm công đầy đủ, không vi phạm): ${allowanceFullDays} ngày`)
+          console.log(`[Allowance] - Ngày đủ điều kiện (chấm công đầy đủ, không vi phạm, không nghỉ không lương): ${allowanceFullDays} ngày`)
           
           // Đếm ngày vi phạm nhưng được miễn trừ do có phiếu
           const violationDaysWithExempt = violationsWithoutOT.filter((v) => {
+            // Loại trừ ngày nghỉ không lương
+            if (unpaidLeaveDates.has(v.date)) return false
+            
             // Kiểm tra các loại vi phạm
             const hasLateViolation = v.lateMinutes > lateThresholdMinutes
             const hasEarlyViolation = v.earlyMinutes > 0
@@ -1230,11 +1274,12 @@ export async function processAdjustments(
           console.log(`[Allowance] - Ngày vi phạm nhưng được miễn do có phiếu: ${violationDaysWithExempt} ngày`)
           
           const allowanceViolations = violationsWithoutOT.filter((v) => 
-            v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
-            v.forgotCheckOut || v.forgotCheckIn || v.isHalfDay || v.isAbsent
+            !unpaidLeaveDates.has(v.date) &&  // Loại trừ ngày nghỉ không lương
+            (v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
+            v.forgotCheckOut || v.forgotCheckIn || v.isHalfDay || v.isAbsent)
           ).length - violationDaysWithExempt // Trừ đi số ngày được miễn
           
-          console.log(`[Allowance] - Ngày vi phạm (không được miễn): ${allowanceViolations} ngày`)
+          console.log(`[Allowance] - Ngày vi phạm (không được miễn, không nghỉ không lương): ${allowanceViolations} ngày`)
           
           let eligibleDays = allowanceFullDays + violationDaysWithExempt // Cộng ngày được miễn
           console.log(`[Allowance] - Ngày đủ điều kiện ban đầu: ${eligibleDays} ngày (${allowanceFullDays} + ${violationDaysWithExempt})`)
@@ -1245,11 +1290,12 @@ export async function processAdjustments(
               console.log(`[Allowance] - Số lần vi phạm được miễn (grace): ${gracedViolationDays} ngày (tối đa ${rules.late_grace_count})`)
               eligibleDays += gracedViolationDays
             }
-            if (rules.deduct_on_absent && unpaidLeaveDays > 0) {
-              console.log(`[Allowance] - Trừ ngày nghỉ không phép: ${unpaidLeaveDays} ngày`)
-              eligibleDays -= unpaidLeaveDays
-              eligibleDays = Math.max(0, eligibleDays)
-            }
+            // BỎ logic trừ unpaidLeaveDays vì đã loại bỏ từ đầu
+            // if (rules.deduct_on_absent && unpaidLeaveDays > 0) {
+            //   console.log(`[Allowance] - Trừ ngày nghỉ không phép: ${unpaidLeaveDays} ngày`)
+            //   eligibleDays -= unpaidLeaveDays
+            //   eligibleDays = Math.max(0, eligibleDays)
+            // }
           }
 
           eligibleDays = Math.max(0, Math.floor(eligibleDays))
