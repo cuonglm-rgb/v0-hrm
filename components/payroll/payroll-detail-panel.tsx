@@ -11,10 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { lockPayroll, markPayrollPaid, sendPayrollForReview, getPayrollAdjustmentDetails, addManualAdjustment, deleteAdjustmentDetail, recalculateSingleEmployee, getPayrollExportData } from "@/lib/actions/payroll-actions"
+import { lockPayroll, markPayrollPaid, sendPayrollForReview, getPayrollAdjustmentDetails, addManualAdjustment, deleteAdjustmentDetail, recalculateSingleEmployee, getPayrollExportData, getCalculationLog } from "@/lib/actions/payroll-actions"
 import type { PayrollRun, PayrollItemWithRelations, Department } from "@/lib/types/database"
 import { formatCurrency } from "@/lib/utils/format-utils"
-import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar, TrendingUp, TrendingDown, RefreshCw, Pencil, Plus, Trash2, Download, CheckSquare, Square, Search, Filter } from "lucide-react"
+import { ArrowLeft, Lock, CheckCircle, Users, Wallet, Calculator, Eye, Calendar, TrendingUp, TrendingDown, RefreshCw, Pencil, Plus, Trash2, Download, CheckSquare, Square, Search, Filter, FileText } from "lucide-react"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 
@@ -69,6 +69,11 @@ export function PayrollDetailPanel({
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set())
   const [isExporting, setIsExporting] = useState(false)
   
+  // Calculation log states
+  const [showLogDialog, setShowLogDialog] = useState(false)
+  const [calculationLog, setCalculationLog] = useState<string>("")
+  const [isLoadingLog, setIsLoadingLog] = useState(false)
+  
   // Filter states
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all")
@@ -85,6 +90,23 @@ export function PayrollDetailPanel({
       console.error("[PayrollDetailPanel] Error loading adjustment details:", error)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadCalculationLog = async (payrollItemId: string) => {
+    setIsLoadingLog(true)
+    try {
+      const result = await getCalculationLog(payrollItemId)
+      if (result.success && result.log) {
+        setCalculationLog(result.log)
+      } else {
+        setCalculationLog("Không có log tính lương")
+      }
+    } catch (error) {
+      console.error("[PayrollDetailPanel] Error loading calculation log:", error)
+      setCalculationLog("Có lỗi khi tải log")
+    } finally {
+      setIsLoadingLog(false)
     }
   }
 
@@ -629,6 +651,7 @@ export function PayrollDetailPanel({
                 <TableHead className="text-right">Khấu trừ</TableHead>
                 <TableHead className="text-right">Thực lĩnh</TableHead>
                 <TableHead className="text-center">Chi tiết</TableHead>
+                <TableHead className="text-center">Log</TableHead>
                 {(payrollRun.status === "draft" || payrollRun.status === "review") && (
                   <TableHead className="text-center">Thao tác</TableHead>
                 )}
@@ -637,7 +660,7 @@ export function PayrollDetailPanel({
             <TableBody>
               {filteredAndSortedItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center text-muted-foreground">
+                  <TableCell colSpan={13} className="text-center text-muted-foreground">
                     {searchQuery || selectedDepartment !== "all" 
                       ? "Không tìm thấy nhân viên phù hợp" 
                       : "Chưa có dữ liệu"}
@@ -696,6 +719,20 @@ export function PayrollDetailPanel({
                         }}
                       >
                         <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          loadCalculationLog(item.id)
+                          setShowLogDialog(true)
+                        }}
+                        title="Xem log tính lương"
+                      >
+                        <FileText className="h-4 w-4" />
                       </Button>
                     </TableCell>
                     {(payrollRun.status === "draft" || payrollRun.status === "review") && (
@@ -1173,6 +1210,32 @@ export function PayrollDetailPanel({
             <Button onClick={handleAddAdjustment} disabled={isAdding || !addAmount || !addReason}>
               {isAdding ? "Đang thêm..." : "Thêm"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog hiển thị log tính lương */}
+      <Dialog open={showLogDialog} onOpenChange={setShowLogDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Log quy trình tính lương
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            {isLoadingLog ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">Đang tải log...</p>
+              </div>
+            ) : (
+              <div className="bg-slate-950 text-green-400 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap" style={{ fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', 'Courier New', monospace" }}>
+                {calculationLog}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLogDialog(false)}>Đóng</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

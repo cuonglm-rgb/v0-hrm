@@ -12,6 +12,7 @@ import { processAdjustments } from "./generate-payroll"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
 import { MAKEUP_CODES, getMakeupDeficitLinks } from "@/lib/utils/makeup-utils"
+import { PayrollLogger } from "@/lib/utils/payroll-logger"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
@@ -27,6 +28,8 @@ function isWorkingDay(date: Date): boolean {
 
 export async function recalculateSingleEmployee(payroll_item_id: string) {
   const supabase = await createClient()
+  const logger = new PayrollLogger()
+  const originalConsoleLog = console.log
 
   const { data: item } = await supabase
     .from("payroll_items")
@@ -64,8 +67,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const workingDaysInfo = await calculateStandardWorkingDays(month, year)
   const STANDARD_WORKING_DAYS = workingDaysInfo.standardDays
 
-  console.log(`\n========== TÍNH LƯƠNG: ${emp.full_name} (${emp.employee_code}) - Tháng ${month}/${year} ==========`)
-  console.log(`Công chuẩn: ${STANDARD_WORKING_DAYS} ngày (${workingDaysInfo.totalDays} ngày - ${workingDaysInfo.sundays} CN - ${workingDaysInfo.saturdaysOff} T7)`)
+  logger.section(`TÍNH LƯƠNG: ${emp.full_name} (${emp.employee_code}) - Tháng ${month}/${year}`)
+  logger.log(`Công chuẩn: ${STANDARD_WORKING_DAYS} ngày (${workingDaysInfo.totalDays} ngày - ${workingDaysInfo.sundays} CN - ${workingDaysInfo.saturdaysOff} T7)`)
 
   const { data: salary } = await supabase
     .from("salary_structure")
@@ -316,25 +319,34 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     }
   }
   consumedDetailPairs.sort()
-  console.log(`\n📋 LÀM BÙ (full_day_makeup) — ${emp.full_name} (${emp.employee_code || emp.id}):`)
+  logger.subsection(`📋 LÀM BÙ (full_day_makeup) — ${emp.full_name} (${emp.employee_code || emp.id}):`)
   if (makeupLogLines.length === 0) {
-    console.log(`  Không có phiếu full_day_makeup đã duyệt trong kỳ.`)
+    logger.detail(`Không có phiếu full_day_makeup đã duyệt trong kỳ.`)
   } else {
-    makeupLogLines.forEach((line) => console.log(line))
-    console.log(`  → Tổng consumed_days = ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` | Chi tiết: ${consumedDetailPairs.join(", ")}` : ""}`)
+    makeupLogLines.forEach((line) => logger.log(line))
+    logger.detail(`→ Tổng consumed_days = ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` | Chi tiết: ${consumedDetailPairs.join(", ")}` : ""}`)
   }
 
-  console.log(`\n📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
-  console.log(`📊 Ngày công từ chấm công (trừ ngày làm bù):`)
-  console.log(`   - Full days: ${fullDayCount} ngày`)
-  console.log(`   - Half days: ${halfDayAttendanceCount} ngày (= ${halfDayAttendanceCount * 0.5} ngày công)`)
-  console.log(`   - Tổng: ${workingDaysCount} ngày`)
-  console.log(`📊 Consumed deficit: ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` (${consumedDetailPairs.join(", ")})` : ""}`)
-  console.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
+  logger.subsection(`📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
+  logger.log(`📊 Ngày công từ chấm công (trừ ngày làm bù):`)
+  logger.detail(`- Full days: ${fullDayCount} ngày`)
+  logger.detail(`- Half days: ${halfDayAttendanceCount} ngày (= ${halfDayAttendanceCount * 0.5} ngày công)`)
+  logger.detail(`- Tổng: ${workingDaysCount} ngày`)
+  logger.log(`📊 Consumed deficit: ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` (${consumedDetailPairs.join(", ")})` : ""}`)
+  logger.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
 
   // Lấy danh sách ngày lễ và ngày nghỉ công ty
   const holidays = await listHolidays(year)
-  const holidayDates = new Set(holidays.map(h => h.holiday_date))
+  const holidayDates = new Set(
+    holidays
+      .filter(h => h.holiday_date >= startDate && h.holiday_date <= endDate)
+      .map(h => h.holiday_date)
+  )
+  const holidayMap = new Map(
+    holidays
+      .filter(h => h.holiday_date >= startDate && h.holiday_date <= endDate)
+      .map(h => [h.holiday_date, h.name])
+  )
   
   // Query ngày nghỉ công ty kèm danh sách nhân viên được áp dụng
   const { data: specialDays } = await supabase
@@ -342,6 +354,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .select(`
       work_date, 
       is_company_holiday,
+      reason,
       assigned_employees:special_work_day_employees(employee_id)
     `)
     .eq("is_company_holiday", true)
@@ -351,17 +364,21 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   // Lọc ngày nghỉ công ty áp dụng cho nhân viên này
   // Quy tắc: Nếu không có assigned_employees -> áp dụng toàn công ty
   //          Nếu có assigned_employees -> chỉ áp dụng nếu nhân viên nằm trong danh sách
-  const companyHolidayDates = new Set(
-    (specialDays || [])
-      .filter(s => {
-        const assignedEmps = s.assigned_employees || []
-        // Nếu không có ai được chọn -> áp dụng toàn công ty
-        if (assignedEmps.length === 0) return true
-        // Nếu có danh sách -> kiểm tra nhân viên có trong danh sách không
-        return assignedEmps.some((ae: any) => ae.employee_id === emp.id)
-      })
-      .map(s => s.work_date)
-  )
+  const companyHolidayDates = new Set<string>()
+  const companyHolidayMap = new Map<string, string>()
+  
+  for (const s of specialDays || []) {
+    const assignedEmps = s.assigned_employees || []
+    // Nếu không có ai được chọn -> áp dụng toàn công ty
+    if (assignedEmps.length === 0) {
+      companyHolidayDates.add(s.work_date)
+      companyHolidayMap.set(s.work_date, s.reason || "Nghỉ công ty")
+    } else if (assignedEmps.some((ae: any) => ae.employee_id === emp.id)) {
+      // Nếu có danh sách -> kiểm tra nhân viên có trong danh sách không
+      companyHolidayDates.add(s.work_date)
+      companyHolidayMap.set(s.work_date, s.reason || "Nghỉ công ty")
+    }
+  }
 
   // Process leave requests (employeeRequests đã query ở trên)
   let paidLeaveDays = 0
@@ -525,11 +542,29 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   // Cộng ngày lễ và ngày nghỉ công ty vào working days
   workingDaysCount += holidayWorkDays + companyHolidayWorkDays
 
-  console.log(`🎉 Ngày lễ trong tháng: ${holidayDates.size} ngày`)
-  console.log(`🏢 Ngày nghỉ công ty: ${companyHolidayDates.size} ngày`)
-  console.log(`🎁 Ngày lễ được cộng (ngày làm việc, không đi & không nghỉ): ${holidayWorkDays} ngày`)
-  console.log(`🎁 Ngày nghỉ công ty được cộng: ${companyHolidayWorkDays} ngày`)
-  console.log(`📊 Tổng working days sau cộng: ${workingDaysCount} ngày`)
+  // Log chi tiết ngày lễ
+  logger.subsection(`🎉 Ngày lễ trong tháng: ${holidayDates.size} ngày`)
+  if (holidayDates.size > 0) {
+    const sortedHolidays = Array.from(holidayDates).sort()
+    for (const date of sortedHolidays) {
+      const name = holidayMap.get(date) || "Ngày lễ"
+      logger.detail(`- ${date}: ${name}`)
+    }
+  }
+
+  // Log chi tiết ngày nghỉ công ty
+  logger.subsection(`🏢 Ngày nghỉ công ty: ${companyHolidayDates.size} ngày`)
+  if (companyHolidayDates.size > 0) {
+    const sortedCompanyHolidays = Array.from(companyHolidayDates).sort()
+    for (const date of sortedCompanyHolidays) {
+      const reason = companyHolidayMap.get(date) || "Nghỉ công ty"
+      logger.detail(`- ${date}: ${reason}`)
+    }
+  }
+
+  logger.log(`🎁 Ngày lễ được cộng (ngày làm việc, không đi & không nghỉ): ${holidayWorkDays} ngày`)
+  logger.log(`🎁 Ngày nghỉ công ty được cộng: ${companyHolidayWorkDays} ngày`)
+  logger.log(`📊 Tổng working days sau cộng: ${workingDaysCount} ngày`)
 
   // Get violations
   const shiftInfo: ShiftInfo = {
@@ -538,32 +573,69 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     breakStart: breakStart || null,
     breakEnd: breakEnd || null,
   }
+  
+  // Capture console.log từ getEmployeeViolations (chỉ lấy log quan trọng)
+  const violationLogs: string[] = []
+  console.log = (...args: any[]) => {
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+    // Chỉ capture log về phiếu và xử lý, bỏ qua log chi tiết từng ngày
+    if (message.includes('[Violations] Tìm thấy') || 
+        message.includes('[Violations] Phiếu') || 
+        message.includes('[Violations] Xử lý') ||
+        (message.includes('[Violations]') && message.includes('Chỉ làm ca'))) {
+      violationLogs.push(message)
+    }
+    originalConsoleLog(...args)
+  }
+  
   const violations = await getEmployeeViolations(supabase, emp.id, startDate, endDate, shiftInfo)
+  
+  // Restore console.log và thêm logs vào logger
+  console.log = originalConsoleLog
+  violationLogs.forEach(log => logger.log(log))
+  
   const violationsWithoutOT = violations.filter((v) => !overtimeDates.has(v.date))
 
-  console.log(`[Debug] Tổng violations: ${violations.length}`)
-  console.log(`[Debug] Violations without OT: ${violationsWithoutOT.length}`)
-  console.log(`[Debug] Violations có forgotCheckIn: ${violations.filter(v => v.forgotCheckIn).map(v => v.date).join(', ')}`)
-  console.log(`[Debug] Violations có forgotCheckOut: ${violations.filter(v => v.forgotCheckOut).map(v => v.date).join(', ')}`)
+  // Log violations với giờ chấm công thực tế (thay thế log cũ)
+  logger.subsection(`[Violations] Chi tiết chấm công:`)
+  for (const log of allAttendanceLogs || []) {
+    const logDate = log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out)
+    const checkInTime = log.check_in ? new Date(log.check_in).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }) : null
+    const checkOutTime = log.check_out ? new Date(log.check_out).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }) : null
+    
+    // Kiểm tra có phiếu quên chấm công không
+    const violation = violations.find(v => v.date === logDate)
+    const hasCheckInRequest = violation?.forgotCheckIn || false
+    const hasCheckOutRequest = violation?.forgotCheckOut || false
+    const isHalfDay = violation?.isHalfDay || false
+    
+    logger.violation(logDate, checkInTime, checkOutTime, hasCheckInRequest, hasCheckOutRequest, isHalfDay)
+  }
+
+  logger.log(`[Debug] Tổng violations: ${violations.length}`)
+  logger.log(`[Debug] Violations without OT: ${violationsWithoutOT.length}`)
+  logger.log(`[Debug] Violations có forgotCheckIn: ${violations.filter(v => v.forgotCheckIn).map(v => v.date).join(', ')}`)
+  logger.log(`[Debug] Violations có forgotCheckOut: ${violations.filter(v => v.forgotCheckOut).map(v => v.date).join(', ')}`)
 
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
-  const actualAttendanceDays = workingDaysCount - (halfDays * 0.5) + consumed_days
+  // workingDaysCount đã tính đúng half-day rồi (0.5), không cần trừ thêm
+  const actualAttendanceDays = workingDaysCount + consumed_days
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
   const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
   const forgotCheckoutCount = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
 
-  console.log(`\n📝 PHIẾU NGHỈ:`)
-  console.log(`  - Nghỉ phép có lương: ${paidLeaveDays} ngày`)
-  console.log(`  - Nghỉ không lương: ${unpaidLeaveDays} ngày`)
-  console.log(`  - Work from home: ${workFromHomeDays} ngày`)
-  console.log(`\n⚠️  VI PHẠM:`)
-  console.log(`  - Vắng mặt: ${absentDays} ngày`)
-  console.log(`  - Làm nửa ngày: ${halfDays} lần`)
-  console.log(`  - Đi muộn: ${lateCount} lần`)
-  console.log(`  - Quên chấm công đến: ${forgotCheckinCount} lần`)
-  console.log(`  - Quên chấm công về: ${forgotCheckoutCount} lần`)
-  console.log(`  - Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} - ${halfDays * 0.5} + consumed ${consumed_days})`)
+  logger.subsection(`📝 PHIẾU NGHỈ:`)
+  logger.detail(`- Nghỉ phép có lương: ${paidLeaveDays} ngày`)
+  logger.detail(`- Nghỉ không lương: ${unpaidLeaveDays} ngày`)
+  logger.detail(`- Work from home: ${workFromHomeDays} ngày`)
+  logger.subsection(`⚠️  VI PHẠM:`)
+  logger.detail(`- Vắng mặt: ${absentDays} ngày`)
+  logger.detail(`- Làm nửa ngày: ${halfDays} lần`)
+  logger.detail(`- Đi muộn: ${lateCount} lần`)
+  logger.detail(`- Quên chấm công đến: ${forgotCheckinCount} lần`)
+  logger.detail(`- Quên chấm công về: ${forgotCheckoutCount} lần`)
+  logger.detail(`- Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} + consumed ${consumed_days})`)
 
   // Tính ngày đủ giờ cho phụ cấp - giống hệt generate-payroll.ts
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
@@ -580,6 +652,14 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .or(`end_date.is.null,end_date.gte.${startDate}`)
 
   // Process adjustments - sử dụng hàm chung từ generate-payroll.ts
+  // Capture console.log từ processAdjustments
+  const adjustmentLogs: string[] = []
+  console.log = (...args: any[]) => {
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+    adjustmentLogs.push(message)
+    originalConsoleLog(...args)
+  }
+
   const adjustmentResult = await processAdjustments(
     supabase, emp, baseSalary, dailySalary, month, year,
     adjustmentTypes, empAdjustments, violationsWithoutOT,
@@ -587,10 +667,26 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     allAttendanceLogs || [], startDate, endDate
   )
 
+  // Restore console.log và thêm logs vào logger
+  console.log = originalConsoleLog
+  adjustmentLogs.forEach(log => logger.log(log))
+
   const { totalAllowances, totalDeductions, totalPenalties, details: adjustmentDetails } = adjustmentResult
 
   // OT
+  // Capture console.log từ calculateOvertimePay
+  const otLogs: string[] = []
+  console.log = (...args: any[]) => {
+    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
+    otLogs.push(message)
+    originalConsoleLog(...args)
+  }
+
   const otResult = await calculateOvertimePay(emp.id, baseSalary, STANDARD_WORKING_DAYS, startDate, endDate)
+  
+  // Restore console.log và thêm logs vào logger
+  console.log = originalConsoleLog
+  otLogs.forEach(log => logger.log(log))
   const otAdjustmentType = adjustmentTypes?.find((t: any) => t.code === 'overtime')
   if (otAdjustmentType && otResult.details.length > 0) {
     for (const otDetail of otResult.details) {
@@ -633,22 +729,48 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const totalDeduction = totalDeductions + totalPenalties
   const netSalary = grossSalary - totalDeduction
 
-  console.log(`\n💰 TÍNH LƯƠNG:`)
-  console.log(`  - Lương cơ bản: ${baseSalary.toLocaleString()} VNĐ`)
-  console.log(`  - Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
-  console.log(`  - Ngày công tính lương: ${actualWorkingDays} ngày`)
-  console.log(`  - Phép có lương: ${paidLeaveDays} ngày`)
-  console.log(`  - Lương theo công: ${(dailySalary * (actualWorkingDays + paidLeaveDays)).toLocaleString()} VNĐ`)
-  console.log(`  - Phụ cấp: ${totalAllowances.toLocaleString()} VNĐ`)
-  console.log(`  - OT: ${otResult.totalOTPay.toLocaleString()} VNĐ (${otResult.details.length} lần)`)
-  console.log(`  - KPI Bonus: ${kpiBonus.toLocaleString()} VNĐ`)
-  console.log(`  - Tổng thu nhập: ${grossSalary.toLocaleString()} VNĐ`)
-  console.log(`  - Khấu trừ: ${totalDeductions.toLocaleString()} VNĐ`)
-  console.log(`  - Phạt: ${totalPenalties.toLocaleString()} VNĐ`)
-  console.log(`  - Thực lĩnh: ${netSalary.toLocaleString()} VNĐ`)
-  console.log(`========== KẾT THÚC TÍNH LƯƠNG: ${emp.full_name} ==========\n`)
+    // Thêm phần tổng kết
+  logger.subsection(`📊 TỔNG KẾT:`)
+  const totalDays = actualWorkingDays + paidLeaveDays + unpaidLeaveDays + absentDays
+  logger.detail(`- Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
+  logger.detail(`- Ngày công thực tế: ${actualWorkingDays} ngày`)
+  logger.detail(`- Nghỉ phép có lương: ${paidLeaveDays} ngày`)
+  logger.detail(`- Nghỉ không lương: ${unpaidLeaveDays} ngày`)
+  logger.detail(`- Vắng mặt: ${absentDays} ngày`)
+  logger.detail(`- Tổng: ${totalDays} ngày`)
+  if (totalDays < STANDARD_WORKING_DAYS) {
+    logger.detail(`⚠️  Thiếu ${STANDARD_WORKING_DAYS - totalDays} ngày so với công chuẩn`)
+  } else if (totalDays > STANDARD_WORKING_DAYS) {
+    logger.detail(`✅ Vượt ${totalDays - STANDARD_WORKING_DAYS} ngày so với công chuẩn`)
+  } else {
+    logger.detail(`✅ Đủ công chuẩn`)
+  }
+
+  logger.subsection(`💰 TÍNH LƯƠNG:`)
+  logger.detail(`- Lương cơ bản: ${baseSalary.toLocaleString()} VNĐ`)
+  logger.detail(`- Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
+  logger.detail(`- Ngày công tính lương: ${actualWorkingDays} ngày`)
+  logger.detail(`- Phép có lương: ${paidLeaveDays} ngày`)
+  logger.detail(`- Lương theo công: ${(dailySalary * (actualWorkingDays + paidLeaveDays)).toLocaleString()} VNĐ`)
+  logger.detail(`- Phụ cấp: ${totalAllowances.toLocaleString()} VNĐ`)
+  logger.detail(`- OT: ${otResult.totalOTPay.toLocaleString()} VNĐ (${otResult.details.length} lần)`)
+  logger.detail(`- KPI Bonus: ${kpiBonus.toLocaleString()} VNĐ`)
+  logger.detail(`- Tổng thu nhập: ${grossSalary.toLocaleString()} VNĐ`)
+  logger.detail(`- Khấu trừ: ${totalDeductions.toLocaleString()} VNĐ`)
+  logger.detail(`- Phạt: ${totalPenalties.toLocaleString()} VNĐ`)
+  logger.detail(`- Thực lĩnh: ${netSalary.toLocaleString()} VNĐ`)
+  
+
+  
+  logger.section(`KẾT THÚC TÍNH LƯƠNG: ${emp.full_name}`)
 
   const consumedDeficitDetailStr = consumedDetailPairs.length > 0 ? consumedDetailPairs.join(",") : null
+
+  // Lưu log vào database
+  const calculationLog = logger.getLog()
+
+  // Restore console.log
+  console.log = originalConsoleLog
 
   await supabase
     .from("payroll_items")
@@ -664,6 +786,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       standard_working_days: STANDARD_WORKING_DAYS,
       consumed_deficit_days: consumed_days,
       consumed_deficit_detail: consumedDeficitDetailStr,
+      calculation_log: calculationLog,
     })
     .eq("id", payroll_item_id)
 

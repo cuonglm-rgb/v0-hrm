@@ -12,6 +12,7 @@ import * as recalculateSingleModule from "./payroll/recalculate-single"
 import * as salaryStructure from "./payroll/salary-structure"
 import * as adjustments from "./payroll/adjustments"
 import * as exportModule from "./payroll/export"
+import { getCalculationLog } from "./payroll/get-calculation-log"
 
 // Working Days
 export async function calculateStandardWorkingDays(month: number, year: number) {
@@ -115,3 +116,6 @@ export async function recalculatePayrollItemTotals(payroll_item_id: string) {
 export async function getPayrollExportData(payroll_run_id: string, employee_ids?: string[]) {
   return exportModule.getPayrollExportData(payroll_run_id, employee_ids)
 }
+
+// Calculation Log
+export { getCalculationLog }

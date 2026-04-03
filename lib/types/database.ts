@@ -146,6 +146,8 @@ export interface PayrollItem {
   consumed_deficit_days?: number
   /** Danh sách linked_deficit_date đã consume (VD: 2026-02-28,2026-03-10) để audit theo tháng */
   consumed_deficit_detail?: string | null
+  /** Log chi tiết quy trình tính lương */
+  calculation_log?: string | null
   created_at: string
 }
 
