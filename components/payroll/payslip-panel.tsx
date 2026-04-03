@@ -106,10 +106,14 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
               <div className="p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Ngày công</p>
                 <p className="text-2xl font-bold">{latestPayslip.working_days || 0}</p>
+              </div>
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">Công bù</p>
+                <p className="text-2xl font-bold">{latestPayslip.makeup_days || 0}</p>
               </div>
               <div className="p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Nghỉ phép</p>
@@ -297,6 +301,18 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                       </span>
                       <span className="text-sm text-green-600 whitespace-nowrap tabular-nums">
                         +{formatCurrency((selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25)) * selectedPayslip.working_days)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Lương ngày công bù */}
+                  {selectedPayslip.makeup_days > 0 && (
+                    <div className="flex justify-between items-center py-1 gap-4">
+                      <span className="text-sm text-muted-foreground flex-1 min-w-0">
+                        Lương ngày công bù ({selectedPayslip.makeup_days} ngày)
+                      </span>
+                      <span className="text-sm text-green-600 whitespace-nowrap tabular-nums">
+                        +{formatCurrency((selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25)) * selectedPayslip.makeup_days)}
                       </span>
                     </div>
                   )}

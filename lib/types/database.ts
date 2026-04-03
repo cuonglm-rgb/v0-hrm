@@ -133,6 +133,7 @@ export interface PayrollItem {
   payroll_run_id: string
   employee_id: string
   working_days: number
+  makeup_days: number // Ngày công bù (từ làm bù deficit)
   leave_days: number
   unpaid_leave_days: number
   base_salary: number

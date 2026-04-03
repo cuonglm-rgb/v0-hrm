@@ -643,6 +643,7 @@ export function PayrollDetailPanel({
                 </TableHead>
                 <TableHead>Nhân viên</TableHead>
                 <TableHead className="text-right">Ngày công</TableHead>
+                <TableHead className="text-right">Công bù</TableHead>
                 <TableHead className="text-right">Nghỉ phép</TableHead>
                 <TableHead className="text-right">Nghỉ KL</TableHead>
                 <TableHead className="text-right">Lương CB</TableHead>
@@ -660,7 +661,7 @@ export function PayrollDetailPanel({
             <TableBody>
               {filteredAndSortedItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center text-muted-foreground">
+                  <TableCell colSpan={14} className="text-center text-muted-foreground">
                     {searchQuery || selectedDepartment !== "all" 
                       ? "Không tìm thấy nhân viên phù hợp" 
                       : "Chưa có dữ liệu"}
@@ -695,6 +696,9 @@ export function PayrollDetailPanel({
                     </TableCell>
                     <TableCell className="text-right">
                       {item.working_days ? item.working_days.toFixed(1).replace(/\.0$/, '') : 0}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {item.makeup_days ? item.makeup_days.toFixed(1).replace(/\.0$/, '') : 0}
                     </TableCell>
                     <TableCell className="text-right">{item.leave_days || 0}</TableCell>
                     <TableCell className="text-right">{item.unpaid_leave_days || 0}</TableCell>
@@ -833,6 +837,18 @@ export function PayrollDetailPanel({
                       </span>
                       <span className="text-sm text-green-600 whitespace-nowrap tabular-nums">
                         +{formatCurrency((selectedItem.base_salary / (selectedItem.standard_working_days || standardWorkingDays)) * selectedItem.working_days)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Lương ngày công bù */}
+                  {selectedItem.makeup_days > 0 && (
+                    <div className="flex justify-between items-center py-1 gap-4">
+                      <span className="text-sm text-muted-foreground flex-1 min-w-0">
+                        Lương ngày công bù ({selectedItem.makeup_days.toFixed(1).replace(/\.0$/, '')} ngày)
+                      </span>
+                      <span className="text-sm text-green-600 whitespace-nowrap tabular-nums">
+                        +{formatCurrency((selectedItem.base_salary / (selectedItem.standard_working_days || standardWorkingDays)) * selectedItem.makeup_days)}
                       </span>
                     </div>
                   )}

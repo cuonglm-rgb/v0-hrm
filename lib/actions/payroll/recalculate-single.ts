@@ -725,23 +725,54 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
 
   // Final calculation
   const actualWorkingDays = actualAttendanceDays + workFromHomeDays
+  
+  // Tính tự động nghỉ không lương cho những ngày không có chấm công và không có phiếu
+  // Công thức: Nghỉ KL = Công chuẩn - Ngày công - Nghỉ phép - Nghỉ KL (có phiếu) - Vắng mặt
+  const totalAccountedDays = actualWorkingDays + paidLeaveDays + unpaidLeaveDays + absentDays
+  const autoUnpaidLeaveDays = Math.max(0, STANDARD_WORKING_DAYS - totalAccountedDays)
+  const finalUnpaidLeaveDays = unpaidLeaveDays + autoUnpaidLeaveDays
+  
   const grossSalary = dailySalary * (actualWorkingDays + paidLeaveDays) + totalAllowances + otResult.totalOTPay + kpiBonus
   const totalDeduction = totalDeductions + totalPenalties
   const netSalary = grossSalary - totalDeduction
 
-    // Thêm phần tổng kết
+  // Thêm phần tổng kết
   logger.subsection(`📊 TỔNG KẾT:`)
-  const totalDays = actualWorkingDays + paidLeaveDays + unpaidLeaveDays + absentDays
   logger.detail(`- Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
   logger.detail(`- Ngày công thực tế: ${actualWorkingDays} ngày`)
+  logger.detail(`- Ngày công bù: ${consumed_days} ngày`)
   logger.detail(`- Nghỉ phép có lương: ${paidLeaveDays} ngày`)
-  logger.detail(`- Nghỉ không lương: ${unpaidLeaveDays} ngày`)
+  logger.detail(`- Nghỉ không lương (có phiếu): ${unpaidLeaveDays} ngày`)
+  if (autoUnpaidLeaveDays > 0) {
+    logger.detail(`- Nghỉ không lương (tự động): ${autoUnpaidLeaveDays} ngày`)
+  }
+  logger.detail(`- Nghỉ không lương (tổng): ${finalUnpaidLeaveDays} ngày`)
   logger.detail(`- Vắng mặt: ${absentDays} ngày`)
-  logger.detail(`- Tổng: ${totalDays} ngày`)
-  if (totalDays < STANDARD_WORKING_DAYS) {
-    logger.detail(`⚠️  Thiếu ${STANDARD_WORKING_DAYS - totalDays} ngày so với công chuẩn`)
-  } else if (totalDays > STANDARD_WORKING_DAYS) {
-    logger.detail(`✅ Vượt ${totalDays - STANDARD_WORKING_DAYS} ngày so với công chuẩn`)
+  
+  const totalAllDays = actualWorkingDays + paidLeaveDays + finalUnpaidLeaveDays + absentDays
+  logger.detail(`- Tổng: ${totalAllDays} ngày`)
+  
+  // Kiểm tra công thức: Ngày công + Công bù + Nghỉ phép + Nghỉ KL = Công chuẩn
+  const formulaTotal = actualWorkingDays + consumed_days + paidLeaveDays + finalUnpaidLeaveDays
+  logger.detail(``)
+  logger.detail(`✓ Kiểm tra công thức: ${actualWorkingDays} (công) + ${consumed_days} (bù) + ${paidLeaveDays} (phép) + ${finalUnpaidLeaveDays} (KL) = ${formulaTotal} ngày`)
+  
+  if (formulaTotal < STANDARD_WORKING_DAYS) {
+    logger.detail(`⚠️  Thiếu ${STANDARD_WORKING_DAYS - formulaTotal} ngày so với công chuẩn`)
+  } else if (formulaTotal > STANDARD_WORKING_DAYS) {
+    logger.detail(`⚠️  Vượt ${formulaTotal - STANDARD_WORKING_DAYS} ngày so với công chuẩn`)
+  } else {
+    logger.detail(`✅ Đúng công chuẩn (${STANDARD_WORKING_DAYS} ngày)`)
+  }
+  logger.detail(`- Ngày công thực tế: ${actualWorkingDays} ngày`)
+  logger.detail(`- Nghỉ phép có lương: ${paidLeaveDays} ngày`)
+  logger.detail(`- Nghỉ không lương: ${finalUnpaidLeaveDays} ngày`)
+  logger.detail(`- Vắng mặt: ${absentDays} ngày`)
+  logger.detail(`- Tổng: ${totalAllDays} ngày`)
+  if (totalAllDays < STANDARD_WORKING_DAYS) {
+    logger.detail(`⚠️  Thiếu ${STANDARD_WORKING_DAYS - totalAllDays} ngày so với công chuẩn`)
+  } else if (totalAllDays > STANDARD_WORKING_DAYS) {
+    logger.detail(`✅ Vượt ${totalAllDays - STANDARD_WORKING_DAYS} ngày so với công chuẩn`)
   } else {
     logger.detail(`✅ Đủ công chuẩn`)
   }
@@ -776,8 +807,9 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .from("payroll_items")
     .update({
       working_days: actualWorkingDays,
+      makeup_days: consumed_days,
       leave_days: paidLeaveDays,
-      unpaid_leave_days: unpaidLeaveDays + absentDays,
+      unpaid_leave_days: finalUnpaidLeaveDays,
       base_salary: baseSalary,
       allowances: totalAllowances + otResult.totalOTPay + kpiBonus,
       total_income: grossSalary,

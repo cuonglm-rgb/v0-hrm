@@ -169,6 +169,12 @@ export function PayrollBreakdownDialog({
                     <span className="font-medium text-green-600 whitespace-nowrap">+{formatCurrency(attendanceSalary)}</span>
                   </div>
                 )}
+                {payrollItem.makeup_days > 0 && (
+                  <div className="flex justify-between items-center text-sm gap-4">
+                    <span className="flex-1 min-w-0">Lương ngày công bù ({payrollItem.makeup_days} ngày)</span>
+                    <span className="font-medium text-green-600 whitespace-nowrap">+{formatCurrency(dailySalary * payrollItem.makeup_days)}</span>
+                  </div>
+                )}
                 {workingDaysDetail.wfh > 0 && (
                   <div className="flex justify-between items-center text-sm gap-4">
                     <span className="flex-1 min-w-0">Làm việc từ xa ({workingDaysDetail.wfh} ngày)</span>
