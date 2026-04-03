@@ -93,6 +93,7 @@ const mainNavItems: NavItem[] = [
     title: "Phòng ban",
     url: "/dashboard/departments",
     icon: Building2,
+    roles: ["hr", "admin", "manager"],
   },
   {
     title: "Hồ sơ cá nhân",
