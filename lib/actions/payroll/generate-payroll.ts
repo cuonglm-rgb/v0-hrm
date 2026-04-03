@@ -1241,17 +1241,34 @@ export async function processAdjustments(
             }
           }
           console.log(`[Allowance] - Số ngày có phiếu unpaid_leave: ${unpaidLeaveDates.size} ngày`)
+          if (unpaidLeaveDates.size > 0) {
+            const sortedDates = Array.from(unpaidLeaveDates).sort()
+            console.log(`[Allowance] - Danh sách ngày unpaid_leave: ${sortedDates.join(', ')}`)
+          }
           
-          const allowanceFullDays = violationsWithoutOT.filter((v) => 
-            v.hasCheckIn && v.hasCheckOut && !v.isHalfDay && !v.isAbsent &&
-            v.lateMinutes <= lateThresholdMinutes && v.earlyMinutes === 0 &&
-            !v.forgotCheckIn && !v.forgotCheckOut &&  // Loại trừ ngày có quên chấm công
-            !unpaidLeaveDates.has(v.date)  // Loại trừ ngày nghỉ không lương
-          ).length
+          // Log chi tiết từng ngày trong violationsWithoutOT
+          console.log(`[Allowance] - Phân tích ${violationsWithoutOT.length} ngày chấm công:`)
+          
+          const allowanceFullDaysList: string[] = []
+          const allowanceFullDays = violationsWithoutOT.filter((v) => {
+            const isEligible = v.hasCheckIn && v.hasCheckOut && !v.isHalfDay && !v.isAbsent &&
+              v.lateMinutes <= lateThresholdMinutes && v.earlyMinutes === 0 &&
+              !v.forgotCheckIn && !v.forgotCheckOut &&
+              !unpaidLeaveDates.has(v.date)
+            
+            if (isEligible) {
+              allowanceFullDaysList.push(v.date)
+            }
+            return isEligible
+          }).length
           
           console.log(`[Allowance] - Ngày đủ điều kiện (chấm công đầy đủ, không vi phạm, không nghỉ không lương): ${allowanceFullDays} ngày`)
+          if (allowanceFullDaysList.length > 0) {
+            console.log(`[Allowance]   → ${allowanceFullDaysList.join(', ')}`)
+          }
           
           // Đếm ngày vi phạm nhưng được miễn trừ do có phiếu
+          const violationDaysWithExemptList: string[] = []
           const violationDaysWithExempt = violationsWithoutOT.filter((v) => {
             // Loại trừ ngày nghỉ không lương
             if (unpaidLeaveDates.has(v.date)) return false
@@ -1266,20 +1283,46 @@ export async function processAdjustments(
             
             // Miễn trừ theo cấu hình: ngày có bất kỳ loại phiếu nào trong exempt_request_types thì được miễn
             if (exemptWithRequest && exemptDatesByType.has(v.date)) {
+              violationDaysWithExemptList.push(v.date)
               return true
             }
             return false
           }).length
           
           console.log(`[Allowance] - Ngày vi phạm nhưng được miễn do có phiếu: ${violationDaysWithExempt} ngày`)
+          if (violationDaysWithExemptList.length > 0) {
+            console.log(`[Allowance]   → ${violationDaysWithExemptList.join(', ')}`)
+          }
           
-          const allowanceViolations = violationsWithoutOT.filter((v) => 
-            !unpaidLeaveDates.has(v.date) &&  // Loại trừ ngày nghỉ không lương
-            (v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
-            v.forgotCheckOut || v.forgotCheckIn || v.isHalfDay || v.isAbsent)
-          ).length - violationDaysWithExempt // Trừ đi số ngày được miễn
+          const allowanceViolationsList: string[] = []
+          const allowanceViolations = violationsWithoutOT.filter((v) => {
+            if (unpaidLeaveDates.has(v.date)) return false
+            
+            const hasViolation = v.lateMinutes > lateThresholdMinutes || v.earlyMinutes > 0 ||
+              v.forgotCheckOut || v.forgotCheckIn || v.isHalfDay || v.isAbsent
+            
+            if (hasViolation) {
+              // Kiểm tra xem có được miễn không
+              const isExempt = exemptWithRequest && exemptDatesByType.has(v.date)
+              if (!isExempt) {
+                const reasons: string[] = []
+                if (v.lateMinutes > lateThresholdMinutes) reasons.push(`muộn ${v.lateMinutes}p`)
+                if (v.earlyMinutes > 0) reasons.push(`sớm ${v.earlyMinutes}p`)
+                if (v.forgotCheckIn) reasons.push('quên check-in')
+                if (v.forgotCheckOut) reasons.push('quên check-out')
+                if (v.isHalfDay) reasons.push('nửa ngày')
+                if (v.isAbsent) reasons.push('vắng')
+                allowanceViolationsList.push(`${v.date} (${reasons.join(', ')})`)
+              }
+            }
+            
+            return hasViolation
+          }).length - violationDaysWithExempt // Trừ đi số ngày được miễn
           
           console.log(`[Allowance] - Ngày vi phạm (không được miễn, không nghỉ không lương): ${allowanceViolations} ngày`)
+          if (allowanceViolationsList.length > 0) {
+            console.log(`[Allowance]   → ${allowanceViolationsList.join(', ')}`)
+          }
           
           let eligibleDays = allowanceFullDays + violationDaysWithExempt // Cộng ngày được miễn
           console.log(`[Allowance] - Ngày đủ điều kiện ban đầu: ${eligibleDays} ngày (${allowanceFullDays} + ${violationDaysWithExempt})`)
@@ -1288,6 +1331,7 @@ export async function processAdjustments(
             if (rules.late_grace_count !== undefined && allowanceViolations > 0) {
               const gracedViolationDays = Math.min(allowanceViolations, rules.late_grace_count)
               console.log(`[Allowance] - Số lần vi phạm được miễn (grace): ${gracedViolationDays} ngày (tối đa ${rules.late_grace_count})`)
+              console.log(`[Allowance]   → Miễn ${gracedViolationDays} ngày vi phạm đầu tiên trong ${allowanceViolations} ngày vi phạm`)
               eligibleDays += gracedViolationDays
             }
             // BỎ logic trừ unpaidLeaveDays vì đã loại bỏ từ đầu
@@ -1302,6 +1346,7 @@ export async function processAdjustments(
           const amount = eligibleDays * adjType.amount
           
           console.log(`[Allowance] - Tổng ngày được tính phụ cấp: ${eligibleDays} ngày`)
+          console.log(`[Allowance] - Công thức: ${allowanceFullDays} (đủ điều kiện) + ${violationDaysWithExempt} (vi phạm có phiếu) + ${rules?.late_grace_count ? Math.min(allowanceViolations, rules.late_grace_count) : 0} (grace) = ${eligibleDays} ngày`)
           console.log(`[Allowance] - Số tiền phụ cấp: ${eligibleDays} x ${adjType.amount.toLocaleString()}đ = ${amount.toLocaleString()}đ`)
 
           if (amount > 0) {

@@ -99,9 +99,39 @@ if (rules) {
 }
 ```
 
+## Log chi tiết
+
+Sau khi fix, log sẽ hiển thị chi tiết hơn:
+
+```
+[Allowance] Tính phụ cấp: Phụ cấp ăn trưa (LUNCH)
+[Allowance] - Ngưỡng đi muộn: 0 phút
+[Allowance] - Miễn trừ nếu có phiếu: Có
+[Allowance] - Loại phiếu được miễn: late_early_makeup
+[Allowance] - Số ngày có phiếu miễn trừ: 1 ngày
+[Allowance] - Số ngày có phiếu unpaid_leave: 2 ngày
+[Allowance] - Danh sách ngày unpaid_leave: 2026-03-12, 2026-03-20
+[Allowance] - Phân tích 22 ngày chấm công:
+[Allowance] - Ngày đủ điều kiện (chấm công đầy đủ, không vi phạm, không nghỉ không lương): 14 ngày
+[Allowance]   → 2026-03-02, 2026-03-03, 2026-03-04, ...
+[Allowance] - Ngày vi phạm nhưng được miễn do có phiếu: 0 ngày
+[Allowance] - Ngày vi phạm (không được miễn, không nghỉ không lương): 7 ngày
+[Allowance]   → 2026-03-05 (muộn 25p), 2026-03-13 (muộn 19p), ...
+[Allowance] - Ngày đủ điều kiện ban đầu: 14 ngày (14 + 0)
+[Allowance] - Số lần vi phạm được miễn (grace): 4 ngày (tối đa 4)
+[Allowance]   → Miễn 4 ngày vi phạm đầu tiên trong 7 ngày vi phạm
+[Allowance] - Tổng ngày được tính phụ cấp: 18 ngày
+[Allowance] - Công thức: 14 (đủ điều kiện) + 0 (vi phạm có phiếu) + 4 (grace) = 18 ngày
+[Allowance] - Số tiền phụ cấp: 18 x 35,000đ = 630,000đ
+```
+
 ## Files thay đổi
 
 - `lib/actions/payroll/generate-payroll.ts`: Hàm `processAdjustments()`
+  - Thêm query lấy danh sách ngày unpaid_leave
+  - Loại bỏ ngày unpaid_leave khỏi tất cả filter
+  - Bỏ logic trừ unpaidLeaveDays ở cuối
+  - Thêm log chi tiết cho từng bước tính toán
 - `lib/actions/payroll/recalculate-single.ts`: Sử dụng hàm `processAdjustments()` từ file trên nên tự động được fix
 
 ## Testing
