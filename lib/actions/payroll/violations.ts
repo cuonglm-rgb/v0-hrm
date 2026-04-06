@@ -294,9 +294,10 @@ export async function getEmployeeViolations(
           }
         }
 
-        // Bù trừ: đi sớm được trừ vào về sớm (1 phút đi sớm = 1 phút không tính vi phạm về sớm)
-        const earlyArrivalMinutes = Math.max(0, shiftStartMinutes - checkInMinutes)
-        earlyMinutes = Math.max(0, earlyMinutes - earlyArrivalMinutes)
+        // ĐÃ BỎ logic bù trừ: đi sớm không được bù về sớm
+        // Lý do: Để được tính phụ cấp, nhân viên phải:
+        // - Vào đúng giờ hoặc sớm (không muộn)
+        // - Ra đúng giờ hoặc muộn (không được về sớm, dù chỉ 1 phút)
       }
 
       if (isSpecialDay) {
