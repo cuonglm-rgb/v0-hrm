@@ -176,6 +176,7 @@ export async function getEmployeeViolations(
       }
 
       const makeupEnd = makeupShiftEndByDate.get(dateStr)
+      let completedMakeupWork = false
       if (makeupEnd && makeupEnd > effectiveShiftEnd) {
         console.log(`[Violations] Ngày ${dateStr}: Nâng effectiveShiftEnd từ ${effectiveShiftEnd} lên ${makeupEnd} (phiếu làm bù)`)
         effectiveShiftEnd = makeupEnd
@@ -201,6 +202,14 @@ export async function getEmployeeViolations(
         const { hours: checkOutHour, minutes: checkOutMin } = getTimePartsVN(checkOutDate)
         checkOutMinutes = checkOutHour * 60 + checkOutMin
         hasCheckOut = true
+      }
+
+      // Calculate completedMakeupWork flag
+      if (makeupEnd) {
+        const [makeupH, makeupM] = makeupEnd.split(":").map(Number)
+        const makeupEndMinutes = makeupH * 60 + makeupM
+        completedMakeupWork = hasCheckOut && checkOutMinutes >= makeupEndMinutes
+        console.log(`[Violations] Ngày ${dateStr}: makeupEnd=${makeupEnd} (${makeupEndMinutes} phút), checkOut=${checkOutMinutes} phút, completedMakeupWork=${completedMakeupWork}`)
       }
 
       let isHalfDay = false
@@ -316,6 +325,7 @@ export async function getEmployeeViolations(
         forgotCheckOut,
         hasCheckIn,
         hasCheckOut,
+        completedMakeupWork,
       })
     }
   }

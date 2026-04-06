@@ -1610,12 +1610,20 @@ export async function processAdjustments(
             if (exemptWithRequest && v.hasApprovedRequest) {
               const hasExemptRequest = v.approvedRequestTypes.some((t: string) => exemptRequestTypes.includes(t))
               if (hasExemptRequest) {
-                isExempted = true
-                // Chuyển code thành tên phiếu
-                const requestTypeNames = v.approvedRequestTypes
-                  .map((code: string) => requestTypeNameMap.get(code) || code)
-                  .join(', ')
-                exemptedDays.push(`${v.date} (có phiếu: ${requestTypeNames})`)
+                // Kiểm tra đặc biệt cho phiếu late_early_makeup: chỉ miễn phạt nếu đã hoàn thành
+                const isLateEarlyMakeup = v.approvedRequestTypes.includes("late_early_makeup")
+                if (isLateEarlyMakeup && !v.completedMakeupWork) {
+                  // Không miễn phạt - nhân viên chưa hoàn thành làm bù
+                  isExempted = false
+                  console.log(`Ngày ${v.date}: Có phiếu làm bù nhưng chưa hoàn thành (checkout < to_time) → Phạt về sớm ${v.earlyMinutes} phút`)
+                } else {
+                  isExempted = true
+                  // Chuyển code thành tên phiếu
+                  const requestTypeNames = v.approvedRequestTypes
+                    .map((code: string) => requestTypeNameMap.get(code) || code)
+                    .join(', ')
+                  exemptedDays.push(`${v.date} (có phiếu: ${requestTypeNames})`)
+                }
               }
             }
             

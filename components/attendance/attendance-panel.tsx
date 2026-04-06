@@ -47,7 +47,8 @@ function checkViolations(
   checkOutTime: string | null,
   shift: WorkShift | null | undefined,
   options?: { isAfternoonOnly?: boolean; isMorningOnly?: boolean },
-  specialDay?: { allow_early_leave?: boolean; allow_late_arrival?: boolean; custom_start_time?: string | null; custom_end_time?: string | null } | null
+  specialDay?: { allow_early_leave?: boolean; allow_late_arrival?: boolean; custom_start_time?: string | null; custom_end_time?: string | null } | null,
+  makeupRequest?: { to_time?: string | null } | null
 ): AttendanceViolation[] {
   const violations: AttendanceViolation[] = []
 
@@ -59,6 +60,15 @@ function checkViolations(
   const breakEnd = shift.break_end?.slice(0, 5) || "13:00"
 
   if (!shiftStart || !shiftEnd) return violations
+
+  // Adjust effectiveShiftEnd based on makeup request (matching backend logic in violations.ts lines 195-199)
+  let effectiveShiftEnd = shiftEnd
+  if (makeupRequest?.to_time) {
+    const makeupEnd = makeupRequest.to_time.slice(0, 5)
+    if (makeupEnd > effectiveShiftEnd) {
+      effectiveShiftEnd = makeupEnd
+    }
+  }
 
   // Check late arrival (bỏ qua nếu ngày đặc biệt cho phép đi muộn)
   if (checkInTime && !specialDay?.allow_late_arrival) {
@@ -94,7 +104,7 @@ function checkViolations(
     const checkOut = new Date(checkOutTime)
     const checkOutHHMM = `${String(checkOut.getHours()).padStart(2, "0")}:${String(checkOut.getMinutes()).padStart(2, "0")}`
 
-    const compareTime = options?.isMorningOnly ? breakStart : shiftEnd
+    const compareTime = options?.isMorningOnly ? breakStart : effectiveShiftEnd
     const [shiftH, shiftM] = compareTime.split(":").map(Number)
     const [checkH, checkM] = checkOutHHMM.split(":").map(Number)
 
@@ -108,7 +118,7 @@ function checkViolations(
         minutes: earlyMinutes,
         message: options?.isMorningOnly
           ? `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca sáng kết thúc ${breakStart})`
-          : `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca kết thúc ${shiftEnd})`,
+          : `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca kết thúc ${compareTime})`,
       })
     }
   } else if (!checkOutTime && checkInTime) {
@@ -307,14 +317,14 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
       if (filterStatus !== "all") {
         const dateStr = dateSource.split("T")[0]
         const sd = getSpecialDayForDate(dateStr, specialDays, employeeId)
-        const violations = checkViolations(log.check_in, log.check_out, shift, undefined, sd)
+        const makeup = employeeId ? getLateEarlyMakeupForDate(dateStr, employeeId, leaveRequests) : null
+        const violations = checkViolations(log.check_in, log.check_out, shift, undefined, sd, makeup)
         const hasViolation = violations.length > 0
         const isLate = violations.some((v) => v.type === "late")
         const isEarlyLeave = violations.some((v) => v.type === "early_leave")
         const noCheckIn = violations.some((v) => v.type === "no_checkin")
         const noCheckOut = violations.some((v) => v.type === "no_checkout")
         const hasOnlyTimeViolation = (isLate || isEarlyLeave) && !noCheckIn && !noCheckOut
-        const makeup = employeeId ? getLateEarlyMakeupForDate(dateStr, employeeId, leaveRequests) : null
         let madeUp = false
         if (makeup?.to_time && log.check_out && hasOnlyTimeViolation) {
           const toTime = makeup.to_time.slice(0, 5)
@@ -480,7 +490,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
         // Loại bỏ ngày có phiếu nghỉ được duyệt (nghỉ cả ngày)
         if (hasApprovedLeave && !log) return false
         // Chỉ hiển thị ngày có checkout và không có vi phạm
-        const violations = log ? checkViolations(log.check_in, log.check_out, shift, undefined, specialDay) : []
+        const makeup = employeeId ? getLateEarlyMakeupForDate(date, employeeId, leaveRequests) : null
+        const violations = log ? checkViolations(log.check_in, log.check_out, shift, undefined, specialDay, makeup) : []
         return log && log.check_out && violations.length === 0
       }
 
@@ -490,7 +501,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
       }
 
       if (filterStatus === "violation") {
-        const violations = log ? checkViolations(log.check_in, log.check_out, shift, undefined, specialDay) : []
+        const makeup = employeeId ? getLateEarlyMakeupForDate(date, employeeId, leaveRequests) : null
+        const violations = log ? checkViolations(log.check_in, log.check_out, shift, undefined, specialDay, makeup) : []
         return violations.length > 0
       }
 
@@ -804,7 +816,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                       }
                     }
 
-                    const violations = log ? checkViolations(log.check_in, log.check_out, shift, { isAfternoonOnly, isMorningOnly }, specialDay) : []
+                    const makeup = employeeId ? getLateEarlyMakeupForDate(date, employeeId, leaveRequests) : null
+                    const violations = log ? checkViolations(log.check_in, log.check_out, shift, { isAfternoonOnly, isMorningOnly }, specialDay, makeup) : []
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
                     const isEarlyLeave = violations.some((v) => v.type === "early_leave")
@@ -844,7 +857,6 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                         r.request_date === date
                     ) : null
 
-                    const makeup = employeeId ? getLateEarlyMakeupForDate(date, employeeId, leaveRequests) : null
                     const hasOnlyTimeViolation = (isLate || isEarlyLeave) && !noCheckIn && !noCheckOut
                     let madeUp = false
                     let madeUpTooltip = ""

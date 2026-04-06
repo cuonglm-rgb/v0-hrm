@@ -68,7 +68,8 @@ function checkViolations(
   checkOut: string | null,
   shift: WorkShift | null | undefined,
   specialDay?: { allow_early_leave: boolean; allow_late_arrival: boolean; custom_start_time?: string | null; custom_end_time?: string | null } | null,
-  options?: { isAfternoonOnly?: boolean; isMorningOnly?: boolean }
+  options?: { isAfternoonOnly?: boolean; isMorningOnly?: boolean },
+  makeupRequest?: { to_time?: string | null } | null
 ): AttendanceViolation[] {
   const violations: AttendanceViolation[] = []
 
@@ -81,6 +82,15 @@ function checkViolations(
   const breakEnd = shift.break_end?.slice(0, 5) || "13:00"
 
   if (!shiftStart || !shiftEnd) return violations
+
+  // Adjust effectiveShiftEnd based on makeup request (matching backend logic in violations.ts lines 195-199)
+  let effectiveShiftEnd = shiftEnd
+  if (makeupRequest?.to_time) {
+    const makeupEnd = makeupRequest.to_time.slice(0, 5)
+    if (makeupEnd > effectiveShiftEnd) {
+      effectiveShiftEnd = makeupEnd
+    }
+  }
 
   // Check late arrival (bỏ qua nếu là ngày đặc biệt cho phép đi muộn)
   if (checkIn && !specialDay?.allow_late_arrival) {
@@ -118,7 +128,7 @@ function checkViolations(
     const checkOutHHMM = `${String(checkOutTime.getHours()).padStart(2, "0")}:${String(checkOutTime.getMinutes()).padStart(2, "0")}`
 
     // Nếu là làm buổi sáng (nghỉ buổi chiều), so sánh với giờ bắt đầu nghỉ trưa thay vì giờ kết thúc ca
-    const compareTime = options?.isMorningOnly ? breakStart : shiftEnd
+    const compareTime = options?.isMorningOnly ? breakStart : effectiveShiftEnd
     const [shiftH, shiftM] = compareTime.split(":").map(Number)
     const [checkH, checkM] = checkOutHHMM.split(":").map(Number)
 
@@ -340,7 +350,8 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
         const logDateOnly = dateSource.split('T')[0]
         const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
         const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
-        const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo)
+        const makeup = logDateOnly && log.employee_id ? getLateEarlyMakeupForDate(logDateOnly, log.employee_id, leaveRequests) : null
+        const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo, makeup)
         const hasViolation = violations.length > 0
 
         if (filterStatus === "violation" && !hasViolation) return false
@@ -713,14 +724,14 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     const logDateOnly = dateSource ? dateSource.split('T')[0] : null
                     const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
                     const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
-                    const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo)
+                    const makeup = logDateOnly && log.employee_id ? getLateEarlyMakeupForDate(logDateOnly, log.employee_id, leaveRequests) : null
+                    const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo, makeup)
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
                     const isEarlyLeave = violations.some((v) => v.type === "early_leave")
                     const noCheckIn = violations.some((v) => v.type === "no_checkin")
                     const noCheckOut = violations.some((v) => v.type === "no_checkout")
 
-                    const makeup = logDateOnly && log.employee_id ? getLateEarlyMakeupForDate(logDateOnly, log.employee_id, leaveRequests) : null
                     const hasOnlyTimeViolation = (isLate || isEarlyLeave) && !noCheckIn && !noCheckOut
                     let madeUp = false
                     let madeUpTooltip = ""

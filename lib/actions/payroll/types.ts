@@ -14,6 +14,7 @@ export interface AttendanceViolation {
   forgotCheckOut: boolean
   hasCheckIn: boolean
   hasCheckOut: boolean
+  completedMakeupWork: boolean
 }
 
 export interface ShiftInfo {
