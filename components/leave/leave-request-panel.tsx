@@ -655,7 +655,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
   return (
     <div className="space-y-6">
       {/* Thống kê */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -1219,7 +1219,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label className="text-xs">Tìm kiếm</Label>
               <div className="relative">
@@ -1267,9 +1267,9 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
             <div className="space-y-2">
               <Label className="text-xs">Đến ngày</Label>
               <div className="flex gap-2">
-                <Input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} />
+                <Input type="date" value={filterToDate} onChange={(e) => setFilterToDate(e.target.value)} className="flex-1" />
                 {hasActiveFilters && (
-                  <Button variant="ghost" size="icon" onClick={clearFilters} title="Xóa bộ lọc">
+                  <Button variant="ghost" size="icon" onClick={clearFilters} title="Xóa bộ lọc" className="shrink-0">
                     <X className="h-4 w-4" />
                   </Button>
                 )}

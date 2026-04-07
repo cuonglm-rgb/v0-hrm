@@ -139,7 +139,7 @@ function TimeInput({
         />
       )}
       
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal={false}>
         <PopoverTrigger asChild>
           <Button
             id={id}
@@ -157,7 +157,18 @@ function TimeInput({
             {internalValue || placeholder}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0" align="start">
+        <PopoverContent 
+          className="w-[200px] p-0" 
+          align="start" 
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            // Prevent closing when interacting with scroll areas
+            const target = e.target as HTMLElement
+            if (target.closest('[data-scroll-area]')) {
+              e.preventDefault()
+            }
+          }}
+        >
           {/* Direct input field */}
           <div className="p-3 border-b">
             <Input
@@ -180,8 +191,15 @@ function TimeInput({
               </div>
               <div 
                 ref={hourScrollRef}
-                className="h-[200px] overflow-y-auto p-1"
+                data-scroll-area
+                className="h-[200px] overflow-y-auto p-1 overscroll-contain"
                 onWheel={(e) => handleWheel(e, hourScrollRef)}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                style={{ 
+                  WebkitOverflowScrolling: 'touch',
+                  touchAction: 'pan-y'
+                }}
               >
                 {hours.map((hour) => (
                   <Button
@@ -204,8 +222,15 @@ function TimeInput({
               </div>
               <div 
                 ref={minuteScrollRef}
-                className="h-[200px] overflow-y-auto p-1"
+                data-scroll-area
+                className="h-[200px] overflow-y-auto p-1 overscroll-contain"
                 onWheel={(e) => handleWheel(e, minuteScrollRef)}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                style={{ 
+                  WebkitOverflowScrolling: 'touch',
+                  touchAction: 'pan-y'
+                }}
               >
                 {minutes.map((minute) => (
                   <Button
