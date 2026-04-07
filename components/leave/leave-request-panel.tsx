@@ -1011,12 +1011,12 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                       </p>
                       {approverStepsMeta.map((step, index) => {
                         const stepApprovers = eligibleApprovers.filter(
-                          (a) => a.position_level === step.positionLevel
+                          (a) => a.position_level >= step.positionLevel
                         )
                         return (
                           <div key={step.id} className="space-y-1 border rounded-md p-2 bg-muted/40">
                             <p className="text-xs font-medium">
-                              Duyệt {index + 1} - {step.positionName} (Level {step.positionLevel})
+                              Duyệt {index + 1} - {step.positionName} (Tối thiểu Level {step.positionLevel})
                             </p>
                             <ApproverSelect
                               approvers={stepApprovers}
