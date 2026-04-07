@@ -862,16 +862,27 @@ export async function createEmployeeRequest(input: {
       request_id: string
       approver_id: string
       display_order: number
-      status: "pending"
+      status: "pending" | "approved"
     }[] = []
 
     if (hasApproversWithOrder) {
+      // Tìm bước cuối cùng của mỗi người duyệt
+      const lastStepByApprover = new Map<string, number>()
       for (const row of input.assigned_approvers_with_order!) {
+        const currentMax = lastStepByApprover.get(row.approver_id) || 0
+        if (row.display_order > currentMax) {
+          lastStepByApprover.set(row.approver_id, row.display_order)
+        }
+      }
+
+      // Tạo records: nếu người đó xuất hiện ở bước sau, tự động approved các bước trước
+      for (const row of input.assigned_approvers_with_order!) {
+        const isLastStep = lastStepByApprover.get(row.approver_id) === row.display_order
         records.push({
           request_id: newRequest.id,
           approver_id: row.approver_id,
           display_order: row.display_order,
-          status: "pending",
+          status: isLastStep ? "pending" : "approved",
         })
       }
     } else if (hasApproversByIds) {
@@ -1885,16 +1896,27 @@ export async function updateEmployeeRequest(
       request_id: string
       approver_id: string
       display_order: number
-      status: "pending"
+      status: "pending" | "approved"
     }[] = []
 
     if (hasUpdatedApproversWithOrder) {
+      // Tìm bước cuối cùng của mỗi người duyệt
+      const lastStepByApprover = new Map<string, number>()
       for (const row of input.assigned_approvers_with_order!) {
+        const currentMax = lastStepByApprover.get(row.approver_id) || 0
+        if (row.display_order > currentMax) {
+          lastStepByApprover.set(row.approver_id, row.display_order)
+        }
+      }
+
+      // Tạo records: nếu người đó xuất hiện ở bước sau, tự động approved các bước trước
+      for (const row of input.assigned_approvers_with_order!) {
+        const isLastStep = lastStepByApprover.get(row.approver_id) === row.display_order
         approverRecords.push({
           request_id: id,
           approver_id: row.approver_id,
           display_order: row.display_order,
-          status: "pending",
+          status: isLastStep ? "pending" : "approved",
         })
       }
     } else if (hasUpdatedApproversByIds) {
