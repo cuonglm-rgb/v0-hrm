@@ -205,7 +205,7 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
   return (
     <div className="space-y-6">
       {/* Thống kê */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -310,73 +310,75 @@ export function PayrollListPanel({ payrollRuns }: PayrollListPanelProps) {
           <CardDescription>Các đợt tính lương đã tạo</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Kỳ lương</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead>Ngày tạo</TableHead>
-                <TableHead>Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedRuns.length === 0 ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    Chưa có bảng lương nào
-                  </TableCell>
+                  <TableHead className="min-w-[120px]">Kỳ lương</TableHead>
+                  <TableHead className="min-w-[120px]">Trạng thái</TableHead>
+                  <TableHead className="min-w-[120px]">Ngày tạo</TableHead>
+                  <TableHead className="min-w-[200px]">Thao tác</TableHead>
                 </TableRow>
-              ) : (
-                paginatedRuns.map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell className="font-medium">
-                      Tháng {run.month}/{run.year}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(run.status)}</TableCell>
-                    <TableCell>{formatDateVN(run.created_at)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          asChild 
-                          disabled={isCalculating}
-                          className={isCalculating ? "pointer-events-none opacity-50" : ""}
-                        >
-                          <Link href={`/dashboard/payroll/${run.id}`}>
-                            <Eye className="h-4 w-4 mr-1" />
-                            Xem
-                          </Link>
-                        </Button>
-                        {(run.status === "draft" || run.status === "review") && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRefresh(run.id)}
-                              disabled={isCalculating}
-                              title="Tính lại bảng lương"
-                            >
-                              <RefreshCw className={`h-4 w-4 ${refreshingId === run.id ? 'animate-spin' : ''}`} />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDelete(run.id)}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              disabled={isCalculating}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {paginatedRuns.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      Chưa có bảng lương nào
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  paginatedRuns.map((run) => (
+                    <TableRow key={run.id}>
+                      <TableCell className="font-medium">
+                        Tháng {run.month}/{run.year}
+                      </TableCell>
+                      <TableCell>{getStatusBadge(run.status)}</TableCell>
+                      <TableCell>{formatDateVN(run.created_at)}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            asChild 
+                            disabled={isCalculating}
+                            className={isCalculating ? "pointer-events-none opacity-50" : ""}
+                          >
+                            <Link href={`/dashboard/payroll/${run.id}`}>
+                              <Eye className="h-4 w-4 mr-1" />
+                              Xem
+                            </Link>
+                          </Button>
+                          {(run.status === "draft" || run.status === "review") && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRefresh(run.id)}
+                                disabled={isCalculating}
+                                title="Tính lại bảng lương"
+                              >
+                                <RefreshCw className={`h-4 w-4 ${refreshingId === run.id ? 'animate-spin' : ''}`} />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDelete(run.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                disabled={isCalculating}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
           <DataPagination
             currentPage={currentPage}
             totalPages={totalPages}
