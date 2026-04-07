@@ -103,9 +103,17 @@ export async function getEmployee(id: string): Promise<EmployeeWithRelations | n
 
 export async function updateEmployee(
   id: string,
-  data: Partial<Pick<Employee, "full_name" | "phone" | "employee_code" | "department_id" | "position_id" | "shift_id" | "status" | "join_date" | "official_date">>,
+  data: Partial<Pick<Employee, "full_name" | "phone" | "employee_code" | "department_id" | "position_id" | "shift_id" | "status" | "join_date" | "official_date" | "resignation_date">>,
 ) {
   const supabase = await createClient()
+
+  // Validation: Nếu status = resigned thì phải có resignation_date
+  if (data.status === 'resigned' && !data.resignation_date) {
+    return { 
+      success: false, 
+      error: "Vui lòng nhập ngày nghỉ việc khi chuyển sang trạng thái 'Đã nghỉ việc'" 
+    }
+  }
 
   // 1. Fetch current employee to check status transition
   const { data: currentEmp } = await supabase
@@ -132,9 +140,8 @@ export async function updateEmployee(
 
   // Sanitize potentially empty strings for date fields
   if (updateData.join_date === "") updateData.join_date = null
-  // official_date often leaks in from formData as "" but shouldn't be updated unless we mean it.
-  // Ideally we ignore it if it's "" unless we set it below.
   if (updateData.official_date === "") updateData.official_date = null
+  if (updateData.resignation_date === "") updateData.resignation_date = null
 
   // If transitioning to Active and official_date is not set, set it to today
   if (currentEmp && data.status === "active" && currentEmp.status !== "active" && !currentEmp.official_date) {

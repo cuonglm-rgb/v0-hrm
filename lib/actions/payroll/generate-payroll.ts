@@ -175,6 +175,21 @@ async function processEmployeePayroll(
   const dailySalary = baseSalary / STANDARD_WORKING_DAYS
 
   logger.section(`TÍNH LƯƠNG: ${emp.full_name} (${emp.employee_code}) - Tháng ${month}/${year}`)
+  
+  // Kiểm tra ngày nghỉ việc
+  let effectiveEndDate = endDate
+  if (emp.resignation_date) {
+    const resignDate = emp.resignation_date
+    if (resignDate < startDate) {
+      logger.log(`⚠️  Nhân viên đã nghỉ việc trước kỳ lương (${resignDate}) - Bỏ qua`)
+      return false
+    }
+    if (resignDate < endDate) {
+      effectiveEndDate = resignDate
+      logger.log(`📅 Nhân viên nghỉ việc ngày ${resignDate} - Chỉ tính lương đến ngày này`)
+    }
+  }
+  
   logger.log(`Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
   logger.log(`Lương cơ bản: ${baseSalary.toLocaleString()} VNĐ -> Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
 
@@ -202,7 +217,7 @@ async function processEmployeePayroll(
     .eq("employee_id", emp.id)
     .eq("status", "approved")
     .gte("request_date", startDate)
-    .lte("request_date", endDate)
+    .lte("request_date", effectiveEndDate)
 
   const overtimeDates = new Set<string>()
   const overtimeWithinShift = new Set<string>()
@@ -217,7 +232,7 @@ async function processEmployeePayroll(
     `)
     .eq("employee_id", emp.id)
     .eq("status", "approved")
-    .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
+    .or(`and(request_date.gte.${startDate},request_date.lte.${effectiveEndDate}),and(from_date.lte.${effectiveEndDate},to_date.gte.${startDate})`)
 
   const makeupDates = new Set<string>()
   if (employeeRequests) {
@@ -377,7 +392,7 @@ async function processEmployeePayroll(
     .from("attendance_logs")
     .select("check_in, check_out")
     .eq("employee_id", emp.id)
-    .or(`and(check_in.gte.${startDate},check_in.lte.${endDate}T23:59:59),and(check_in.is.null,check_out.gte.${startDate},check_out.lte.${endDate}T23:59:59)`)
+    .or(`and(check_in.gte.${startDate},check_in.lte.${effectiveEndDate}T23:59:59),and(check_in.is.null,check_out.gte.${startDate},check_out.lte.${effectiveEndDate}T23:59:59)`)
 
   // Đếm ngày công (ngày làm bù full_day_makeup KHÔNG tăng working days — chỉ dùng để consume deficit)
   let workingDaysCount = 0
@@ -385,6 +400,7 @@ async function processEmployeePayroll(
   let halfDayAttendanceCount = 0
   const countedDates = new Set<string>()
   const attendanceDates = new Set<string>()
+  const attendanceDayFractions = new Map<string, number>() // Track attendance fraction per date
   if (allAttendanceLogs) {
     for (const log of allAttendanceLogs) {
       const logDate = log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out)
@@ -397,10 +413,12 @@ async function processEmployeePayroll(
           // Count as 0.5 day (the other 0.5 is in paidLeaveDays)
           workingDaysCount += 0.5
           halfDayAttendanceCount++
+          attendanceDayFractions.set(logDate, 0.5)
         } else {
           // Count as full day
           workingDaysCount++
           fullDayCount++
+          attendanceDayFractions.set(logDate, 1.0)
         }
         countedDates.add(logDate)
       }
@@ -449,12 +467,12 @@ async function processEmployeePayroll(
   const holidays = await listHolidays(year)
   const holidayDates = new Set(
     holidays
-      .filter(h => h.holiday_date >= startDate && h.holiday_date <= endDate)
+      .filter(h => h.holiday_date >= startDate && h.holiday_date <= effectiveEndDate)
       .map(h => h.holiday_date)
   )
   const holidayMap = new Map(
     holidays
-      .filter(h => h.holiday_date >= startDate && h.holiday_date <= endDate)
+      .filter(h => h.holiday_date >= startDate && h.holiday_date <= effectiveEndDate)
       .map(h => [h.holiday_date, h.name])
   )
   
@@ -469,7 +487,7 @@ async function processEmployeePayroll(
     `)
     .eq("is_company_holiday", true)
     .gte("work_date", startDate)
-    .lte("work_date", endDate)
+    .lte("work_date", effectiveEndDate)
   
   // Lọc ngày nghỉ công ty áp dụng cho nhân viên này
   // Quy tắc: Nếu không có assigned_employees -> áp dụng toàn công ty
@@ -492,7 +510,7 @@ async function processEmployeePayroll(
 
   // Xử lý phiếu nghỉ
   const leaveResult = await processLeaveRequests(
-    supabase, emp.id, startDate, endDate, year, emp.official_date, shiftMap, emp.shift_id
+    supabase, emp.id, startDate, effectiveEndDate, year, emp.official_date, shiftMap, emp.shift_id, attendanceDayFractions
   )
 
   // Tính số ngày lễ và ngày nghỉ công ty mà nhân viên không đi làm và không có leave request
@@ -576,7 +594,7 @@ async function processEmployeePayroll(
     breakStart: breakStart || null,
     breakEnd: breakEnd || null,
   }
-  const violations = await getEmployeeViolations(supabase, emp.id, startDate, endDate, shiftInfo)
+  const violations = await getEmployeeViolations(supabase, emp.id, startDate, effectiveEndDate, shiftInfo)
   const violationsWithoutOT = violations.filter((v) => !overtimeDates.has(v.date))
 
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
@@ -627,7 +645,7 @@ async function processEmployeePayroll(
     supabase, emp, baseSalary, dailySalary, month, year,
     adjustmentTypes, empAdjustments, violationsWithoutOT,
     fullAttendanceDays, lateCount, leaveResult.unpaidLeaveDays, absentDays,
-    allAttendanceLogs, startDate, endDate
+    allAttendanceLogs, startDate, effectiveEndDate
   )
 
   // Restore console.log
@@ -637,7 +655,7 @@ async function processEmployeePayroll(
   adjustmentLogs.forEach(log => logger.log(log))
 
   // Tính OT
-  const otResult = await calculateOvertimePay(emp.id, baseSalary, STANDARD_WORKING_DAYS, startDate, endDate)
+  const otResult = await calculateOvertimePay(emp.id, baseSalary, STANDARD_WORKING_DAYS, startDate, effectiveEndDate)
   const otAdjustmentType = adjustmentTypes?.find((t: any) => t.code === 'overtime')
   if (otAdjustmentType && otResult.details.length > 0) {
     for (const otDetail of otResult.details) {
@@ -807,7 +825,8 @@ async function processLeaveRequests(
   year: number,
   officialDate: string | null,
   shiftMap: Map<string, any>,
-  shiftId: string | null
+  shiftId: string | null,
+  attendanceDayFractions: Map<string, number> = new Map()
 ): Promise<{
   paidLeaveDays: number
   unpaidLeaveDays: number
@@ -915,6 +934,8 @@ async function processLeaveRequests(
       const { from_time: effFromTime, to_time: effToTime } = getEffectiveTimeRange(request)
 
       let days = 0
+      let requestDate: string | null = null
+      
       if (reqType.requires_date_range && request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
           const [y, m, d] = dateStr.split('-').map(Number)
@@ -931,11 +952,13 @@ async function processLeaveRequests(
         
         if (fullDays === 1 && (effFromTime && effToTime)) {
           days = calculateMultiSlotDayFraction(request)
+          requestDate = request.from_date
         } else {
           days = fullDays
         }
       } else if (reqType.requires_single_date && request.request_date) {
         days = calculateMultiSlotDayFraction(request)
+        requestDate = request.request_date
       } else if (request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
           const [y, m, d] = dateStr.split('-').map(Number)
@@ -952,6 +975,7 @@ async function processLeaveRequests(
         
         if (fullDays === 1 && (effFromTime && effToTime)) {
           days = calculateMultiSlotDayFraction(request)
+          requestDate = request.from_date
         } else {
           days = fullDays
         }
@@ -962,7 +986,46 @@ async function processLeaveRequests(
       if (code === "unpaid_leave") {
         unpaidLeaveDays += days
       } else if (code === "work_from_home" && affectsPayroll) {
-        workFromHomeDays += days
+        // Xử lý WFH: chỉ cộng phần chưa được tính từ attendance
+        if (requestDate) {
+          // Single date: check attendance cho ngày đó
+          if (attendanceDayFractions.has(requestDate)) {
+            const attendanceFraction = attendanceDayFractions.get(requestDate) || 0
+            const wfhToAdd = Math.max(0, days - attendanceFraction)
+            workFromHomeDays += wfhToAdd
+          } else {
+            workFromHomeDays += days
+          }
+        } else if (request.from_date && request.to_date) {
+          // Date range: check attendance cho từng ngày
+          const parseDate = (dateStr: string) => {
+            const [y, m, d] = dateStr.split('-').map(Number)
+            return new Date(Date.UTC(y, m - 1, d))
+          }
+          const reqFromDate = parseDate(request.from_date)
+          const reqToDate = parseDate(request.to_date)
+          const periodStart = parseDate(startDate)
+          const periodEnd = parseDate(endDate)
+          const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+          const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+          
+          const current = new Date(reqStart)
+          while (current <= reqEnd) {
+            const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+            
+            if (attendanceDayFractions.has(dateStr)) {
+              const attendanceFraction = attendanceDayFractions.get(dateStr) || 0
+              const wfhToAdd = Math.max(0, 1 - attendanceFraction)
+              workFromHomeDays += wfhToAdd
+            } else {
+              workFromHomeDays += 1
+            }
+            
+            current.setDate(current.getDate() + 1)
+          }
+        } else {
+          workFromHomeDays += days
+        }
       } else if (affectsPayroll) {
         paidLeaveDays += days
       }

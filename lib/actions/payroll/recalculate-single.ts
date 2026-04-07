@@ -35,7 +35,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .from("payroll_items")
     .select(`
       *,
-      employee:employees(id, full_name, employee_code, shift_id, official_date, join_date),
+      employee:employees(id, full_name, employee_code, shift_id, official_date, join_date, resignation_date),
       payroll_run:payroll_runs(id, month, year, status)
     `)
     .eq("id", payroll_item_id)
@@ -80,6 +80,21 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const dailySalary = baseSalary / STANDARD_WORKING_DAYS
 
   logger.section(`TÍNH LƯƠNG: ${emp.full_name} (${emp.employee_code}) - Tháng ${month}/${year}`)
+  
+  // Kiểm tra ngày nghỉ việc
+  let effectiveEndDate = endDate
+  if (emp.resignation_date) {
+    const resignDate = emp.resignation_date
+    if (resignDate < startDate) {
+      logger.log(`⚠️  Nhân viên đã nghỉ việc trước kỳ lương (${resignDate}) - Bỏ qua`)
+      return { success: false, error: `Nhân viên đã nghỉ việc trước kỳ lương (${resignDate})` }
+    }
+    if (resignDate < endDate) {
+      effectiveEndDate = resignDate
+      logger.log(`📅 Nhân viên nghỉ việc ngày ${resignDate} - Chỉ tính lương đến ngày này`)
+    }
+  }
+  
   logger.log(`\nCông chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
   logger.log(`Lương cơ bản: ${baseSalary.toLocaleString()} VNĐ`)
   logger.log(`-> Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
@@ -97,7 +112,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .from("attendance_logs")
     .select("check_in, check_out")
     .eq("employee_id", emp.id)
-    .or(`and(check_in.gte.${startDate},check_in.lte.${endDate}T23:59:59),and(check_in.is.null,check_out.gte.${startDate},check_out.lte.${endDate}T23:59:59)`)
+    .or(`and(check_in.gte.${startDate},check_in.lte.${effectiveEndDate}T23:59:59),and(check_in.is.null,check_out.gte.${startDate},check_out.lte.${effectiveEndDate}T23:59:59)`)
 
   const { data: overtimeRequestDates } = await supabase
     .from("employee_requests")
@@ -105,7 +120,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .eq("employee_id", emp.id)
     .eq("status", "approved")
     .gte("request_date", startDate)
-    .lte("request_date", endDate)
+    .lte("request_date", effectiveEndDate)
 
   const empShift = emp.shift_id ? shiftMap.get(emp.shift_id) : null
   const shiftStart = empShift?.start_time?.slice(0, 5) || "08:00"
@@ -134,7 +149,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     `)
     .eq("employee_id", emp.id)
     .eq("status", "approved")
-    .or(`and(request_date.gte.${startDate},request_date.lte.${endDate}),and(from_date.lte.${endDate},to_date.gte.${startDate})`)
+    .or(`and(request_date.gte.${startDate},request_date.lte.${effectiveEndDate}),and(from_date.lte.${effectiveEndDate},to_date.gte.${startDate})`)
 
   const makeupDates = new Set<string>()
   if (employeeRequests) {
@@ -278,6 +293,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   let halfDayAttendanceCount = 0
   const countedDates = new Set<string>()
   const attendanceDates = new Set<string>()
+  const attendanceDayFractions = new Map<string, number>() // Track attendance fraction per date
   if (allAttendanceLogs) {
     for (const log of allAttendanceLogs) {
       const logDate = log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out)
@@ -290,10 +306,12 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
           // Count as 0.5 day (the other 0.5 is in paidLeaveDays)
           workingDaysCount += 0.5
           halfDayAttendanceCount++
+          attendanceDayFractions.set(logDate, 0.5)
         } else {
           // Count as full day
           workingDaysCount++
           fullDayCount++
+          attendanceDayFractions.set(logDate, 1.0)
         }
         countedDates.add(logDate)
       }
@@ -341,12 +359,12 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const holidays = await listHolidays(year)
   const holidayDates = new Set(
     holidays
-      .filter(h => h.holiday_date >= startDate && h.holiday_date <= endDate)
+      .filter(h => h.holiday_date >= startDate && h.holiday_date <= effectiveEndDate)
       .map(h => h.holiday_date)
   )
   const holidayMap = new Map(
     holidays
-      .filter(h => h.holiday_date >= startDate && h.holiday_date <= endDate)
+      .filter(h => h.holiday_date >= startDate && h.holiday_date <= effectiveEndDate)
       .map(h => [h.holiday_date, h.name])
   )
   
@@ -361,7 +379,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     `)
     .eq("is_company_holiday", true)
     .gte("work_date", startDate)
-    .lte("work_date", endDate)
+    .lte("work_date", effectiveEndDate)
   
   // Lọc ngày nghỉ công ty áp dụng cho nhân viên này
   // Quy tắc: Nếu không có assigned_employees -> áp dụng toàn công ty
@@ -434,6 +452,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       if (!affectsPayroll && code !== "unpaid_leave") continue
 
       let days = 0
+      let requestDate: string | null = null
+      
       if (reqType.requires_date_range && request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
           const [y, m, d] = dateStr.split('-').map(Number)
@@ -450,11 +470,13 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         
         if (fullDays === 1 && request.from_time && request.to_time) {
           days = calculateDayFraction(request.from_time, request.to_time)
+          requestDate = request.from_date
         } else {
           days = fullDays
         }
       } else if (reqType.requires_single_date && request.request_date) {
         days = calculateDayFraction(request.from_time, request.to_time)
+        requestDate = request.request_date
       } else if (request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
           const [y, m, d] = dateStr.split('-').map(Number)
@@ -471,6 +493,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         
         if (fullDays === 1 && request.from_time && request.to_time) {
           days = calculateDayFraction(request.from_time, request.to_time)
+          requestDate = request.from_date
         } else {
           days = fullDays
         }
@@ -481,7 +504,46 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       if (code === "unpaid_leave") {
         unpaidLeaveDays += days
       } else if (code === "work_from_home" && affectsPayroll) {
-        workFromHomeDays += days
+        // Xử lý WFH: chỉ cộng phần chưa được tính từ attendance
+        if (requestDate) {
+          // Single date: check attendance cho ngày đó
+          if (attendanceDayFractions.has(requestDate)) {
+            const attendanceFraction = attendanceDayFractions.get(requestDate) || 0
+            const wfhToAdd = Math.max(0, days - attendanceFraction)
+            workFromHomeDays += wfhToAdd
+          } else {
+            workFromHomeDays += days
+          }
+        } else if (request.from_date && request.to_date) {
+          // Date range: check attendance cho từng ngày
+          const parseDate = (dateStr: string) => {
+            const [y, m, d] = dateStr.split('-').map(Number)
+            return new Date(Date.UTC(y, m - 1, d))
+          }
+          const reqFromDate = parseDate(request.from_date)
+          const reqToDate = parseDate(request.to_date)
+          const periodStart = parseDate(startDate)
+          const periodEnd = parseDate(endDate)
+          const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
+          const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
+          
+          const current = new Date(reqStart)
+          while (current <= reqEnd) {
+            const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
+            
+            if (attendanceDayFractions.has(dateStr)) {
+              const attendanceFraction = attendanceDayFractions.get(dateStr) || 0
+              const wfhToAdd = Math.max(0, 1 - attendanceFraction)
+              workFromHomeDays += wfhToAdd
+            } else {
+              workFromHomeDays += 1
+            }
+            
+            current.setDate(current.getDate() + 1)
+          }
+        } else {
+          workFromHomeDays += days
+        }
       } else if (affectsPayroll) {
         paidLeaveDays += days
       }
@@ -497,7 +559,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     return new Date(Date.UTC(y, m - 1, d))
   }
   const periodStart = parseDate(startDate)
-  const periodEnd = parseDate(endDate)
+  const periodEnd = parseDate(effectiveEndDate)
   
   // Duyệt qua tất cả ngày trong tháng
   const current = new Date(periodStart)
@@ -590,7 +652,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     originalConsoleLog(...args)
   }
   
-  const violations = await getEmployeeViolations(supabase, emp.id, startDate, endDate, shiftInfo)
+  const violations = await getEmployeeViolations(supabase, emp.id, startDate, effectiveEndDate, shiftInfo)
   
   // Restore console.log và thêm logs vào logger
   console.log = originalConsoleLog
@@ -667,7 +729,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     supabase, emp, baseSalary, dailySalary, month, year,
     adjustmentTypes, empAdjustments, violationsWithoutOT,
     fullAttendanceDays, lateCount, unpaidLeaveDays, absentDays,
-    allAttendanceLogs || [], startDate, endDate
+    allAttendanceLogs || [], startDate, effectiveEndDate
   )
 
   // Restore console.log và thêm logs vào logger
@@ -685,7 +747,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     originalConsoleLog(...args)
   }
 
-  const otResult = await calculateOvertimePay(emp.id, baseSalary, STANDARD_WORKING_DAYS, startDate, endDate)
+  const otResult = await calculateOvertimePay(emp.id, baseSalary, STANDARD_WORKING_DAYS, startDate, effectiveEndDate)
   
   // Restore console.log và thêm logs vào logger
   console.log = originalConsoleLog

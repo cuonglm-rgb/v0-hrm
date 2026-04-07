@@ -72,6 +72,7 @@ export function EmployeeDetail({
     status: employee.status,
     join_date: employee.join_date || "",
     official_date: employee.official_date || "",
+    resignation_date: employee.resignation_date || "",
   })
 
   // Calculate Leave Fund
@@ -107,6 +108,12 @@ export function EmployeeDetail({
   const employeeRoleCodes = employeeRoles.map((er) => er.role.code)
 
   const handleSave = async () => {
+    // Validation: Nếu status = resigned thì phải có resignation_date
+    if (formData.status === 'resigned' && !formData.resignation_date) {
+      toast.error("Vui lòng nhập ngày nghỉ việc khi chuyển sang trạng thái 'Đã nghỉ việc'")
+      return
+    }
+    
     setSaving(true)
     try {
       const result = await updateEmployee(employee.id, {
@@ -116,6 +123,7 @@ export function EmployeeDetail({
         shift_id: formData.shift_id || null,
         join_date: formData.join_date || null,
         official_date: formData.official_date || null,
+        resignation_date: formData.resignation_date || null,
       })
 
       if (result.success) {
@@ -375,6 +383,28 @@ export function EmployeeDetail({
                     />
                     {!formData.official_date && formData.status === "active" && (
                       <p className="text-xs text-muted-foreground">Sẽ tự động cập nhật khi lưu trạng thái "Đang làm việc" nếu để trống</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="resignation_date">
+                      Ngày nghỉ việc
+                      {formData.status === 'resigned' && (
+                        <span className="text-red-500 ml-1">*</span>
+                      )}
+                    </Label>
+                    <Input
+                      id="resignation_date"
+                      type="date"
+                      value={formData.resignation_date}
+                      onChange={(e) => setFormData({ ...formData, resignation_date: e.target.value })}
+                      disabled={!isHROrAdmin}
+                      className={formData.status === 'resigned' && !formData.resignation_date ? 'border-red-500' : ''}
+                    />
+                    {formData.resignation_date && (
+                      <p className="text-xs text-amber-600">Lương sẽ chỉ được tính đến ngày này</p>
+                    )}
+                    {formData.status === 'resigned' && !formData.resignation_date && (
+                      <p className="text-xs text-red-500">Bắt buộc nhập ngày nghỉ việc khi trạng thái là "Đã nghỉ việc"</p>
                     )}
                   </div>
                 </div>
