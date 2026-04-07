@@ -54,6 +54,7 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
   const [adjustmentDetails, setAdjustmentDetails] = useState<AdjustmentDetail[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showSalary, setShowSalary] = useState(false)
+  const [showDetailSalary, setShowDetailSalary] = useState(false)
 
   const getStatusBadge = (status: string | undefined) => {
     switch (status) {
@@ -106,7 +107,11 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground">Công chuẩn</p>
+                <p className="text-2xl font-bold">{latestPayslip.standard_working_days || 0}</p>
+              </div>
               <div className="p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">Ngày công</p>
                 <p className="text-2xl font-bold">{latestPayslip.working_days || 0}</p>
@@ -251,12 +256,23 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
       <Dialog open={!!selectedPayslip} onOpenChange={(open) => !open && setSelectedPayslip(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Chi tiết cơ cấu lương</DialogTitle>
-            {selectedPayslip && (
-              <p className="text-sm text-muted-foreground">
-                {selectedPayslip.employee?.full_name} - NV{selectedPayslip.employee?.employee_code} - Tháng {selectedPayslip.payroll_run?.month}/{selectedPayslip.payroll_run?.year}
-              </p>
-            )}
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Chi tiết cơ cấu lương</DialogTitle>
+                {selectedPayslip && (
+                  <p className="text-sm text-muted-foreground">
+                    {selectedPayslip.employee?.full_name} - NV{selectedPayslip.employee?.employee_code} - Tháng {selectedPayslip.payroll_run?.month}/{selectedPayslip.payroll_run?.year}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setShowDetailSalary(!showDetailSalary)}
+                className="p-2 hover:bg-muted rounded-md transition-colors"
+                title={showDetailSalary ? "Ẩn tổng thu nhập và thực lĩnh" : "Hiển thị tổng thu nhập và thực lĩnh"}
+              >
+                {showDetailSalary ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
           </DialogHeader>
 
           {selectedPayslip && (
@@ -268,24 +284,27 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
               )}
               
               {/* Thông tin tổng quan */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="p-3 bg-muted/50 rounded-lg text-center">
-                  <p className="text-xs text-muted-foreground">Lương cơ bản</p>
-                  <p className="text-lg font-bold">{formatCurrency(selectedPayslip.base_salary)}</p>
+              {showDetailSalary && (
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-3 bg-muted/50 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground">Lương cơ bản</p>
+                    <p className="text-lg font-bold">{formatCurrency(selectedPayslip.base_salary)}</p>
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground">Lương ngày</p>
+                    <p className="text-lg font-bold">
+                      {formatCurrency(selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25))}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-muted/50 rounded-lg text-center">
+                    <p className="text-xs text-muted-foreground">Công chuẩn</p>
+                    <p className="text-lg font-bold">{selectedPayslip.standard_working_days || 25} ngày</p>
+                  </div>
                 </div>
-                <div className="p-3 bg-muted/50 rounded-lg text-center">
-                  <p className="text-xs text-muted-foreground">Lương ngày</p>
-                  <p className="text-lg font-bold">
-                    {formatCurrency(selectedPayslip.base_salary / (selectedPayslip.standard_working_days || 25))}
-                  </p>
-                </div>
-                <div className="p-3 bg-muted/50 rounded-lg text-center">
-                  <p className="text-xs text-muted-foreground">Công chuẩn</p>
-                  <p className="text-lg font-bold">{selectedPayslip.standard_working_days || 25} ngày</p>
-                </div>
-              </div>
+              )}
 
               {/* Thu nhập */}
+              {showDetailSalary && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <TrendingUp className="h-5 w-5 text-green-600" />
@@ -489,16 +508,19 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                   )}
 
                   {/* Tổng thu nhập */}
-                  <div className="flex justify-between items-center py-1 pt-3 border-t font-semibold gap-4">
-                    <span className="flex-1 min-w-0">Tổng thu nhập</span>
-                    <span className="text-blue-600 whitespace-nowrap tabular-nums">
-                      {formatCurrency(selectedPayslip.total_income)}
-                    </span>
-                  </div>
+                  {showDetailSalary && (
+                    <div className="flex justify-between items-center py-1 pt-3 border-t font-semibold gap-4">
+                      <span className="flex-1 min-w-0">Tổng thu nhập</span>
+                      <span className="text-blue-600 whitespace-nowrap tabular-nums">
+                        {formatCurrency(selectedPayslip.total_income)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
+              )}
 
-              <Separator />
+              {showDetailSalary && <Separator />}
 
               {/* Khấu trừ */}
               <div>
@@ -565,26 +587,30 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                   )}
 
                   {/* Tổng khấu trừ */}
-                  <div className="flex justify-between items-center py-1 pt-3 border-t font-semibold gap-4">
-                    <span className="flex-1 min-w-0">Tổng khấu trừ</span>
-                    <span className="text-red-600 whitespace-nowrap tabular-nums">
-                      {formatCurrency(selectedPayslip.total_deduction)}
+                  {showDetailSalary && (
+                    <div className="flex justify-between items-center py-1 pt-3 border-t font-semibold gap-4">
+                      <span className="flex-1 min-w-0">Tổng khấu trừ</span>
+                      <span className="text-red-600 whitespace-nowrap tabular-nums">
+                        {formatCurrency(selectedPayslip.total_deduction)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {showDetailSalary && <Separator />}
+
+              {/* Thực lĩnh */}
+              {showDetailSalary && (
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-semibold">Thực lĩnh</span>
+                    <span className="text-2xl font-bold text-green-600">
+                      {formatCurrency(selectedPayslip.net_salary)}
                     </span>
                   </div>
                 </div>
-              </div>
-
-              <Separator />
-
-              {/* Thực lĩnh */}
-              <div className="bg-green-50 rounded-lg p-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold">Thực lĩnh</span>
-                  <span className="text-2xl font-bold text-green-600">
-                    {formatCurrency(selectedPayslip.net_salary)}
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
           )}
         </DialogContent>

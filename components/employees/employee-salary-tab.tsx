@@ -34,7 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
-import { Plus, Wallet, TrendingUp, Shield, Trash2, Receipt, Pencil, Coins, Ban } from "lucide-react"
+import { Plus, Wallet, TrendingUp, Shield, Trash2, Receipt, Pencil, Coins, Ban, Eye, EyeOff } from "lucide-react"
 import { createSalaryStructure, deleteSalaryStructure } from "@/lib/actions/payroll-actions"
 import {
   listAdjustmentTypes,
@@ -58,6 +58,7 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [showSalaryHistory, setShowSalaryHistory] = useState(false)
   const [formData, setFormData] = useState({
     base_salary: "",
     allowance: "",
@@ -313,15 +314,33 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                 <Wallet className="h-4 w-4" />
                 Lương hiện tại (từ {formatDateVN(currentSalary.effective_date)})
               </p>
-              <p className="text-2xl font-bold text-green-700 mt-1">
-                {formatCurrency(currentSalary.base_salary + currentSalary.allowance)}
-              </p>
+              {!isHROrAdmin && !showSalaryHistory ? (
+                <p className="text-2xl font-bold text-green-700 mt-1">••••••••</p>
+              ) : (
+                <p className="text-2xl font-bold text-green-700 mt-1">
+                  {formatCurrency(currentSalary.base_salary + currentSalary.allowance)}
+                </p>
+              )}
             </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">Lương cơ bản</p>
-              <p className="font-medium">{formatCurrency(currentSalary.base_salary)}</p>
-              <p className="text-sm text-muted-foreground mt-1">Phụ cấp</p>
-              <p className="font-medium">{formatCurrency(currentSalary.allowance)}</p>
+            <div className="flex items-center gap-3">
+              {!isHROrAdmin && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowSalaryHistory(!showSalaryHistory)}
+                  className="h-8 w-8"
+                >
+                  {showSalaryHistory ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              )}
+              {(isHROrAdmin || showSalaryHistory) && (
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Lương cơ bản</p>
+                  <p className="font-medium">{formatCurrency(currentSalary.base_salary)}</p>
+                  <p className="text-sm text-muted-foreground mt-1">Phụ cấp</p>
+                  <p className="font-medium">{formatCurrency(currentSalary.allowance)}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -423,62 +442,64 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
       )}
 
       {/* Salary History */}
-      <div>
-        <h4 className="font-medium mb-3 flex items-center gap-2">
-          <Wallet className="h-4 w-4" />
-          Lịch sử lương
-        </h4>
-        {salaryHistory.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Chưa có lịch sử lương</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ngày hiệu lực</TableHead>
-                <TableHead className="text-right">Lương cơ bản</TableHead>
-                <TableHead className="text-right">Lương BHXH</TableHead>
-                <TableHead className="text-right">Phụ cấp</TableHead>
-                <TableHead className="text-right">Tổng</TableHead>
-                <TableHead>Ghi chú</TableHead>
-                {isHROrAdmin && <TableHead className="w-[50px]"></TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {salaryHistory.map((record, index) => (
-                <TableRow key={record.id}>
-                  <TableCell>
-                    {formatDateVN(record.effective_date)}
-                    {index === 0 && (
-                      <Badge className="ml-2 bg-green-100 text-green-700">Hiện tại</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">{formatCurrency(record.base_salary)}</TableCell>
-                  <TableCell className="text-right">
-                    {record.insurance_salary ? formatCurrency(record.insurance_salary) : "-"}
-                  </TableCell>
-                  <TableCell className="text-right">{formatCurrency(record.allowance)}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(record.base_salary + record.allowance)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{record.note || "-"}</TableCell>
-                  {isHROrAdmin && (
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteSalaryId(record.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  )}
+      {(isHROrAdmin || showSalaryHistory) && (
+        <div>
+          <h4 className="font-medium mb-3 flex items-center gap-2">
+            <Wallet className="h-4 w-4" />
+            Lịch sử lương
+          </h4>
+          {salaryHistory.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Chưa có lịch sử lương</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ngày hiệu lực</TableHead>
+                  <TableHead className="text-right">Lương cơ bản</TableHead>
+                  <TableHead className="text-right">Lương BHXH</TableHead>
+                  <TableHead className="text-right">Phụ cấp</TableHead>
+                  <TableHead className="text-right">Tổng</TableHead>
+                  <TableHead>Ghi chú</TableHead>
+                  {isHROrAdmin && <TableHead className="w-[50px]"></TableHead>}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
+              </TableHeader>
+              <TableBody>
+                {salaryHistory.map((record, index) => (
+                  <TableRow key={record.id}>
+                    <TableCell>
+                      {formatDateVN(record.effective_date)}
+                      {index === 0 && (
+                        <Badge className="ml-2 bg-green-100 text-green-700">Hiện tại</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">{formatCurrency(record.base_salary)}</TableCell>
+                    <TableCell className="text-right">
+                      {record.insurance_salary ? formatCurrency(record.insurance_salary) : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">{formatCurrency(record.allowance)}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(record.base_salary + record.allowance)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{record.note || "-"}</TableCell>
+                    {isHROrAdmin && (
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteSalaryId(record.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      )}
 
       {/* Khấu trừ / Phụ cấp thủ công */}
       <div className="border-t pt-6">
