@@ -1288,6 +1288,106 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Mobile view - Card layout */}
+          <div className="block lg:hidden space-y-3">
+            {paginatedRequests.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                {hasActiveFilters ? "Không tìm thấy phiếu phù hợp" : "Chưa có phiếu nào"}
+              </div>
+            ) : (
+              paginatedRequests.map((request) => (
+                <Card 
+                  key={request.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleViewDetail(request)}
+                >
+                  <CardContent className="pt-4 space-y-3">
+                    {/* Header with type and status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <Badge variant="secondary">{request.typeName}</Badge>
+                      {getStatusBadge(request.status)}
+                    </div>
+
+                    {/* Date and time */}
+                    <div className="space-y-1 text-sm">
+                      {request.fromDate && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="text-muted-foreground">
+                            {request.fromDate && request.toDate && request.fromDate !== request.toDate ? (
+                              <>{formatDateVN(request.fromDate)} - {formatDateVN(request.toDate)}</>
+                            ) : (
+                              formatDateVN(request.fromDate)
+                            )}
+                            {" "}({calculateLeaveDays(
+                              request.fromDate, 
+                              request.toDate, 
+                              request.originalData.from_time, 
+                              request.originalData.to_time
+                            )} ngày)
+                          </span>
+                        </div>
+                      )}
+                      {request.time && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="text-muted-foreground">{request.time}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Reason */}
+                    {request.reason && (
+                      <div className="text-sm text-muted-foreground line-clamp-2">
+                        {request.reason}
+                      </div>
+                    )}
+
+                    {/* Attachment */}
+                    {request.attachmentUrl && (
+                      <a 
+                        href={request.attachmentUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Paperclip className="h-3 w-3" />
+                        Xem file đính kèm
+                      </a>
+                    )}
+
+                    {/* Actions */}
+                    {request.status === "pending" && (
+                      <div className="flex gap-2 pt-2 border-t" onClick={(e) => e.stopPropagation()}>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleEdit(request)}
+                          className="flex-1"
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Sửa
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleCancel(request)}
+                          className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Hủy
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Desktop view - Table layout */}
+          <div className="hidden lg:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1370,6 +1470,8 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
               )}
             </TableBody>
           </Table>
+          </div>
+          
           <DataPagination
             currentPage={currentPage}
             totalPages={totalPages}

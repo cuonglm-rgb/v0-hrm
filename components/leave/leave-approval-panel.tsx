@@ -461,7 +461,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       )}
 
       {/* Thống kê */}
-      <div className="grid grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -527,7 +527,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             <div className="space-y-2">
               <Label className="text-xs">Tìm kiếm</Label>
               <div className="relative">
@@ -593,40 +593,208 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
       {/* Bảng danh sách */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
               Danh sách phiếu ({totalFiltered})
             </CardTitle>
             {selectedIds.size > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <span className="text-sm text-muted-foreground">
                   Đã chọn {selectedIds.size} phiếu
                 </span>
-                <Button
-                  size="sm"
-                  onClick={handleBulkApprove}
-                  disabled={bulkLoading}
-                  className="gap-1 bg-green-600 hover:bg-green-700"
-                >
-                  <Check className="h-4 w-4" />
-                  Duyệt hàng loạt
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleBulkReject}
-                  disabled={bulkLoading}
-                  className="gap-1 text-red-600 border-red-200 hover:bg-red-50"
-                >
-                  <X className="h-4 w-4" />
-                  Từ chối hàng loạt
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleBulkApprove}
+                    disabled={bulkLoading}
+                    className="gap-1 bg-green-600 hover:bg-green-700"
+                  >
+                    <Check className="h-4 w-4" />
+                    Duyệt
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleBulkReject}
+                    disabled={bulkLoading}
+                    className="gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    <X className="h-4 w-4" />
+                    Từ chối
+                  </Button>
+                </div>
               </div>
             )}
           </div>
         </CardHeader>
         <CardContent>
+          {/* Mobile view - Card layout */}
+          <div className="block lg:hidden space-y-3">
+            {paginatedRequests.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                {hasActiveFilters ? "Không tìm thấy phiếu phù hợp" : "Không có phiếu nào"}
+              </div>
+            ) : (
+              paginatedRequests.map((request) => {
+                const canSelect = request.status === "pending" && 
+                                 canApproveRequest(request) &&
+                                 request.myApprovalStatus !== "approved" &&
+                                 request.myApprovalStatus !== "rejected"
+                
+                return (
+                  <Card 
+                    key={request.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleViewDetail(request)}
+                  >
+                    <CardContent className="pt-4 space-y-3">
+                      {/* Header with checkbox and status */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          {canSelect && (
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(request.id)}
+                              onChange={() => toggleSelect(request.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-4 w-4 rounded border-gray-300 mt-1 shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{request.employeeName}</div>
+                            <div className="text-sm text-muted-foreground">{request.employeeCode}</div>
+                          </div>
+                        </div>
+                        {getStatusBadge(request.status)}
+                      </div>
+
+                      {/* Request type */}
+                      <div>
+                        <Badge variant="secondary">{request.typeName}</Badge>
+                      </div>
+
+                      {/* Date and time */}
+                      <div className="space-y-1 text-sm">
+                        {request.fromDate && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground">
+                              {request.fromDate && request.toDate && request.fromDate !== request.toDate ? (
+                                <>{formatDateVN(request.fromDate)} - {formatDateVN(request.toDate)}</>
+                              ) : (
+                                formatDateVN(request.fromDate)
+                              )}
+                              {" "}({calculateLeaveDays(
+                                request.fromDate, 
+                                request.toDate, 
+                                request.originalData.from_time, 
+                                request.originalData.to_time,
+                                request.originalData.request_type ? {
+                                  requires_date_range: request.originalData.request_type.requires_date_range,
+                                  requires_single_date: request.originalData.request_type.requires_single_date,
+                                  requires_time_range: request.originalData.request_type.requires_time_range,
+                                } : undefined
+                              )} ngày)
+                            </span>
+                          </div>
+                        )}
+                        {request.time && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span className="text-muted-foreground">{request.time}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Reason */}
+                      {request.reason && (
+                        <div className="text-sm text-muted-foreground line-clamp-2">
+                          {request.reason}
+                        </div>
+                      )}
+
+                      {/* Attachment */}
+                      {request.attachmentUrl && (
+                        <a 
+                          href={request.attachmentUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Paperclip className="h-3 w-3" />
+                          Xem file đính kèm
+                        </a>
+                      )}
+
+                      {/* Actions */}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        {request.status === "pending" ? (
+                          <div className="space-y-2">
+                            {request.myApprovalStatus === "approved" ? (
+                              <div className="flex items-center gap-2 text-green-600 text-sm">
+                                <CheckCircle2 className="h-4 w-4" />
+                                <span>Bạn đã duyệt</span>
+                              </div>
+                            ) : request.myApprovalStatus === "rejected" ? (
+                              <div className="flex items-center gap-2 text-red-600 text-sm">
+                                <X className="h-4 w-4" />
+                                <span>Bạn đã từ chối</span>
+                              </div>
+                            ) : (
+                              <>
+                                {!canApproveRequest(request) && (
+                                  <span className="text-xs text-orange-600">
+                                    Level {request.originalData.request_type?.min_approver_level || "?"} trở lên
+                                  </span>
+                                )}
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApprove(request)}
+                                    disabled={loadingId === request.id || !canApproveRequest(request)}
+                                    className="flex-1 gap-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                                  >
+                                    <Check className="h-4 w-4" />
+                                    Duyệt
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleReject(request)}
+                                    disabled={loadingId === request.id || !canApproveRequest(request)}
+                                    className="flex-1 gap-1 text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+                                  >
+                                    <X className="h-4 w-4" />
+                                    Từ chối
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        ) : request.status === "approved" && isHrOrAdmin ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleCancel(request)}
+                            disabled={loadingId === request.id}
+                            className="w-full gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
+                          >
+                            <Ban className="h-4 w-4" />
+                            Hủy
+                          </Button>
+                        ) : null}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })
+            )}
+          </div>
+
+          {/* Desktop view - Table layout */}
+          <div className="hidden lg:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -799,6 +967,8 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
               )}
             </TableBody>
           </Table>
+          </div>
+          
           <DataPagination
             currentPage={currentPage}
             totalPages={totalPages}
