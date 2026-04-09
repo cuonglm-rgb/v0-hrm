@@ -152,14 +152,9 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .or(`and(request_date.gte.${startDate},request_date.lte.${effectiveEndDate}),and(from_date.lte.${effectiveEndDate},to_date.gte.${startDate})`)
 
   const makeupDates = new Set<string>()
-  if (employeeRequests) {
-    for (const request of employeeRequests) {
-      const reqType = request.request_type as any
-      if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
-      makeupDates.add(request.request_date)
-    }
-  }
-
+  // Map: date -> { fromTime, toTime, dayFraction } for partial-day WFH requests
+  const partialWfhDates = new Map<string, { fromTime: string, toTime: string, dayFraction: number }>()
+  
   // Helper function to calculate day fraction for a request
   const calculateRequestDayFraction = (request: any): number => {
     const reqType = request.request_type as any
@@ -188,6 +183,31 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       return 0.5
     }
     return 1
+  }
+  
+  if (employeeRequests) {
+    for (const request of employeeRequests) {
+      const reqType = request.request_type as any
+      if (reqType?.code === "full_day_makeup" && request.request_date) {
+        makeupDates.add(request.request_date)
+      }
+      
+      // Identify partial-day WFH requests
+      // Handle both single date format (request_date) and date range format (from_date = to_date)
+      if (reqType?.code === "work_from_home" && (request.request_date || (request.from_date === request.to_date))) {
+        const dayFraction = calculateRequestDayFraction(request)
+        if (dayFraction === 0.5) {
+          // Get time range from from_time/to_time
+          const fromTime = request.from_time
+          const toTime = request.to_time
+          
+          if (fromTime && toTime) {
+            const dateStr = request.request_date || request.from_date
+            partialWfhDates.set(dateStr, { fromTime, toTime, dayFraction })
+          }
+        }
+      }
+    }
   }
 
   const leaveDates = new Set<string>()
@@ -294,6 +314,16 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const countedDates = new Set<string>()
   const attendanceDates = new Set<string>()
   const attendanceDayFractions = new Map<string, number>() // Track attendance fraction per date
+  
+  // Helper function to check if two time ranges overlap
+  const timeRangesOverlap = (start1: string, end1: string, start2: string, end2: string): boolean => {
+    const s1 = parseTime(start1)
+    const e1 = parseTime(end1)
+    const s2 = parseTime(start2)
+    const e2 = parseTime(end2)
+    return s1 < e2 && s2 < e1
+  }
+  
   if (allAttendanceLogs) {
     for (const log of allAttendanceLogs) {
       const logDate = log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out)
@@ -302,11 +332,41 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       if (!overtimeDates.has(logDate) && !countedDates.has(logDate)) {
         // Check if this day has a half-day leave request
         const halfDayFraction = halfDayLeaveDates.get(logDate)
+        
+        // Check if this day has a partial-day WFH request
+        const partialWfh = partialWfhDates.get(logDate)
+        
         if (halfDayFraction) {
           // Count as 0.5 day (the other 0.5 is in paidLeaveDays)
           workingDaysCount += 0.5
           halfDayAttendanceCount++
           attendanceDayFractions.set(logDate, 0.5)
+        } else if (partialWfh) {
+          // Check for time overlap between WFH and attendance
+          const checkInTime = log.check_in ? new Date(log.check_in).toISOString().slice(11, 16) : null
+          const checkOutTime = log.check_out ? new Date(log.check_out).toISOString().slice(11, 16) : null
+          
+          if (checkInTime && checkOutTime) {
+            const hasOverlap = timeRangesOverlap(partialWfh.fromTime, partialWfh.toTime, checkInTime, checkOutTime)
+            
+            if (hasOverlap) {
+              // Overlap detected - prioritize physical attendance, don't count WFH portion
+              // Count as full day attendance (WFH will be ignored in processLeaveRequests)
+              workingDaysCount++
+              fullDayCount++
+              attendanceDayFractions.set(logDate, 1.0)
+            } else {
+              // No overlap - count as 0.5 day attendance (the other 0.5 is WFH)
+              workingDaysCount += 0.5
+              halfDayAttendanceCount++
+              attendanceDayFractions.set(logDate, 0.5)
+            }
+          } else {
+            // Missing check-in or check-out time, assume 0.5 day attendance
+            workingDaysCount += 0.5
+            halfDayAttendanceCount++
+            attendanceDayFractions.set(logDate, 0.5)
+          }
         } else {
           // Count as full day
           workingDaysCount++
@@ -509,7 +569,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
           // Single date: check attendance cho ngày đó
           if (attendanceDayFractions.has(requestDate)) {
             const attendanceFraction = attendanceDayFractions.get(requestDate) || 0
-            const wfhToAdd = Math.max(0, days - attendanceFraction)
+            // WFH to add = 1 - attendance fraction (regardless of WFH request duration)
+            const wfhToAdd = Math.max(0, 1 - attendanceFraction)
             workFromHomeDays += wfhToAdd
           } else {
             workFromHomeDays += days
