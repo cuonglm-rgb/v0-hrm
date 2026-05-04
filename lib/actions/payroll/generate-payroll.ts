@@ -686,7 +686,8 @@ async function processEmployeePayroll(
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
   // workingDaysCount đã tính đúng half-day rồi (0.5), không cần trừ thêm
-  const actualAttendanceDays = workingDaysCount + consumed_days
+  // consumed_days chỉ để audit, KHÔNG cộng vào công vì ngày làm bù đã được tính trong workingDaysCount
+  const actualAttendanceDays = workingDaysCount
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
   const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
   const forgotCheckoutCount = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
@@ -701,7 +702,7 @@ async function processEmployeePayroll(
   logger.detail(`- Đi muộn: ${lateCount} lần`)
   logger.detail(`- Quên chấm công đến: ${forgotCheckinCount} lần`)
   logger.detail(`- Quên chấm công về: ${forgotCheckoutCount} lần`)
-  logger.detail(`- Actual attendance: ${actualAttendanceDays} ngày (${workingDaysCount} + consumed ${consumed_days})`)
+  logger.detail(`- Actual attendance: ${actualAttendanceDays} ngày (chấm công thực tế, consumed ${consumed_days} chỉ để audit)`)
 
   // Tính ngày đủ giờ cho phụ cấp
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
@@ -807,10 +808,13 @@ async function processEmployeePayroll(
   const totalAllDays = actualWorkingDays + leaveResult.paidLeaveDays + finalUnpaidLeaveDays + absentDays
   logger.detail(`- Tổng: ${totalAllDays} ngày`)
   
-  // Kiểm tra công thức: Ngày công + Công bù + Nghỉ phép + Nghỉ KL = Công chuẩn
-  const formulaTotal = actualWorkingDays + consumed_days + leaveResult.paidLeaveDays + finalUnpaidLeaveDays
+  // Kiểm tra công thức: Ngày công + Nghỉ phép + Nghỉ KL = Công chuẩn (consumed_days chỉ để audit, không tính vào công thức)
+  const formulaTotal = actualWorkingDays + leaveResult.paidLeaveDays + finalUnpaidLeaveDays
   logger.detail(``)
-  logger.detail(`✓ Kiểm tra công thức: ${actualWorkingDays} (công) + ${consumed_days} (bù) + ${leaveResult.paidLeaveDays} (phép) + ${finalUnpaidLeaveDays} (KL) = ${formulaTotal} ngày`)
+  logger.detail(`✓ Kiểm tra công thức: ${actualWorkingDays} (công) + ${leaveResult.paidLeaveDays} (phép) + ${finalUnpaidLeaveDays} (KL) = ${formulaTotal} ngày`)
+  if (consumed_days > 0) {
+    logger.detail(`  (Ngày bù ${consumed_days} chỉ để audit, không cộng vào công thức vì đã tính trong chấm công)`)
+  }
   
   if (formulaTotal < STANDARD_WORKING_DAYS) {
     logger.detail(`⚠️  Thiếu ${STANDARD_WORKING_DAYS - formulaTotal} ngày so với công chuẩn`)
