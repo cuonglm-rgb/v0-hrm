@@ -561,80 +561,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
 
       if (days <= 0) continue
 
-      // Helper function to add leave days while checking attendance
-      const addLeaveDaysWithAttendanceCheck = (
-        daysToAdd: number,
-        dateStr: string | null,
-        fromDate: string | null,
-        toDate: string | null,
-        leaveType: 'paid' | 'unpaid'
-      ) => {
-        if (dateStr) {
-          // Single date: check attendance cho ngày đó
-          if (attendanceDayFractions.has(dateStr)) {
-            const attendanceFraction = attendanceDayFractions.get(dateStr) || 0
-            // Leave to add = requested days - attendance fraction
-            const leaveToAdd = Math.max(0, daysToAdd - attendanceFraction)
-            if (leaveType === 'paid') {
-              paidLeaveDays += leaveToAdd
-            } else {
-              unpaidLeaveDays += leaveToAdd
-            }
-          } else {
-            // No attendance, add full leave days
-            if (leaveType === 'paid') {
-              paidLeaveDays += daysToAdd
-            } else {
-              unpaidLeaveDays += daysToAdd
-            }
-          }
-        } else if (fromDate && toDate) {
-          // Date range: check attendance cho từng ngày
-          const parseDate = (dateStr: string) => {
-            const [y, m, d] = dateStr.split('-').map(Number)
-            return new Date(Date.UTC(y, m - 1, d))
-          }
-          const reqFromDate = parseDate(fromDate)
-          const reqToDate = parseDate(toDate)
-          const periodStart = parseDate(startDate)
-          const periodEnd = parseDate(endDate)
-          const reqStart = new Date(Math.max(reqFromDate.getTime(), periodStart.getTime()))
-          const reqEnd = new Date(Math.min(reqToDate.getTime(), periodEnd.getTime()))
-          
-          const current = new Date(reqStart)
-          while (current <= reqEnd) {
-            const currentDateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
-            
-            if (attendanceDayFractions.has(currentDateStr)) {
-              const attendanceFraction = attendanceDayFractions.get(currentDateStr) || 0
-              const leaveToAdd = Math.max(0, 1 - attendanceFraction)
-              if (leaveType === 'paid') {
-                paidLeaveDays += leaveToAdd
-              } else {
-                unpaidLeaveDays += leaveToAdd
-              }
-            } else {
-              if (leaveType === 'paid') {
-                paidLeaveDays += 1
-              } else {
-                unpaidLeaveDays += 1
-              }
-            }
-            
-            current.setDate(current.getDate() + 1)
-          }
-        } else {
-          // Fallback: add full days
-          if (leaveType === 'paid') {
-            paidLeaveDays += daysToAdd
-          } else {
-            unpaidLeaveDays += daysToAdd
-          }
-        }
-      }
-
       if (code === "unpaid_leave") {
-        addLeaveDaysWithAttendanceCheck(days, requestDate, request.from_date, request.to_date, 'unpaid')
+        unpaidLeaveDays += days
       } else if (code === "work_from_home" && affectsPayroll) {
         // Xử lý WFH: chỉ cộng phần chưa được tính từ attendance
         if (requestDate) {
@@ -678,7 +606,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
           workFromHomeDays += days
         }
       } else if (affectsPayroll) {
-        addLeaveDaysWithAttendanceCheck(days, requestDate, request.from_date, request.to_date, 'paid')
+        paidLeaveDays += days
       }
     }
   }
