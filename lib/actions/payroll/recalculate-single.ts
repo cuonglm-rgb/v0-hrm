@@ -151,6 +151,25 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .eq("status", "approved")
     .or(`and(request_date.gte.${startDate},request_date.lte.${effectiveEndDate}),and(from_date.lte.${effectiveEndDate},to_date.gte.${startDate})`)
 
+  // Query phân công lịch thứ 7 override theo nhân viên
+  const { data: saturdaySchedules } = await supabase
+    .from("saturday_work_schedule")
+    .select("work_date, is_working")
+    .eq("employee_id", emp.id)
+    .gte("work_date", startDate)
+    .lte("work_date", endDate)
+
+  const saturdayScheduleMap = new Map<string, boolean>(
+    (saturdaySchedules || []).map((s: any) => [s.work_date, s.is_working as boolean])
+  )
+
+  // Trả về true nếu thứ 7 đó là ngày LÀM VIỆC của nhân viên
+  const isEmployeeWorkingSaturday = (dateStr: string): boolean => {
+    if (saturdayScheduleMap.has(dateStr)) return saturdayScheduleMap.get(dateStr)!
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return !isSaturdayOff(new Date(Date.UTC(y, m - 1, d)))
+  }
+
   const makeupDates = new Set<string>()
   // Map: date -> { fromTime, toTime, dayFraction } for partial-day WFH requests
   const partialWfhDates = new Map<string, { fromTime: string, toTime: string, dayFraction: number }>()
@@ -330,6 +349,13 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       attendanceDates.add(logDate)
       if (makeupDates.has(logDate)) continue
       if (!overtimeDates.has(logDate) && !countedDates.has(logDate)) {
+        // Bỏ qua thứ 7 nghỉ: nhân viên tự đến không có phiếu OT
+        const [ly, lm, ld] = logDate.split('-').map(Number)
+        if (new Date(Date.UTC(ly, lm - 1, ld)).getUTCDay() === 6 && !isEmployeeWorkingSaturday(logDate)) {
+          logger.log(`📋 Ngày ${logDate}: Thứ 7 nghỉ của nhân viên, chấm công tự phát - không tính ngày công`)
+          continue
+        }
+
         // Check if this day has a half-day leave request
         const halfDayFraction = halfDayLeaveDates.get(logDate)
         
