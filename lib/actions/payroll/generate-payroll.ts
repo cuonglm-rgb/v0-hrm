@@ -1510,13 +1510,14 @@ export async function processAdjustments(
                 const violationDetail = `${v.date} (${reasons.join(', ')})`
                 allowanceViolationsList.push(violationDetail)
                 
-                // Phân loại vi phạm: chỉ vi phạm đi muộn dưới 120 phút mới được grace
+                // Phân loại vi phạm: muộn hoặc sớm dưới 120 phút mới được grace
                 // Các vi phạm khác (quên chấm công, nửa ngày, vắng) không được grace
-                const isLateOnly = v.lateMinutes > lateThresholdMinutes && 
-                                   !v.earlyMinutes && !v.forgotCheckIn && !v.forgotCheckOut && 
-                                   !v.isHalfDay && !v.isAbsent
-                
-                if (isLateOnly && v.lateMinutes <= GRACE_THRESHOLD_MINUTES) {
+                const noOtherViolation = !v.forgotCheckIn && !v.forgotCheckOut && !v.isHalfDay && !v.isAbsent
+                const isLateOnly = v.lateMinutes > lateThresholdMinutes && !v.earlyMinutes && noOtherViolation
+                const isEarlyOnly = v.earlyMinutes > 0 && v.lateMinutes <= lateThresholdMinutes && noOtherViolation
+
+                if ((isLateOnly && v.lateMinutes <= GRACE_THRESHOLD_MINUTES) ||
+                    (isEarlyOnly && v.earlyMinutes <= GRACE_THRESHOLD_MINUTES)) {
                   allowanceViolationsEligibleForGrace.push(violationDetail)
                 } else {
                   allowanceViolationsNotEligibleForGrace.push(violationDetail)
