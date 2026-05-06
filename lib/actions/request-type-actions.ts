@@ -1794,6 +1794,29 @@ export async function updateEmployeeRequest(
     return { success: false, error: "Ngày bắt đầu phải trước ngày kết thúc" }
   }
 
+  // Validate deadline khi sửa phiếu (Giới hạn thời gian tạo phiếu áp dụng cả khi sửa ngày)
+  const newEventDateStr = input.from_date || input.request_date
+  if (newEventDateStr) {
+    const { data: requestTypeForDeadline } = await supabase
+      .from("request_types")
+      .select("submission_deadline")
+      .eq("id", currentRequest.request_type_id)
+      .single()
+
+    if (requestTypeForDeadline?.submission_deadline && requestTypeForDeadline.submission_deadline > 0) {
+      const eventDate = startOfDay(parseISO(newEventDateStr))
+      const today = startOfDay(new Date())
+      const dayDiff = differenceInDays(today, eventDate)
+
+      if (dayDiff > requestTypeForDeadline.submission_deadline) {
+        return {
+          success: false,
+          error: `Quá hạn tạo phiếu. Quy định yêu cầu tạo trong vòng ${requestTypeForDeadline.submission_deadline} ngày sau khi sự việc xảy ra (bạn đang tạo trễ ${dayDiff} ngày).`
+        }
+      }
+    }
+  }
+
   // Validate ngày nghỉ phép không được trùng với ngày nghỉ của nhân viên
   if (input.from_date && input.to_date) {
     // Lấy thông tin loại phiếu
