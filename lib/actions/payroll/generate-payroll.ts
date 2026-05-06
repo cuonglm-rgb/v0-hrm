@@ -686,7 +686,7 @@ async function processEmployeePayroll(
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
   // workingDaysCount đã tính đúng half-day rồi (0.5), không cần trừ thêm
-  // consumed_days chỉ để audit, KHÔNG cộng vào công vì ngày làm bù đã được tính trong workingDaysCount
+  // consumed_days được cộng riêng vào grossSalary vì makeupDates bị loại khỏi workingDaysCount
   const actualAttendanceDays = workingDaysCount
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
   const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
@@ -787,7 +787,7 @@ async function processEmployeePayroll(
   const autoUnpaidLeaveDays = Math.max(0, STANDARD_WORKING_DAYS - totalAccountedDays)
   const finalUnpaidLeaveDays = leaveResult.unpaidLeaveDays + autoUnpaidLeaveDays
   
-  const grossSalary = dailySalary * (actualWorkingDays + leaveResult.paidLeaveDays) + 
+  const grossSalary = dailySalary * (actualWorkingDays + leaveResult.paidLeaveDays + consumed_days) +
     adjustmentResult.totalAllowances + otResult.totalOTPay + kpiBonus
   const totalDeduction = adjustmentResult.totalDeductions + adjustmentResult.totalPenalties
   const netSalary = grossSalary - totalDeduction
@@ -813,7 +813,7 @@ async function processEmployeePayroll(
   logger.detail(``)
   logger.detail(`✓ Kiểm tra công thức: ${actualWorkingDays} (công) + ${leaveResult.paidLeaveDays} (phép) + ${finalUnpaidLeaveDays} (KL) = ${formulaTotal} ngày`)
   if (consumed_days > 0) {
-    logger.detail(`  (Ngày bù ${consumed_days} chỉ để audit, không cộng vào công thức vì đã tính trong chấm công)`)
+    logger.detail(`  (Ngày bù ${consumed_days} được tính riêng vào lương vì đã loại khỏi workingDaysCount)`)
   }
   
   if (formulaTotal < STANDARD_WORKING_DAYS) {
@@ -829,7 +829,7 @@ async function processEmployeePayroll(
   logger.detail(`- Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
   logger.detail(`- Ngày công tính lương: ${actualWorkingDays} ngày`)
   logger.detail(`- Phép có lương: ${leaveResult.paidLeaveDays} ngày`)
-  logger.detail(`- Lương theo công: ${(dailySalary * (actualWorkingDays + leaveResult.paidLeaveDays)).toLocaleString()} VNĐ`)
+  logger.detail(`- Lương theo công: ${(dailySalary * (actualWorkingDays + leaveResult.paidLeaveDays + consumed_days)).toLocaleString()} VNĐ`)
   logger.detail(`- Phụ cấp: ${adjustmentResult.totalAllowances.toLocaleString()} VNĐ`)
   logger.detail(`- OT: ${otResult.totalOTPay.toLocaleString()} VNĐ (${otResult.details.length} lần)`)
   logger.detail(`- KPI Bonus: ${kpiBonus.toLocaleString()} VNĐ`)
