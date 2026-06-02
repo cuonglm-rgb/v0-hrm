@@ -558,6 +558,17 @@ export async function createEmployeeRequest(input: {
     return { success: false, error: "Ngày bắt đầu phải trước ngày kết thúc" }
   }
 
+  // Validate khung giờ: nếu phiếu cùng ngày và có from_time + to_time → from_time < to_time
+  if (input.from_time && input.to_time) {
+    const isSameDay = input.request_date || (input.from_date && input.from_date === input.to_date) || (!input.from_date && !input.to_date)
+    if (isSameDay) {
+      const v = validateTimeSlot(input.from_time, input.to_time)
+      if (!v.valid) {
+        return { success: false, error: v.error || "Giờ bắt đầu phải trước giờ kết thúc" }
+      }
+    }
+  }
+
   // Validate người duyệt bắt buộc
   const hasApproversByIds = !!input.assigned_approver_ids && input.assigned_approver_ids.length > 0
   const hasApproversWithOrder =
@@ -816,6 +827,13 @@ export async function createEmployeeRequest(input: {
     // late_early_makeup vẫn bắt buộc nhập giờ bù
     if (requestType.code === "late_early_makeup" && (!input.from_time || !input.to_time)) {
       return { success: false, error: "Vui lòng nhập giờ bắt đầu và kết thúc làm bù" }
+    }
+    // Validate khung giờ làm bù: from_time < to_time (cùng ngày)
+    if (input.from_time && input.to_time) {
+      const v = validateTimeSlot(input.from_time, input.to_time)
+      if (!v.valid) {
+        return { success: false, error: v.error || "Khung giờ làm bù không hợp lệ" }
+      }
     }
 
     const { data: existingOT } = await supabase
@@ -1792,6 +1810,17 @@ export async function updateEmployeeRequest(
   // Validate date range
   if (input.from_date && input.to_date && input.from_date > input.to_date) {
     return { success: false, error: "Ngày bắt đầu phải trước ngày kết thúc" }
+  }
+
+  // Validate khung giờ: nếu phiếu cùng ngày và có from_time + to_time → from_time < to_time
+  if (input.from_time && input.to_time) {
+    const isSameDay = input.request_date || (input.from_date && input.from_date === input.to_date) || (!input.from_date && !input.to_date)
+    if (isSameDay) {
+      const v = validateTimeSlot(input.from_time, input.to_time)
+      if (!v.valid) {
+        return { success: false, error: v.error || "Giờ bắt đầu phải trước giờ kết thúc" }
+      }
+    }
   }
 
   // Validate deadline khi sửa phiếu (Giới hạn thời gian tạo phiếu áp dụng cả khi sửa ngày)

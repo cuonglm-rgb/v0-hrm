@@ -11,8 +11,9 @@ import { getEmployeeViolations } from "./violations"
 import { processAdjustments } from "./generate-payroll"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
-import { MAKEUP_CODES, getMakeupDeficitLinks } from "@/lib/utils/makeup-utils"
+import { MAKEUP_CODES, getMakeupDeficitLinks, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
+import { buildDayByDayLog, type RequestEntry } from "./day-by-day-log"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
@@ -145,7 +146,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .from("employee_requests")
     .select(`
       *,
-      request_type:request_types!request_type_id(code, name, affects_payroll, deduct_leave_balance, requires_date_range, requires_single_date)
+      request_type:request_types!request_type_id(code, name, affects_payroll, deduct_leave_balance, requires_date_range, requires_single_date),
+      time_slots:request_time_slots(*)
     `)
     .eq("employee_id", emp.id)
     .eq("status", "approved")
@@ -352,7 +354,6 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
         // Bỏ qua thứ 7 nghỉ: nhân viên tự đến không có phiếu OT
         const [ly, lm, ld] = logDate.split('-').map(Number)
         if (new Date(Date.UTC(ly, lm - 1, ld)).getUTCDay() === 6 && !isEmployeeWorkingSaturday(logDate)) {
-          logger.log(`📋 Ngày ${logDate}: Thứ 7 nghỉ của nhân viên, chấm công tự phát - không tính ngày công`)
           continue
         }
 
@@ -433,13 +434,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     logger.log(`→ Tổng consumed_days = ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` | Chi tiết: ${consumedDetailPairs.join(", ")}` : ""}`)
   }
 
-  logger.subsection(`📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
-  logger.subsection(`📊 Ngày công từ chấm công (trừ ngày làm bù):`)
-  logger.log(`- Full days: ${fullDayCount} ngày`)
-  logger.log(`- Half days: ${halfDayAttendanceCount} ngày (= ${halfDayAttendanceCount * 0.5} ngày công)`)
-  logger.log(`- Tổng: ${workingDaysCount} ngày`)
-  logger.subsection(`📊 Consumed deficit (bù thiếu, theo amount): ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` (${consumedDetailPairs.join(", ")})` : ""}`)
-  logger.subsection(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
+  logger.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
 
   // Lấy danh sách ngày lễ và ngày nghỉ công ty
   const holidays = await listHolidays(year)
@@ -713,9 +708,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     }
   }
 
-  logger.subsection(`🎁 Ngày lễ được cộng (ngày làm việc, không đi & không nghỉ): ${holidayWorkDays} ngày`)
-  logger.subsection(`🎁 Ngày nghỉ công ty được cộng: ${companyHolidayWorkDays} ngày`)
-  logger.subsection(`📊 Tổng working days sau cộng: ${workingDaysCount} ngày`)
+  logger.log(`🎁 Ngày lễ được cộng (ngày làm việc, không đi & không nghỉ): ${holidayWorkDays} ngày`)
+  logger.log(`🎁 Ngày nghỉ công ty được cộng: ${companyHolidayWorkDays} ngày`)
 
   // Get violations
   const shiftInfo: ShiftInfo = {
@@ -725,70 +719,12 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     breakEnd: breakEnd || null,
   }
   
-  // Capture console.log từ getEmployeeViolations (chỉ lấy log quan trọng)
-  const violationLogs: string[] = []
-  console.log = (...args: any[]) => {
-    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
-    // Chỉ capture log về phiếu và xử lý, bỏ qua log chi tiết từng ngày
-    if (message.includes('[Violations] Tìm thấy') || 
-        message.includes('[Violations] Phiếu') || 
-        message.includes('[Violations] Xử lý') ||
-        (message.includes('[Violations]') && message.includes('Chỉ làm ca'))) {
-      violationLogs.push(message)
-    }
-    originalConsoleLog(...args)
-  }
-  
   const violations = await getEmployeeViolations(supabase, emp.id, startDate, effectiveEndDate, shiftInfo)
-  
-  // Restore console.log và thêm logs vào logger
-  console.log = originalConsoleLog
-  violationLogs.forEach(log => logger.log(log))
-  
   const violationsWithoutOT = violations.filter((v) => !overtimeDates.has(v.date))
 
-  // Log violations với giờ chấm công thực tế (thay thế log cũ)
-  logger.subsection(`📋 CHI TIẾT CHẤM CÔNG:`)
-  for (const log of allAttendanceLogs || []) {
-    const logDate = log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out)
-    const checkInTime = log.check_in ? new Date(log.check_in).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }) : null
-    const checkOutTime = log.check_out ? new Date(log.check_out).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' }) : null
-    
-    // Kiểm tra có phiếu quên chấm công không
-    const violation = violations.find(v => v.date === logDate)
-    const hasCheckInRequest = violation?.forgotCheckIn || false
-    const hasCheckOutRequest = violation?.forgotCheckOut || false
-    const isHalfDay = violation?.isHalfDay || false
-    
-    logger.violation(logDate, checkInTime, checkOutTime, hasCheckInRequest, hasCheckOutRequest, isHalfDay)
-  }
-
-  logger.log(`[Debug] Tổng violations: ${violations.length}`)
-  logger.log(`[Debug] Violations without OT: ${violationsWithoutOT.length}`)
-  logger.log(`[Debug] Violations có forgotCheckIn: ${violations.filter(v => v.forgotCheckIn).map(v => v.date).join(', ')}`)
-  logger.log(`[Debug] Violations có forgotCheckOut: ${violations.filter(v => v.forgotCheckOut).map(v => v.date).join(', ')}`)
-
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
-  const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
-  // workingDaysCount đã tính đúng half-day rồi (0.5), không cần trừ thêm
-  // consumed_days chỉ để audit, KHÔNG cộng vào công vì ngày làm bù đã được tính trong workingDaysCount
   const actualAttendanceDays = workingDaysCount
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
-  const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
-  const forgotCheckoutCount = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
-
-  logger.subsection(`📝 PHIẾU NGHỈ:`)
-  logger.log(`- Nghỉ phép có lương: ${paidLeaveDays} ngày`)
-  logger.log(`- Nghỉ không lương: ${unpaidLeaveDays} ngày`)
-  logger.log(`- Work from home: ${workFromHomeDays} ngày`)
-  
-  logger.subsection(`⚠️  VI PHẠM:`)
-  logger.log(`- Vắng mặt: ${absentDays} ngày`)
-  logger.log(`- Làm nửa ngày: ${halfDays} lần`)
-  logger.log(`- Đi muộn: ${lateCount} lần`)
-  logger.log(`- Quên chấm công đến: ${forgotCheckinCount} lần`)
-  logger.log(`- Quên chấm công về: ${forgotCheckoutCount} lần`)
-  logger.log(`- Actual attendance: ${actualAttendanceDays} ngày (chấm công thực tế, consumed ${consumed_days} chỉ để audit)`)
 
   // Tính ngày đủ giờ cho phụ cấp - giống hệt generate-payroll.ts
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
@@ -804,15 +740,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .lte("effective_date", endDate)
     .or(`end_date.is.null,end_date.gte.${startDate}`)
 
-  // Process adjustments - sử dụng hàm chung từ generate-payroll.ts
-  // Capture console.log từ processAdjustments
-  const adjustmentLogs: string[] = []
-  console.log = (...args: any[]) => {
-    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
-    adjustmentLogs.push(message)
-    originalConsoleLog(...args)
-  }
-
+  // Process adjustments (không capture log để giữ log gọn)
   const adjustmentResult = await processAdjustments(
     supabase, emp, baseSalary, dailySalary, month, year,
     adjustmentTypes, empAdjustments, violationsWithoutOT,
@@ -820,26 +748,10 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     allAttendanceLogs || [], startDate, effectiveEndDate
   )
 
-  // Restore console.log và thêm logs vào logger
-  console.log = originalConsoleLog
-  adjustmentLogs.forEach(log => logger.log(log))
-
   const { totalAllowances, totalDeductions, totalPenalties, details: adjustmentDetails } = adjustmentResult
 
   // OT
-  // Capture console.log từ calculateOvertimePay
-  const otLogs: string[] = []
-  console.log = (...args: any[]) => {
-    const message = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' ')
-    otLogs.push(message)
-    originalConsoleLog(...args)
-  }
-
   const otResult = await calculateOvertimePay(emp.id, baseSalary, STANDARD_WORKING_DAYS, startDate, effectiveEndDate)
-  
-  // Restore console.log và thêm logs vào logger
-  console.log = originalConsoleLog
-  otLogs.forEach(log => logger.log(log))
   const otAdjustmentType = adjustmentTypes?.find((t: any) => t.code === 'overtime')
   if (otAdjustmentType && otResult.details.length > 0) {
     for (const otDetail of otResult.details) {
@@ -889,6 +801,112 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const totalDeduction = totalDeductions + totalPenalties
   const netSalary = grossSalary - totalDeduction
 
+  // ============================================
+  // BUILD CHI TIẾT THEO NGÀY
+  // ============================================
+  const leaveInfoByDate = new Map<string, { typeName: string; code: string; fraction: number }>()
+  if (employeeRequests) {
+    for (const r of employeeRequests as any[]) {
+      const rt = r.request_type as any
+      if (!rt || rt.code === "overtime") continue
+      if ((MAKEUP_CODES as readonly string[]).includes(rt.code)) continue
+
+      if (r.from_date && r.to_date) {
+        const [fy, fm, fd] = r.from_date.split("-").map(Number)
+        const [ty, tm, td] = r.to_date.split("-").map(Number)
+        const fromD = new Date(Date.UTC(fy, fm - 1, fd))
+        const toD = new Date(Date.UTC(ty, tm - 1, td))
+        const c = new Date(fromD)
+        while (c <= toD) {
+          const ds = `${c.getUTCFullYear()}-${String(c.getUTCMonth() + 1).padStart(2, "0")}-${String(c.getUTCDate()).padStart(2, "0")}`
+          if (ds >= startDate && ds <= effectiveEndDate) {
+            const frac = halfDayLeaveDates.has(ds) ? 0.5 : 1
+            leaveInfoByDate.set(ds, { typeName: rt.name || rt.code, code: rt.code, fraction: frac })
+          }
+          c.setUTCDate(c.getUTCDate() + 1)
+        }
+      } else if (r.request_date) {
+        const frac = halfDayLeaveDates.has(r.request_date) ? 0.5 : 1
+        leaveInfoByDate.set(r.request_date, { typeName: rt.name || rt.code, code: rt.code, fraction: frac })
+      }
+    }
+  }
+
+  const otDetailsByDate = new Map<string, Array<{ otType: string; hours: number; multiplier: number; amount: number }>>()
+  for (const od of otResult.details) {
+    if (!otDetailsByDate.has(od.date)) otDetailsByDate.set(od.date, [])
+    otDetailsByDate.get(od.date)!.push({
+      otType: od.otType,
+      hours: od.hours,
+      multiplier: od.multiplier,
+      amount: od.amount,
+    })
+  }
+
+  // Build full request list by date
+  const requestsByDate = new Map<string, RequestEntry[]>()
+  const pushReq = (date: string, entry: RequestEntry) => {
+    if (date < startDate || date > effectiveEndDate) return
+    if (!requestsByDate.has(date)) requestsByDate.set(date, [])
+    requestsByDate.get(date)!.push(entry)
+  }
+  if (employeeRequests) {
+    for (const r of employeeRequests as any[]) {
+      const rt = r.request_type as any
+      if (!rt) continue
+      const typeName = rt.name || rt.code
+      let hint: string | undefined
+      const slots = (r.time_slots as any[]) || []
+      if (slots.length > 0) {
+        hint = slots.map((s) => `${(s.from_time || "").slice(0, 5)}-${(s.to_time || "").slice(0, 5)}`).join(", ")
+      } else if (r.from_time && r.to_time) {
+        hint = `${r.from_time.slice(0, 5)}-${r.to_time.slice(0, 5)}`
+      }
+      if (rt.code === "late_early_makeup" && r.custom_data) {
+        const linked = (r.custom_data as any)[LINKED_DEFICIT_DATE_KEY]
+        if (linked) hint = `bù cho ${linked}${hint ? `, ${hint}` : ""}`
+      }
+
+      if (r.from_date && r.to_date) {
+        const [fy, fm, fd] = r.from_date.split("-").map(Number)
+        const [ty, tm, td] = r.to_date.split("-").map(Number)
+        const fromD = new Date(Date.UTC(fy, fm - 1, fd))
+        const toD = new Date(Date.UTC(ty, tm - 1, td))
+        const c = new Date(fromD)
+        while (c <= toD) {
+          const ds = `${c.getUTCFullYear()}-${String(c.getUTCMonth() + 1).padStart(2, "0")}-${String(c.getUTCDate()).padStart(2, "0")}`
+          pushReq(ds, { code: rt.code, typeName, hint })
+          c.setUTCDate(c.getUTCDate() + 1)
+        }
+      } else if (r.request_date) {
+        pushReq(r.request_date, { code: rt.code, typeName, hint })
+      }
+    }
+  }
+
+  const dayLines = buildDayByDayLog({
+    startDate,
+    effectiveEndDate,
+    attendanceLogs: allAttendanceLogs || [],
+    violations,
+    holidayMap,
+    companyHolidayMap,
+    leaveInfoByDate,
+    makeupDates,
+    overtimeDates,
+    overtimeWithinShift,
+    otDetailsByDate,
+    adjustmentDetails,
+    attendanceDayFractions,
+    isEmployeeWorkingSaturday,
+    countedDates,
+    requestsByDate,
+    allowanceAudit: adjustmentResult.audit.allowances,
+    penaltyExempts: adjustmentResult.audit.penaltyExempts,
+    saturdayScheduleMap,
+  })
+  for (const line of dayLines) logger.log(line)
+
   // Thêm phần tổng kết
   logger.subsection(`📊 TỔNG KẾT:`)
   logger.log(`- Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
@@ -919,18 +937,6 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     logger.log(`⚠️  Vượt ${formulaTotal - STANDARD_WORKING_DAYS} ngày so với công chuẩn`)
   } else {
     logger.log(`✅ Đúng công chuẩn (${STANDARD_WORKING_DAYS} ngày)`)
-  }
-  logger.log(`- Ngày công thực tế: ${actualWorkingDays} ngày`)
-  logger.log(`- Nghỉ phép có lương: ${paidLeaveDays} ngày`)
-  logger.log(`- Nghỉ không lương: ${finalUnpaidLeaveDays} ngày`)
-  logger.log(`- Vắng mặt: ${absentDays} ngày`)
-  logger.log(`- Tổng: ${totalAllDays} ngày`)
-  if (totalAllDays < STANDARD_WORKING_DAYS) {
-    logger.log(`⚠️  Thiếu ${STANDARD_WORKING_DAYS - totalAllDays} ngày so với công chuẩn`)
-  } else if (totalAllDays > STANDARD_WORKING_DAYS) {
-    logger.log(`✅ Vượt ${totalAllDays - STANDARD_WORKING_DAYS} ngày so với công chuẩn`)
-  } else {
-    logger.log(`✅ Đủ công chuẩn`)
   }
 
   logger.subsection(`💰 TÍNH LƯƠNG:`)

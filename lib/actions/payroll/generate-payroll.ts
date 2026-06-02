@@ -14,6 +14,7 @@ import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
 import { MAKEUP_CODES, getMakeupDeficitLinks, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
+import { buildDayByDayLog, type AllowanceAudit, type PenaltyExempt, type RequestEntry } from "./day-by-day-log"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
@@ -227,7 +228,7 @@ async function processEmployeePayroll(
     .from("employee_requests")
     .select(`
       *,
-      request_type:request_types!request_type_id(code),
+      request_type:request_types!request_type_id(code, name, affects_payroll),
       time_slots:request_time_slots(*)
     `)
     .eq("employee_id", emp.id)
@@ -459,7 +460,6 @@ async function processEmployeePayroll(
         // Bỏ qua thứ 7 nghỉ: nhân viên tự đến không có phiếu OT
         const [ly, lm, ld] = logDate.split('-').map(Number)
         if (new Date(Date.UTC(ly, lm - 1, ld)).getUTCDay() === 6 && !isEmployeeWorkingSaturday(logDate)) {
-          logger.log(`📋 Ngày ${logDate}: Thứ 7 nghỉ của nhân viên, chấm công tự phát - không tính ngày công`)
           continue
         }
 
@@ -541,12 +541,6 @@ async function processEmployeePayroll(
     logger.detail(`→ Tổng consumed_days = ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` | Chi tiết: ${consumedDetailPairs.join(", ")}` : ""}`)
   }
 
-  logger.subsection(`📊 Attendance logs: ${allAttendanceLogs?.length || 0} bản ghi`)
-  logger.log(`📊 Ngày công từ chấm công (trừ ngày làm bù):`)
-  logger.detail(`- Full days: ${fullDayCount} ngày`)
-  logger.detail(`- Half days: ${halfDayAttendanceCount} ngày (= ${halfDayAttendanceCount * 0.5} ngày công)`)
-  logger.detail(`- Tổng: ${workingDaysCount} ngày`)
-  logger.log(`📊 Consumed deficit (bù thiếu, theo amount): ${consumed_days} ngày${consumedDetailPairs.length > 0 ? ` (${consumedDetailPairs.join(", ")})` : ""}`)
   logger.log(`📊 OT full day: ${overtimeDates.size} ngày, OT trong ca: ${overtimeWithinShift.size} ngày`)
 
   // Lấy danh sách ngày lễ và ngày nghỉ công ty
@@ -671,7 +665,6 @@ async function processEmployeePayroll(
 
   logger.log(`🎁 Ngày lễ được cộng (ngày làm việc, không đi & không nghỉ): ${holidayWorkDays} ngày`)
   logger.log(`🎁 Ngày nghỉ công ty được cộng: ${companyHolidayWorkDays} ngày`)
-  logger.log(`📊 Tổng working days sau cộng: ${workingDaysCount} ngày`)
 
   // Lấy vi phạm chấm công
   const shiftInfo: ShiftInfo = {
@@ -689,20 +682,7 @@ async function processEmployeePayroll(
   // consumed_days được cộng riêng vào grossSalary vì makeupDates bị loại khỏi workingDaysCount
   const actualAttendanceDays = workingDaysCount
   const lateCount = violationsWithoutOT.filter((v) => v.lateMinutes > 0 && !v.isHalfDay).length
-  const forgotCheckinCount = violationsWithoutOT.filter((v) => v.forgotCheckIn).length
-  const forgotCheckoutCount = violationsWithoutOT.filter((v) => v.forgotCheckOut).length
 
-  logger.subsection(`📝 PHIẾU NGHỈ:`)
-  logger.detail(`- Nghỉ phép có lương: ${leaveResult.paidLeaveDays} ngày`)
-  logger.detail(`- Nghỉ không lương: ${leaveResult.unpaidLeaveDays} ngày`)
-  logger.detail(`- Work from home: ${leaveResult.workFromHomeDays} ngày`)
-  logger.subsection(`⚠️  VI PHẠM:`)
-  logger.detail(`- Vắng mặt: ${absentDays} ngày`)
-  logger.detail(`- Làm nửa ngày: ${halfDays} lần`)
-  logger.detail(`- Đi muộn: ${lateCount} lần`)
-  logger.detail(`- Quên chấm công đến: ${forgotCheckinCount} lần`)
-  logger.detail(`- Quên chấm công về: ${forgotCheckoutCount} lần`)
-  logger.detail(`- Actual attendance: ${actualAttendanceDays} ngày (chấm công thực tế, consumed ${consumed_days} chỉ để audit)`)
 
   // Tính ngày đủ giờ cho phụ cấp
   const fullAttendanceDays = violationsWithoutOT.filter((v) => 
@@ -719,27 +699,13 @@ async function processEmployeePayroll(
     .lte("effective_date", endDate)
     .or(`end_date.is.null,end_date.gte.${startDate}`)
 
-  // Capture console.log từ processAdjustments
-  const adjustmentLogs: string[] = []
-  console.log = (...args: any[]) => {
-    const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
-    adjustmentLogs.push(message)
-    originalConsoleLog(...args)
-  }
-
-  // Tính toán phụ cấp, khấu trừ, phạt
+  // Tính toán phụ cấp, khấu trừ, phạt (không capture log để giữ log gọn)
   const adjustmentResult = await processAdjustments(
     supabase, emp, baseSalary, dailySalary, month, year,
     adjustmentTypes, empAdjustments, violationsWithoutOT,
     fullAttendanceDays, lateCount, leaveResult.unpaidLeaveDays, absentDays,
     allAttendanceLogs, startDate, effectiveEndDate
   )
-
-  // Restore console.log
-  console.log = originalConsoleLog
-
-  // Log adjustment details
-  adjustmentLogs.forEach(log => logger.log(log))
 
   // Tính OT
   const otResult = await calculateOvertimePay(emp.id, baseSalary, STANDARD_WORKING_DAYS, startDate, effectiveEndDate)
@@ -778,6 +744,113 @@ async function processEmployeePayroll(
       })
     }
   }
+
+  // ============================================
+  // BUILD CHI TIẾT THEO NGÀY
+  // ============================================
+  const leaveInfoByDate = new Map<string, { typeName: string; code: string; fraction: number }>()
+  if (employeeRequests) {
+    for (const r of employeeRequests as any[]) {
+      const rt = r.request_type as any
+      if (!rt || rt.code === "overtime") continue
+      if ((MAKEUP_CODES as readonly string[]).includes(rt.code)) continue
+
+      if (r.from_date && r.to_date) {
+        const [fy, fm, fd] = r.from_date.split("-").map(Number)
+        const [ty, tm, td] = r.to_date.split("-").map(Number)
+        const fromD = new Date(Date.UTC(fy, fm - 1, fd))
+        const toD = new Date(Date.UTC(ty, tm - 1, td))
+        const c = new Date(fromD)
+        while (c <= toD) {
+          const ds = `${c.getUTCFullYear()}-${String(c.getUTCMonth() + 1).padStart(2, "0")}-${String(c.getUTCDate()).padStart(2, "0")}`
+          if (ds >= startDate && ds <= effectiveEndDate) {
+            const frac = halfDayLeaveDates.has(ds) ? 0.5 : 1
+            leaveInfoByDate.set(ds, { typeName: rt.name || rt.code, code: rt.code, fraction: frac })
+          }
+          c.setUTCDate(c.getUTCDate() + 1)
+        }
+      } else if (r.request_date) {
+        const frac = halfDayLeaveDates.has(r.request_date) ? 0.5 : 1
+        leaveInfoByDate.set(r.request_date, { typeName: rt.name || rt.code, code: rt.code, fraction: frac })
+      }
+    }
+  }
+
+  const otDetailsByDate = new Map<string, Array<{ otType: string; hours: number; multiplier: number; amount: number }>>()
+  for (const od of otResult.details) {
+    if (!otDetailsByDate.has(od.date)) otDetailsByDate.set(od.date, [])
+    otDetailsByDate.get(od.date)!.push({
+      otType: od.otType,
+      hours: od.hours,
+      multiplier: od.multiplier,
+      amount: od.amount,
+    })
+  }
+
+  // Build full request list by date — bao gồm cả phiếu OT, làm bù, quên chấm công, v.v.
+  const requestsByDate = new Map<string, RequestEntry[]>()
+  const pushReq = (date: string, entry: RequestEntry) => {
+    if (date < startDate || date > effectiveEndDate) return
+    if (!requestsByDate.has(date)) requestsByDate.set(date, [])
+    requestsByDate.get(date)!.push(entry)
+  }
+  if (employeeRequests) {
+    for (const r of employeeRequests as any[]) {
+      const rt = r.request_type as any
+      if (!rt) continue
+      const typeName = rt.name || rt.code
+      // Build hint
+      let hint: string | undefined
+      const slots = (r.time_slots as any[]) || []
+      if (slots.length > 0) {
+        hint = slots.map((s) => `${(s.from_time || "").slice(0, 5)}-${(s.to_time || "").slice(0, 5)}`).join(", ")
+      } else if (r.from_time && r.to_time) {
+        hint = `${r.from_time.slice(0, 5)}-${r.to_time.slice(0, 5)}`
+      }
+      if (rt.code === "late_early_makeup" && r.custom_data) {
+        const linked = (r.custom_data as any)[LINKED_DEFICIT_DATE_KEY]
+        if (linked) hint = `bù cho ${linked}${hint ? `, ${hint}` : ""}`
+      }
+
+      if (r.from_date && r.to_date) {
+        const [fy, fm, fd] = r.from_date.split("-").map(Number)
+        const [ty, tm, td] = r.to_date.split("-").map(Number)
+        const fromD = new Date(Date.UTC(fy, fm - 1, fd))
+        const toD = new Date(Date.UTC(ty, tm - 1, td))
+        const c = new Date(fromD)
+        while (c <= toD) {
+          const ds = `${c.getUTCFullYear()}-${String(c.getUTCMonth() + 1).padStart(2, "0")}-${String(c.getUTCDate()).padStart(2, "0")}`
+          pushReq(ds, { code: rt.code, typeName, hint })
+          c.setUTCDate(c.getUTCDate() + 1)
+        }
+      } else if (r.request_date) {
+        pushReq(r.request_date, { code: rt.code, typeName, hint })
+      }
+    }
+  }
+
+  const dayLines = buildDayByDayLog({
+    startDate,
+    effectiveEndDate,
+    attendanceLogs: allAttendanceLogs || [],
+    violations,
+    holidayMap,
+    companyHolidayMap,
+    leaveInfoByDate,
+    makeupDates,
+    overtimeDates,
+    overtimeWithinShift,
+    otDetailsByDate,
+    adjustmentDetails: adjustmentResult.details,
+    attendanceDayFractions,
+    isEmployeeWorkingSaturday,
+    countedDates,
+    requestsByDate,
+    allowanceAudit: adjustmentResult.audit.allowances,
+    penaltyExempts: adjustmentResult.audit.penaltyExempts,
+    saturdayScheduleMap,
+  })
+  for (const line of dayLines) logger.log(line)
 
   // Tính lương cuối cùng
   const actualWorkingDays = actualAttendanceDays + leaveResult.workFromHomeDays
@@ -1209,11 +1282,17 @@ export async function processAdjustments(
   totalDeductions: number
   totalPenalties: number
   details: any[]
+  audit: {
+    allowances: AllowanceAudit[]
+    penaltyExempts: PenaltyExempt[]
+  }
 }> {
   let totalAllowances = 0
   let totalDeductions = 0
   let totalPenalties = 0
   const adjustmentDetails: any[] = []
+  const auditAllowances: AllowanceAudit[] = []
+  const auditPenaltyExempts: PenaltyExempt[] = []
 
   const globalPenaltyByDate = new Map<string, { 
     date: string
@@ -1486,6 +1565,9 @@ export async function processAdjustments(
           const allowanceViolationsList: string[] = []
           const allowanceViolationsEligibleForGrace: string[] = []
           const allowanceViolationsNotEligibleForGrace: string[] = []
+          // Raw structured data for audit
+          const auditViolations: Array<{ date: string; reasons: string[] }> = []
+          const auditViolationsEligibleForGrace: Array<{ date: string; reasons: string[] }> = []
           
           const GRACE_THRESHOLD_MINUTES = 120 // Vi phạm quá 120 phút không được grace
           
@@ -1509,7 +1591,8 @@ export async function processAdjustments(
                 
                 const violationDetail = `${v.date} (${reasons.join(', ')})`
                 allowanceViolationsList.push(violationDetail)
-                
+                auditViolations.push({ date: v.date, reasons })
+
                 // Phân loại vi phạm: muộn hoặc sớm dưới 120 phút mới được grace
                 // Các vi phạm khác (quên chấm công, nửa ngày, vắng) không được grace
                 const noOtherViolation = !v.forgotCheckIn && !v.forgotCheckOut && !v.isHalfDay && !v.isAbsent
@@ -1519,6 +1602,7 @@ export async function processAdjustments(
                 if ((isLateOnly && v.lateMinutes <= GRACE_THRESHOLD_MINUTES) ||
                     (isEarlyOnly && v.earlyMinutes <= GRACE_THRESHOLD_MINUTES)) {
                   allowanceViolationsEligibleForGrace.push(violationDetail)
+                  auditViolationsEligibleForGrace.push({ date: v.date, reasons })
                 } else {
                   allowanceViolationsNotEligibleForGrace.push(violationDetail)
                 }
@@ -1566,8 +1650,26 @@ export async function processAdjustments(
 
           eligibleDays = Math.max(0, Math.floor(eligibleDays))
           const amount = eligibleDays * adjType.amount
-          
+
           const actualGraceDays = rules?.late_grace_count ? Math.min(violationsEligibleForGrace, rules.late_grace_count) : 0
+
+          // Build audit entry for this allowance type
+          const gracedDateSet = new Set(
+            auditViolationsEligibleForGrace.slice(0, actualGraceDays).map((e) => e.date)
+          )
+          auditAllowances.push({
+            typeName: adjType.name,
+            typeCode: adjType.code || "",
+            dailyAmount: adjType.amount,
+            eligibleDates: [...allowanceFullDaysList],
+            exemptDates: Array.from(violationDaysWithExemptTypes.entries()).map(([date, codes]) => ({
+              date,
+              codes: Array.from(codes),
+              names: Array.from(codes).map((c) => requestTypeNames.get(c) || c),
+            })),
+            gracedDates: Array.from(gracedDateSet),
+            violationDates: auditViolations.filter((v) => !gracedDateSet.has(v.date)),
+          })
           
           console.log(`[Allowance] - Tổng ngày được tính phụ cấp: ${eligibleDays} ngày`)
           console.log(`[Allowance] - Công thức: ${allowanceFullDays} (đủ điều kiện) + ${violationDaysWithExempt} (vi phạm có phiếu) + ${actualGraceDays} (grace cho vi phạm ≤120p) = ${eligibleDays} ngày`)
@@ -1724,7 +1826,6 @@ export async function processAdjustments(
         if (rules?.trigger === "late") {
           console.log(`\n[Penalty] Xử lý phạt đi muộn/về sớm:`)
           console.log(`[Penalty] - Ngưỡng: ${thresholdMinutes} phút`)
-          console.log(`[Penalty] - Miễn phạt nếu có phiếu: ${exemptWithRequest ? 'Có' : 'Không'}`)
           if (exemptWithRequest && exemptRequestTypes.length > 0) {
             console.log(`[Penalty] - Loại phiếu được miễn: ${exemptRequestTypes.join(', ')}`)
           }
@@ -1778,15 +1879,17 @@ export async function processAdjustments(
                     .map((code: string) => requestTypeNameMap.get(code) || code)
                     .join(', ')
                   exemptedDays.push(`${v.date} (có phiếu: ${requestTypeNames})`)
+                  auditPenaltyExempts.push({ date: v.date, typeName: adjType.name, note: `có phiếu ${requestTypeNames}` })
                 }
               }
             }
-            
+
             // Kiểm tra xem ngày này có phải là ngày thiếu công gốc được làm bù không
             if (!isExempted && deficitDateToMakeupDate.has(v.date)) {
               isExempted = true
               const makeupDate = deficitDateToMakeupDate.get(v.date)
               exemptedDays.push(`${v.date} (có phiếu làm bù ngày ${makeupDate})`)
+              auditPenaltyExempts.push({ date: v.date, typeName: adjType.name, note: `phiếu làm bù ngày ${makeupDate}` })
             }
             
             if (isExempted) continue
@@ -1976,5 +2079,9 @@ export async function processAdjustments(
     totalDeductions,
     totalPenalties,
     details: adjustmentDetails,
+    audit: {
+      allowances: auditAllowances,
+      penaltyExempts: auditPenaltyExempts,
+    },
   }
 }

@@ -436,6 +436,21 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
           return
         }
       }
+    } else if (selectedType.requires_time_range) {
+      // Single-slot: validate from_time < to_time khi cùng ngày
+      const fromTime = formData.get("from_time") as string
+      const toTime = formData.get("to_time") as string
+      if (fromTime && toTime) {
+        const fromDate = selectedType.requires_date_range ? formData.get("from_date") as string :
+                         selectedType.requires_single_date ? formData.get("request_date") as string : undefined
+        const toDate = selectedType.requires_date_range ? formData.get("to_date") as string : fromDate
+        const result = validateTimeSlot(fromTime, toTime, fromDate, toDate)
+        if (!result.valid) {
+          setError(result.error || "Giờ bắt đầu phải trước giờ kết thúc")
+          setLoading(false)
+          return
+        }
+      }
     }
 
     // Thu thập custom_data từ custom fields
