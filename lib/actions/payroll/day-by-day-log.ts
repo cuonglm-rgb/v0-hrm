@@ -330,5 +330,41 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
     }
   }
 
+  // ======================
+  // TỔNG HỢP ĐIỀU CHỈNH
+  // ======================
+  // Bỏ qua các khoản đã hiển thị theo ngày (OT, phạt theo ngày → reason kết thúc bằng "ngày YYYY-MM-DD")
+  const isPerDayEntry = (reason: string) => /\bngày\s+\d{4}-\d{2}-\d{2}\s*$/.test(reason)
+  const allowanceItems = adjustmentDetails.filter(
+    (d) => d.category === "allowance" && d.final_amount !== 0 && !isPerDayEntry(d.reason)
+  )
+  const deductionItems = adjustmentDetails.filter(
+    (d) => d.category === "deduction" && d.final_amount !== 0
+  )
+  const penaltyItems = adjustmentDetails.filter(
+    (d) => d.category === "penalty" && d.final_amount !== 0 && !isPerDayEntry(d.reason)
+  )
+
+  if (allowanceItems.length + deductionItems.length + penaltyItems.length > 0) {
+    lines.push("")
+    lines.push("------------------------------------------------------------")
+    lines.push("📋 TỔNG HỢP ĐIỀU CHỈNH:")
+    lines.push("------------------------------------------------------------")
+    let allowanceTotal = 0
+    for (const it of allowanceItems) {
+      lines.push(`  💰 ${it.reason}: +${it.final_amount.toLocaleString()}đ`)
+      allowanceTotal += it.final_amount
+    }
+    if (allowanceItems.length > 1) {
+      lines.push(`     → Tổng phụ cấp (không theo ngày OT): +${allowanceTotal.toLocaleString()}đ`)
+    }
+    for (const it of deductionItems) {
+      lines.push(`  💸 ${it.reason}: -${it.final_amount.toLocaleString()}đ`)
+    }
+    for (const it of penaltyItems) {
+      lines.push(`  🚫 ${it.reason}: -${it.final_amount.toLocaleString()}đ`)
+    }
+  }
+
   return lines
 }

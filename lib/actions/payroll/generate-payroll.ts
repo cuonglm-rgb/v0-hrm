@@ -190,6 +190,17 @@ async function processEmployeePayroll(
       logger.log(`📅 Nhân viên nghỉ việc ngày ${resignDate} - Chỉ tính lương đến ngày này`)
     }
   }
+
+  // Kiểm tra ngày vào làm: bỏ qua các ngày trước khi nhân viên gia nhập
+  let effectiveStartDate = startDate
+  if (emp.join_date && emp.join_date > startDate) {
+    if (emp.join_date > endDate) {
+      logger.log(`⚠️  Nhân viên vào làm sau kỳ lương (${emp.join_date}) - Bỏ qua`)
+      return false
+    }
+    effectiveStartDate = emp.join_date
+    logger.log(`📅 Nhân viên vào làm ngày ${emp.join_date} - Chỉ tính lương từ ngày này`)
+  }
   
   logger.log(`Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
   logger.log(`Lương cơ bản: ${baseSalary.toLocaleString()} VNĐ -> Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
@@ -600,8 +611,8 @@ async function processEmployeePayroll(
     const [y, m, d] = dateStr.split('-').map(Number)
     return new Date(Date.UTC(y, m - 1, d))
   }
-  const periodStart = parseDate(startDate)
-  const periodEnd = parseDate(endDate)
+  const periodStart = parseDate(effectiveStartDate)
+  const periodEnd = parseDate(effectiveEndDate)
   
   const current = new Date(periodStart)
   while (current <= periodEnd) {
@@ -830,7 +841,7 @@ async function processEmployeePayroll(
   }
 
   const dayLines = buildDayByDayLog({
-    startDate,
+    startDate: effectiveStartDate,
     effectiveEndDate,
     attendanceLogs: allAttendanceLogs || [],
     violations,

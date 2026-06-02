@@ -95,6 +95,16 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       logger.log(`📅 Nhân viên nghỉ việc ngày ${resignDate} - Chỉ tính lương đến ngày này`)
     }
   }
+
+  // Kiểm tra ngày vào làm: bỏ qua các ngày trước khi nhân viên gia nhập
+  let effectiveStartDate = startDate
+  if (emp.join_date && emp.join_date > startDate) {
+    if (emp.join_date > endDate) {
+      return { success: false, error: `Nhân viên vào làm sau kỳ lương (${emp.join_date})` }
+    }
+    effectiveStartDate = emp.join_date
+    logger.log(`📅 Nhân viên vào làm ngày ${emp.join_date} - Chỉ tính lương từ ngày này`)
+  }
   
   logger.log(`\nCông chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
   logger.log(`Lương cơ bản: ${baseSalary.toLocaleString()} VNĐ`)
@@ -640,9 +650,9 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     const [y, m, d] = dateStr.split('-').map(Number)
     return new Date(Date.UTC(y, m - 1, d))
   }
-  const periodStart = parseDate(startDate)
+  const periodStart = parseDate(effectiveStartDate)
   const periodEnd = parseDate(effectiveEndDate)
-  
+
   // Duyệt qua tất cả ngày trong tháng
   const current = new Date(periodStart)
   while (current <= periodEnd) {
@@ -885,7 +895,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   }
 
   const dayLines = buildDayByDayLog({
-    startDate,
+    startDate: effectiveStartDate,
     effectiveEndDate,
     attendanceLogs: allAttendanceLogs || [],
     violations,
