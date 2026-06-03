@@ -1604,14 +1604,15 @@ export async function processAdjustments(
                 allowanceViolationsList.push(violationDetail)
                 auditViolations.push({ date: v.date, reasons })
 
-                // Phân loại vi phạm: muộn hoặc sớm dưới 120 phút mới được grace
-                // Các vi phạm khác (quên chấm công, nửa ngày, vắng) không được grace
-                const noOtherViolation = !v.forgotCheckIn && !v.forgotCheckOut && !v.isHalfDay && !v.isAbsent
-                const isLateOnly = v.lateMinutes > lateThresholdMinutes && !v.earlyMinutes && noOtherViolation
-                const isEarlyOnly = v.earlyMinutes > 0 && v.lateMinutes <= lateThresholdMinutes && noOtherViolation
+                // Phân loại vi phạm đủ điều kiện grace:
+                // - Muộn ≤120p, sớm ≤120p (không kèm vi phạm nặng khác)
+                // - Quên check-in / Quên check-out (không kèm muộn nặng/sớm nặng/nửa ngày/vắng)
+                // Vi phạm KHÔNG được grace: nửa ngày, vắng, muộn/sớm >120p
+                const heavyViolation = v.isHalfDay || v.isAbsent
+                const lateOK = v.lateMinutes <= GRACE_THRESHOLD_MINUTES
+                const earlyOK = v.earlyMinutes <= GRACE_THRESHOLD_MINUTES
 
-                if ((isLateOnly && v.lateMinutes <= GRACE_THRESHOLD_MINUTES) ||
-                    (isEarlyOnly && v.earlyMinutes <= GRACE_THRESHOLD_MINUTES)) {
+                if (!heavyViolation && lateOK && earlyOK) {
                   allowanceViolationsEligibleForGrace.push(violationDetail)
                   auditViolationsEligibleForGrace.push({ date: v.date, reasons })
                 } else {
@@ -1632,7 +1633,7 @@ export async function processAdjustments(
             console.log(`[Allowance]   → ${allowanceViolationsList.join(', ')}`)
           }
           if (violationsEligibleForGrace > 0) {
-            console.log(`[Allowance] - Vi phạm đủ điều kiện grace (muộn ≤${GRACE_THRESHOLD_MINUTES}p): ${violationsEligibleForGrace} ngày`)
+            console.log(`[Allowance] - Vi phạm đủ điều kiện grace (muộn/sớm ≤${GRACE_THRESHOLD_MINUTES}p hoặc quên chấm công): ${violationsEligibleForGrace} ngày`)
             console.log(`[Allowance]   → ${allowanceViolationsEligibleForGrace.join(', ')}`)
           }
           if (violationsNotEligibleForGrace > 0) {
@@ -1647,7 +1648,7 @@ export async function processAdjustments(
             if (rules.late_grace_count !== undefined && violationsEligibleForGrace > 0) {
               const gracedViolationDays = Math.min(violationsEligibleForGrace, rules.late_grace_count)
               console.log(`[Allowance] - Số lần vi phạm được miễn (grace): ${gracedViolationDays} ngày (tối đa ${rules.late_grace_count})`)
-              console.log(`[Allowance]   → Chỉ áp dụng cho vi phạm đi muộn ≤${GRACE_THRESHOLD_MINUTES} phút`)
+              console.log(`[Allowance]   → Áp dụng cho muộn/sớm ≤${GRACE_THRESHOLD_MINUTES}p hoặc quên chấm công đến/về`)
               console.log(`[Allowance]   → Miễn ${gracedViolationDays} ngày vi phạm trong ${violationsEligibleForGrace} ngày đủ điều kiện`)
               eligibleDays += gracedViolationDays
             }
@@ -1665,8 +1666,10 @@ export async function processAdjustments(
           const actualGraceDays = rules?.late_grace_count ? Math.min(violationsEligibleForGrace, rules.late_grace_count) : 0
 
           // Build audit entry for this allowance type
+          // Sort theo ngày để lần 1, lần 2, ... khớp với thứ tự thời gian
+          const sortedGraceCandidates = [...auditViolationsEligibleForGrace].sort((a, b) => a.date.localeCompare(b.date))
           const gracedDateSet = new Set(
-            auditViolationsEligibleForGrace.slice(0, actualGraceDays).map((e) => e.date)
+            sortedGraceCandidates.slice(0, actualGraceDays).map((e) => e.date)
           )
           auditAllowances.push({
             typeName: adjType.name,

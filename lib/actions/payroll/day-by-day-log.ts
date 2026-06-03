@@ -112,6 +112,7 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
     status: "eligible" | "exempt" | "graced" | "violation"
     detail?: string
     amount: number
+    graceIndex?: number
   }>>()
   for (const a of allowanceAudit) {
     for (const d of a.eligibleDates) {
@@ -127,10 +128,15 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
         amount: a.dailyAmount,
       })
     }
-    for (const d of a.gracedDates) {
+    a.gracedDates.forEach((d, idx) => {
       if (!allowanceByDate.has(d)) allowanceByDate.set(d, [])
-      allowanceByDate.get(d)!.push({ typeName: a.typeName, status: "graced", amount: a.dailyAmount })
-    }
+      allowanceByDate.get(d)!.push({
+        typeName: a.typeName,
+        status: "graced",
+        amount: a.dailyAmount,
+        graceIndex: idx + 1,
+      })
+    })
     for (const v of a.violationDates) {
       if (!allowanceByDate.has(v.date)) allowanceByDate.set(v.date, [])
       allowanceByDate.get(v.date)!.push({
@@ -323,7 +329,7 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
       } else if (a.status === "exempt") {
         lines.push(`${INDENT}💰 ${a.typeName}: +${a.amount.toLocaleString()}đ (miễn vi phạm — phiếu: ${a.detail})`)
       } else if (a.status === "graced") {
-        lines.push(`${INDENT}💰 ${a.typeName}: +${a.amount.toLocaleString()}đ (grace vi phạm ≤120p)`)
+        lines.push(`${INDENT}💰 ${a.typeName}: +${a.amount.toLocaleString()}đ (miễn vi phạm lần ${a.graceIndex})`)
       } else if (a.status === "violation") {
         lines.push(`${INDENT}❌ Mất ${a.typeName} (${a.detail})`)
       }
