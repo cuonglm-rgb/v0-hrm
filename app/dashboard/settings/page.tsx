@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles } from "@/lib/actions/employee-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Database, Shield, Building2 } from "lucide-react"
+import { Settings, Database, Shield, Building2, Wallet } from "lucide-react"
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -88,6 +89,24 @@ export default async function SettingsPage() {
               <p className="text-sm text-muted-foreground mt-2">Core HR module active</p>
             </CardContent>
           </Card>
+
+          <Link href="/dashboard/settings/payroll" className="block">
+            <Card className="hover:bg-accent/50 transition-colors cursor-pointer h-full">
+              <CardHeader className="flex flex-row items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100">
+                  <Wallet className="h-6 w-6 text-indigo-600" />
+                </div>
+                <div>
+                  <CardTitle>Cấu hình lương</CardTitle>
+                  <CardDescription>Tỉ lệ lương thử việc, tham số tính lương</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Badge variant="outline">Payroll</Badge>
+                <p className="text-sm text-muted-foreground mt-2">Cấu hình các tham số dùng khi tính bảng lương</p>
+              </CardContent>
+            </Card>
+          </Link>
 
           <Card>
             <CardHeader className="flex flex-row items-center gap-4">

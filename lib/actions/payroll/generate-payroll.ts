@@ -15,6 +15,8 @@ import { isSaturdayOff } from "./working-days-utils"
 import { MAKEUP_CODES, getMakeupDeficitLinks, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
 import { buildDayByDayLog, type AllowanceAudit, type PenaltyExempt, type RequestEntry } from "./day-by-day-log"
+import { calculateProbationSplit } from "./probation-salary"
+import { getProbationSalaryRate } from "../payroll-settings-actions"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
@@ -99,11 +101,13 @@ export async function generatePayroll(month: number, year: number) {
 
   console.log(`[Payroll] Tháng ${month}/${year}: Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
 
+  const probationRate = await getProbationSalaryRate()
+
   let processedCount = 0
   for (const emp of employees) {
     const result = await processEmployeePayroll(
       supabase, emp, run.id, month, year, startDate, endDate,
-      STANDARD_WORKING_DAYS, adjustmentTypes, shiftMap
+      STANDARD_WORKING_DAYS, adjustmentTypes, shiftMap, probationRate
     )
     if (result) processedCount++
   }
@@ -152,7 +156,8 @@ async function processEmployeePayroll(
   endDate: string,
   STANDARD_WORKING_DAYS: number,
   adjustmentTypes: any,
-  shiftMap: Map<string, any>
+  shiftMap: Map<string, any>,
+  probationRate: number
 ): Promise<boolean> {
   const logger = new PayrollLogger()
   const originalConsoleLog = console.log
@@ -871,7 +876,18 @@ async function processEmployeePayroll(
   const autoUnpaidLeaveDays = Math.max(0, STANDARD_WORKING_DAYS - totalAccountedDays)
   const finalUnpaidLeaveDays = leaveResult.unpaidLeaveDays + autoUnpaidLeaveDays
   
-  const grossSalary = dailySalary * (actualWorkingDays + leaveResult.paidLeaveDays + consumed_days) +
+  const totalPaidDays = actualWorkingDays + leaveResult.paidLeaveDays + consumed_days
+  const probationSplit = calculateProbationSplit({
+    effectiveStartDate,
+    effectiveEndDate,
+    officialDate: emp.official_date,
+    totalPaidDays,
+    dailySalary,
+    probationRate,
+  })
+  const salaryByWorking = dailySalary * totalPaidDays - probationSplit.probationDiscount
+
+  const grossSalary = salaryByWorking +
     adjustmentResult.totalAllowances + otResult.totalOTPay + kpiBonus
   const totalDeduction = adjustmentResult.totalDeductions + adjustmentResult.totalPenalties
   const netSalary = grossSalary - totalDeduction
@@ -913,7 +929,13 @@ async function processEmployeePayroll(
   logger.detail(`- Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
   logger.detail(`- Ngày công tính lương: ${actualWorkingDays} ngày`)
   logger.detail(`- Phép có lương: ${leaveResult.paidLeaveDays} ngày`)
-  logger.detail(`- Lương theo công: ${(dailySalary * (actualWorkingDays + leaveResult.paidLeaveDays + consumed_days)).toLocaleString()} VNĐ`)
+  logger.detail(`- Lương theo công (gốc): ${(dailySalary * totalPaidDays).toLocaleString()} VNĐ`)
+  if (probationSplit.probationDiscount > 0) {
+    logger.detail(`- Thử việc: trước ${emp.official_date} (${probationSplit.probationCalendarDays} ngày lịch) / chính thức ${probationSplit.officialCalendarDays} ngày lịch`)
+    logger.detail(`- Tỉ lệ thử việc: ${(probationSplit.probationRatio * 100).toFixed(2)}% × (1 - ${probationRate}) → giảm ${probationSplit.probationPaidDays.toFixed(2)} ngày công × ${dailySalary.toLocaleString()} × ${(1 - probationRate).toFixed(2)}`)
+    logger.detail(`- Khấu trừ thử việc: -${probationSplit.probationDiscount.toLocaleString()} VNĐ`)
+  }
+  logger.detail(`- Lương theo công (sau thử việc): ${salaryByWorking.toLocaleString()} VNĐ`)
   logger.detail(`- Phụ cấp: ${adjustmentResult.totalAllowances.toLocaleString()} VNĐ`)
   logger.detail(`- OT: ${otResult.totalOTPay.toLocaleString()} VNĐ (${otResult.details.length} lần)`)
   logger.detail(`- KPI Bonus: ${kpiBonus.toLocaleString()} VNĐ`)
