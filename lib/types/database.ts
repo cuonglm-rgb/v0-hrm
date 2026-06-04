@@ -150,6 +150,12 @@ export interface PayrollItem {
   consumed_deficit_detail?: string | null
   /** Log chi tiết quy trình tính lương */
   calculation_log?: string | null
+  /** Số tiền bị giảm do thử việc (= dailySalary * probation_paid_days * (1 - probation_rate)) */
+  probation_discount?: number
+  /** Tỉ lệ lương thử việc áp dụng (vd 0.85) */
+  probation_rate?: number | null
+  /** Số ngày công nằm trong giai đoạn thử việc */
+  probation_paid_days?: number
   created_at: string
 }
 
@@ -223,6 +229,8 @@ export interface PayrollAdjustmentType {
   auto_rules: AdjustmentAutoRules | null
   description: string | null
   is_active: boolean
+  effective_from: string | null
+  effective_to: string | null
   created_at: string
 }
 

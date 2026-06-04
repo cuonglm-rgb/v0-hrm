@@ -18,6 +18,35 @@ import { buildDayByDayLog, type AllowanceAudit, type PenaltyExempt, type Request
 import { calculateProbationSplit } from "./probation-salary"
 import { getProbationSalaryRate } from "../payroll-settings-actions"
 
+// Helper: Lấy salary base để tính % cho 1 adjustment type
+// Nếu type config calculate_from = "insurance_salary" thì lấy insurance_salary, ngược lại base_salary
+async function getPercentageBaseSalary(
+  supabase: any,
+  emp: any,
+  baseSalary: number,
+  adjType: PayrollAdjustmentType,
+  startDate: string
+): Promise<{ base: number; calculateFrom: "base_salary" | "insurance_salary"; skip: boolean }> {
+  const rules = adjType.auto_rules as AdjustmentAutoRules | null
+  const calculateFrom = rules?.calculate_from || "base_salary"
+  if (calculateFrom !== "insurance_salary") {
+    return { base: baseSalary, calculateFrom: "base_salary", skip: false }
+  }
+  const { data: salaryData } = await supabase
+    .from("salary_structure")
+    .select("insurance_salary")
+    .eq("employee_id", emp.id)
+    .lte("effective_date", startDate)
+    .order("effective_date", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const insuranceSalary = salaryData?.insurance_salary
+  if (!insuranceSalary || insuranceSalary <= 0) {
+    return { base: 0, calculateFrom: "insurance_salary", skip: true }
+  }
+  return { base: insuranceSalary, calculateFrom: "insurance_salary", skip: false }
+}
+
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
 function isWorkingDay(date: Date): boolean {
   const dayOfWeek = date.getUTCDay()
@@ -80,20 +109,22 @@ export async function generatePayroll(month: number, year: number) {
     return { success: false, error: "Không có nhân viên. Vui lòng kiểm tra trạng thái nhân viên." }
   }
 
-  // Lấy các loại điều chỉnh active
+  // Tính ngày đầu và cuối tháng (dùng cho cả filter effective period)
+  const startDate = `${year}-${String(month).padStart(2, "0")}-01`
+  const lastDay = new Date(year, month, 0).getDate()
+  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+
+  // Lấy các loại điều chỉnh active VÀ còn hiệu lực trong kỳ lương
   const { data: adjustmentTypes } = await supabase
     .from("payroll_adjustment_types")
     .select("*")
     .eq("is_active", true)
+    .or(`effective_from.is.null,effective_from.lte.${endDate}`)
+    .or(`effective_to.is.null,effective_to.gte.${startDate}`)
 
   // Lấy work shifts
   const { data: shifts } = await supabase.from("work_shifts").select("*")
   const shiftMap = new Map((shifts || []).map((s: any) => [s.id, s]))
-
-  // Tính ngày đầu và cuối tháng
-  const startDate = `${year}-${String(month).padStart(2, "0")}-01`
-  const lastDay = new Date(year, month, 0).getDate()
-  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
 
   // Tính công chuẩn động theo tháng
   const workingDaysInfo = await calculateStandardWorkingDays(month, year)
@@ -987,6 +1018,9 @@ async function processEmployeePayroll(
       consumed_deficit_days: consumed_days,
       consumed_deficit_detail: consumedDeficitDetailStr,
       calculation_log: calculationLog,
+      probation_discount: Math.round(probationSplit.probationDiscount),
+      probation_rate: probationSplit.probationDiscount > 0 ? probationRate : null,
+      probation_paid_days: probationSplit.probationPaidDays,
     })
     .select()
     .single()
@@ -1365,8 +1399,13 @@ export async function processAdjustments(
 
         if (empOverride) {
           if (empOverride.custom_percentage) {
-            finalAmount = Math.round((baseSalary * empOverride.custom_percentage) / 100)
-            reason = `${adjType.name} (${empOverride.custom_percentage}% lương)`
+            const pb = await getPercentageBaseSalary(supabase, emp, baseSalary, adjType, startDate)
+            if (pb.skip) {
+              console.log(`[Adjustment] Bỏ qua ${adjType.name} cho ${emp.full_name} - chưa có lương BHXH`)
+              continue
+            }
+            finalAmount = Math.round((pb.base * empOverride.custom_percentage) / 100)
+            reason = `${adjType.name} (${empOverride.custom_percentage}% ${pb.calculateFrom === "insurance_salary" ? "lương BHXH" : "lương cơ bản"})`
           } else if (empOverride.custom_amount) {
             finalAmount = empOverride.custom_amount
           }
@@ -2084,8 +2123,15 @@ export async function processAdjustments(
       if (adjType.is_auto_applied) continue
 
       let finalAmount = empAdj.custom_amount || adjType.amount
+      let calcFromLabel: "base_salary" | "insurance_salary" = "base_salary"
       if (empAdj.custom_percentage) {
-        finalAmount = Math.round((baseSalary * empAdj.custom_percentage) / 100)
+        const pb = await getPercentageBaseSalary(supabase, emp, baseSalary, adjType, startDate)
+        if (pb.skip) {
+          console.log(`[Adjustment] Bỏ qua ${adjType.name} cho ${emp.full_name} - chưa có lương BHXH`)
+          continue
+        }
+        finalAmount = Math.round((pb.base * empAdj.custom_percentage) / 100)
+        calcFromLabel = pb.calculateFrom
       }
 
       if (adjType.category === "allowance") {
@@ -2103,7 +2149,7 @@ export async function processAdjustments(
         adjusted_amount: 0,
         final_amount: finalAmount,
         reason: empAdj.custom_percentage
-          ? `${adjType.name} (${empAdj.custom_percentage}% lương)`
+          ? `${adjType.name} (${empAdj.custom_percentage}% ${calcFromLabel === "insurance_salary" ? "lương BHXH" : "lương cơ bản"})`
           : adjType.name,
         occurrence_count: 1,
       })

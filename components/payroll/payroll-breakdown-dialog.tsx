@@ -188,6 +188,22 @@ export function PayrollBreakdownDialog({
                   </div>
                 )}
 
+                {/* Giảm trừ lương thử việc */}
+                {(payrollItem.probation_discount ?? 0) > 0 && (
+                  <div className="flex justify-between items-start text-sm gap-4 pt-1">
+                    <span className="flex-1 min-w-0">
+                      <span className="text-amber-700">Giảm trừ lương thử việc</span>
+                      <span className="block text-xs text-muted-foreground">
+                        Áp dụng {Math.round(((payrollItem.probation_rate ?? 0)) * 100)}% lương cho{" "}
+                        {(payrollItem.probation_paid_days ?? 0).toFixed(2)} ngày công trước ngày chính thức
+                      </span>
+                    </span>
+                    <span className="font-medium text-red-600 whitespace-nowrap">
+                      -{formatCurrency(payrollItem.probation_discount ?? 0)}
+                    </span>
+                  </div>
+                )}
+
                 {/* Phụ cấp */}
                 {allowances.length > 0 && (
                   <>

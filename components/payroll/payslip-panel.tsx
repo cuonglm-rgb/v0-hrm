@@ -348,6 +348,22 @@ export function PayslipPanel({ payslips }: PayslipPanelProps) {
                     </div>
                   )}
 
+                  {/* Giảm trừ lương thử việc */}
+                  {(selectedPayslip.probation_discount ?? 0) > 0 && (
+                    <div className="flex justify-between items-start py-1 gap-4">
+                      <span className="text-sm flex-1 min-w-0">
+                        <span className="text-amber-700">Giảm trừ lương thử việc</span>
+                        <span className="block text-xs text-muted-foreground">
+                          Áp dụng {Math.round(((selectedPayslip.probation_rate ?? 0)) * 100)}% lương cho{" "}
+                          {(selectedPayslip.probation_paid_days ?? 0).toFixed(2)} ngày công trước ngày chính thức
+                        </span>
+                      </span>
+                      <span className="text-sm text-red-600 whitespace-nowrap tabular-nums">
+                        -{formatCurrency(selectedPayslip.probation_discount ?? 0)}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Phụ cấp */}
                   {!isLoading && adjustmentDetails.filter((d) => d.category === "allowance" && d.adjustment_type?.code !== 'overtime').length > 0 && (
                     <div className="pt-2 border-t">

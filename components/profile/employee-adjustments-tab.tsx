@@ -87,7 +87,9 @@ export function EmployeeAdjustmentsTab({ autoAdjustments, manualAdjustments }: E
                         : item.calculation_type === "daily"
                         ? "Theo ngày"
                         : item.calculation_type === "percentage"
-                        ? "% lương"
+                        ? (item.auto_rules as any)?.calculate_from === "insurance_salary"
+                          ? "% lương BHXH"
+                          : "% lương CB"
                         : "Theo lần"}
                     </Badge>
                   </TableCell>

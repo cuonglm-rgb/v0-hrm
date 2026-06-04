@@ -71,6 +71,12 @@ const categoryConfig: Record<
   penalty: { label: "Phạt", icon: <Ban className="h-4 w-4" />, color: "bg-red-100 text-red-700" },
 }
 
+function formatVNDate(date: string): string {
+  const [y, m, d] = date.split("-")
+  if (!y || !m || !d) return date
+  return `${d}/${m}/${y}`
+}
+
 const defaultAutoRules: AdjustmentAutoRules = {
   trigger: "attendance",
   deduct_on_absent: true,
@@ -102,6 +108,8 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
     auto_rules: { ...defaultAutoRules },
     apply_to_selected_employees: false, // Mới: toggle chọn nhân viên cụ thể
     selected_employee_ids: [] as string[], // Mới: danh sách ID nhân viên được chọn
+    effective_from: "",
+    effective_to: "",
   })
 
   // Load danh sách loại phiếu từ database
@@ -140,6 +148,8 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
       auto_rules: { ...defaultAutoRules },
       apply_to_selected_employees: false,
       selected_employee_ids: [],
+      effective_from: "",
+      effective_to: "",
     })
     setOpen(true)
   }
@@ -174,6 +184,8 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
       },
       apply_to_selected_employees: assignedIds.length > 0,
       selected_employee_ids: assignedIds,
+      effective_from: item.effective_from || "",
+      effective_to: item.effective_to || "",
     })
     setOpen(true)
   }
@@ -187,6 +199,11 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
     // Validate: Nếu chọn áp dụng cho nhân viên cụ thể thì phải chọn ít nhất 1 nhân viên
     if (formData.is_auto_applied && formData.apply_to_selected_employees && formData.selected_employee_ids.length === 0) {
       toast.error("Vui lòng chọn ít nhất 1 nhân viên")
+      return
+    }
+
+    if (formData.effective_from && formData.effective_to && formData.effective_from > formData.effective_to) {
+      toast.error("Ngày kết thúc phải >= ngày bắt đầu")
       return
     }
 
@@ -241,9 +258,11 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
         calculation_type: actualCalculationType,
         is_auto_applied: formData.is_auto_applied,
         description: formData.description || undefined,
-        auto_rules: formData.is_auto_applied || actualCalculationType === "percentage" 
-          ? autoRules 
+        auto_rules: formData.is_auto_applied || actualCalculationType === "percentage"
+          ? autoRules
           : undefined,
+        effective_from: formData.effective_from || null,
+        effective_to: formData.effective_to || null,
         employee_ids: employeeIds,
       }
 
@@ -313,6 +332,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
               <TableHead>Cách tính</TableHead>
               <TableHead>Tự động</TableHead>
               <TableHead>Phạm vi</TableHead>
+              <TableHead>Hiệu lực</TableHead>
               <TableHead>Trạng thái</TableHead>
               {isHROrAdmin && <TableHead className="text-right">Thao tác</TableHead>}
             </TableRow>
@@ -320,7 +340,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isHROrAdmin ? 8 : 7} className="text-center py-6 text-muted-foreground">
+                <TableCell colSpan={isHROrAdmin ? 9 : 8} className="text-center py-6 text-muted-foreground">
                   Chưa có dữ liệu
                 </TableCell>
               </TableRow>
@@ -400,6 +420,17 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                         )
                       ) : (
                         <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.effective_from || item.effective_to ? (
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {item.effective_from ? formatVNDate(item.effective_from) : "—"}
+                          {" → "}
+                          {item.effective_to ? formatVNDate(item.effective_to) : "—"}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Không giới hạn</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -584,6 +615,29 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                 placeholder="Mô tả chi tiết..."
                 rows={2}
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="effective_from">Hiệu lực từ</Label>
+                <Input
+                  id="effective_from"
+                  type="date"
+                  value={formData.effective_from}
+                  onChange={(e) => setFormData({ ...formData, effective_from: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Trống = áp dụng luôn</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="effective_to">Hiệu lực đến</Label>
+                <Input
+                  id="effective_to"
+                  type="date"
+                  value={formData.effective_to}
+                  onChange={(e) => setFormData({ ...formData, effective_to: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Trống = không kết thúc</p>
+              </div>
             </div>
 
             <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">

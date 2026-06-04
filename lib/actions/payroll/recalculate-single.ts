@@ -119,6 +119,8 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .from("payroll_adjustment_types")
     .select("*")
     .eq("is_active", true)
+    .or(`effective_from.is.null,effective_from.lte.${endDate}`)
+    .or(`effective_to.is.null,effective_to.gte.${startDate}`)
 
   // Query attendance logs - giống hệt generate-payroll.ts
   const { data: allAttendanceLogs } = await supabase
@@ -995,7 +997,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   // Restore console.log
   console.log = originalConsoleLog
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("payroll_items")
     .update({
       working_days: actualWorkingDays,
@@ -1011,8 +1013,17 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       consumed_deficit_days: consumed_days,
       consumed_deficit_detail: consumedDeficitDetailStr,
       calculation_log: calculationLog,
+      probation_discount: Math.round(probationSplit.probationDiscount),
+      probation_rate: probationSplit.probationDiscount > 0 ? probationRate : null,
+      probation_paid_days: probationSplit.probationPaidDays,
     })
     .eq("id", payroll_item_id)
+
+  if (updateError) {
+    console.error(`[Recalculate] Error updating payroll_item ${payroll_item_id}:`, updateError)
+    return { success: false, error: updateError.message }
+  }
+  console.log(`[Recalculate] ${emp.full_name}: probation_discount=${Math.round(probationSplit.probationDiscount)}, probation_rate=${probationRate}, probation_paid_days=${probationSplit.probationPaidDays.toFixed(2)}, totalPaidDays=${totalPaidDays.toFixed(2)}, officialDate=${emp.official_date || "null"}`)
 
   if (adjustmentDetails.length > 0) {
     const detailsWithItemId = adjustmentDetails.map((d) => ({

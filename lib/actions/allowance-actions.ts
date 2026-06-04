@@ -60,6 +60,8 @@ export async function createAdjustmentType(input: {
   is_auto_applied: boolean
   auto_rules?: AdjustmentAutoRules
   description?: string
+  effective_from?: string | null
+  effective_to?: string | null
   employee_ids?: string[] // Danh sách ID nhân viên được chọn (nếu rỗng = toàn công ty)
 }) {
   const supabase = await createClient()
@@ -77,6 +79,8 @@ export async function createAdjustmentType(input: {
     auto_rules: insertData.auto_rules || null,
     description: insertData.description || null,
     is_active: true,
+    effective_from: insertData.effective_from || null,
+    effective_to: insertData.effective_to || null,
   }).select().single()
 
   if (error) {
@@ -117,6 +121,8 @@ export async function updateAdjustmentType(
     auto_rules?: AdjustmentAutoRules | null
     description?: string
     is_active?: boolean
+    effective_from?: string | null
+    effective_to?: string | null
     employee_ids?: string[] // Danh sách ID nhân viên được chọn (nếu rỗng = toàn công ty)
   }
 ) {

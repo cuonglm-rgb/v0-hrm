@@ -280,6 +280,8 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
 
   // Lấy thông tin loại điều chỉnh đã chọn
   const selectedAdjType = adjustmentTypes.find((t) => t.id === adjustmentForm.adjustment_type_id)
+  const selectedUsesInsurance = (selectedAdjType?.auto_rules as any)?.calculate_from === "insurance_salary"
+  const editingUsesInsurance = (editingAdjustment?.adjustment_type?.auto_rules as any)?.calculate_from === "insurance_salary"
 
   // Helper để hiển thị category
   const getCategoryBadge = (category: string) => {
@@ -660,14 +662,14 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                         />
                       </div>
                       <div className="grid gap-2">
-                        <Label>Hoặc % lương cơ bản</Label>
+                        <Label>Hoặc % {selectedUsesInsurance ? "lương BHXH" : "lương cơ bản"}</Label>
                         <div className="relative">
                           <Input
                             value={adjustmentForm.custom_percentage}
                             onChange={(e) => {
                               const val = e.target.value.replace(/[^\d.,]/g, "")
-                              setAdjustmentForm({ 
-                                ...adjustmentForm, 
+                              setAdjustmentForm({
+                                ...adjustmentForm,
                                 custom_percentage: val,
                                 custom_amount: "" // Clear amount khi nhập %
                               })
@@ -681,12 +683,12 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {adjustmentForm.custom_percentage 
-                        ? `Sẽ tính ${adjustmentForm.custom_percentage}% lương cơ bản mỗi tháng`
+                      {adjustmentForm.custom_percentage
+                        ? `Sẽ tính ${adjustmentForm.custom_percentage}% ${selectedUsesInsurance ? "lương BHXH" : "lương cơ bản"} mỗi tháng`
                         : adjustmentForm.custom_amount
                         ? `Số tiền cố định: ${adjustmentForm.custom_amount} VND/tháng`
                         : selectedAdjType?.auto_rules?.percentage
-                        ? `Mặc định: ${selectedAdjType.auto_rules.percentage}% lương cơ bản`
+                        ? `Mặc định: ${selectedAdjType.auto_rules.percentage}% ${selectedUsesInsurance ? "lương BHXH" : "lương cơ bản"}`
                         : "Để trống để dùng giá trị mặc định của loại điều chỉnh"
                       }
                     </p>
@@ -757,13 +759,14 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                   <TableCell>{adj.adjustment_type && getCategoryBadge(adj.adjustment_type.category)}</TableCell>
                   <TableCell className="font-medium">{adj.adjustment_type?.name || "-"}</TableCell>
                   <TableCell className="text-right">
-                    {adj.custom_percentage
-                      ? `${adj.custom_percentage}% lương`
-                      : adj.custom_amount
-                      ? formatCurrency(adj.custom_amount)
-                      : adj.adjustment_type?.auto_rules?.percentage
-                      ? `${adj.adjustment_type.auto_rules.percentage}% lương`
-                      : formatCurrency(adj.adjustment_type?.amount || 0)}
+                    {(() => {
+                      const usesInsurance = (adj.adjustment_type?.auto_rules as any)?.calculate_from === "insurance_salary"
+                      const salaryLabel = usesInsurance ? "lương BHXH" : "lương CB"
+                      if (adj.custom_percentage) return `${adj.custom_percentage}% ${salaryLabel}`
+                      if (adj.custom_amount) return formatCurrency(adj.custom_amount)
+                      if (adj.adjustment_type?.auto_rules?.percentage) return `${adj.adjustment_type.auto_rules.percentage}% ${salaryLabel}`
+                      return formatCurrency(adj.adjustment_type?.amount || 0)
+                    })()}
                   </TableCell>
                   <TableCell>
                     {formatDateVN(adj.effective_date)}
@@ -873,14 +876,14 @@ export function EmployeeSalaryTab({ employeeId, salaryHistory, isHROrAdmin }: Em
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Hoặc % lương cơ bản</Label>
+                  <Label>Hoặc % {editingUsesInsurance ? "lương BHXH" : "lương cơ bản"}</Label>
                   <div className="relative">
                     <Input
                       value={adjustmentForm.custom_percentage}
                       onChange={(e) => {
                         const val = e.target.value.replace(/[^\d.,]/g, "")
-                        setAdjustmentForm({ 
-                          ...adjustmentForm, 
+                        setAdjustmentForm({
+                          ...adjustmentForm,
                           custom_percentage: val,
                           custom_amount: ""
                         })
