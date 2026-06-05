@@ -38,7 +38,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .from("payroll_items")
     .select(`
       *,
-      employee:employees(id, full_name, employee_code, shift_id, official_date, join_date, resignation_date),
+      employee:employees(id, full_name, employee_code, shift_id, official_date, join_date, resignation_date, department_id, position_id),
       payroll_run:payroll_runs(id, month, year, status)
     `)
     .eq("id", payroll_item_id)

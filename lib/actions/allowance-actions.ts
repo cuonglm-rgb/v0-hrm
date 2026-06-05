@@ -6,6 +6,7 @@ import type {
   PayrollAdjustmentType,
   AdjustmentAutoRules,
   AdjustmentCategory,
+  AdjustmentScopeType,
   EmployeeAdjustmentWithType,
 } from "@/lib/types/database"
 import { getNowVN } from "@/lib/utils/date-utils"
@@ -26,6 +27,14 @@ export async function listAdjustmentTypes(
       assigned_employees:adjustment_type_employees(
         employee_id,
         employee:employees(id, full_name, employee_code)
+      ),
+      assigned_departments:adjustment_type_departments(
+        department_id,
+        department:departments(id, name)
+      ),
+      assigned_positions:adjustment_type_positions(
+        position_id,
+        position:positions(id, name)
       )
     `)
     .order("category")
@@ -62,12 +71,15 @@ export async function createAdjustmentType(input: {
   description?: string
   effective_from?: string | null
   effective_to?: string | null
-  employee_ids?: string[] // Danh sách ID nhân viên được chọn (nếu rỗng = toàn công ty)
+  scope_type?: AdjustmentScopeType
+  employee_ids?: string[]      // dùng cho specific_employees (include) hoặc all_except (exclude)
+  department_ids?: string[]    // dùng cho by_department_position
+  position_ids?: string[]      // dùng cho by_department_position
 }) {
   const supabase = await createClient()
 
-  // Tách employee_ids ra khỏi input để không gửi vào insert
-  const { employee_ids, ...insertData } = input
+  const { employee_ids, department_ids, position_ids, scope_type, ...insertData } = input
+  const finalScopeType: AdjustmentScopeType = scope_type || "all_company"
 
   const { data: newType, error } = await supabase.from("payroll_adjustment_types").insert({
     name: insertData.name,
@@ -81,6 +93,7 @@ export async function createAdjustmentType(input: {
     is_active: true,
     effective_from: insertData.effective_from || null,
     effective_to: insertData.effective_to || null,
+    scope_type: finalScopeType,
   }).select().single()
 
   if (error) {
@@ -88,25 +101,53 @@ export async function createAdjustmentType(input: {
     return { success: false, error: error.message }
   }
 
-  // Nếu có danh sách nhân viên được chọn, thêm vào bảng junction
-  if (employee_ids && employee_ids.length > 0 && newType) {
-    const assignments = employee_ids.map(emp_id => ({
-      adjustment_type_id: newType.id,
-      employee_id: emp_id,
-    }))
-    
-    const { error: assignError } = await supabase
-      .from("adjustment_type_employees")
-      .insert(assignments)
-    
-    if (assignError) {
-      console.error("Error assigning employees:", assignError)
-      // Không return error vì adjustment type đã tạo thành công
-    }
-  }
+  if (!newType) return { success: true }
+
+  await syncScopeAssignments(supabase, newType.id, finalScopeType, {
+    employee_ids,
+    department_ids,
+    position_ids,
+  })
 
   revalidatePath("/dashboard/allowances")
   return { success: true }
+}
+
+// Đồng bộ các bảng junction theo scope_type. Luôn xóa hết trước khi insert mới
+// để đảm bảo dữ liệu cũ ở scope_type khác không còn dây dưa.
+async function syncScopeAssignments(
+  supabase: any,
+  adjustmentTypeId: string,
+  scopeType: AdjustmentScopeType,
+  ids: { employee_ids?: string[]; department_ids?: string[]; position_ids?: string[] }
+) {
+  await Promise.all([
+    supabase.from("adjustment_type_employees").delete().eq("adjustment_type_id", adjustmentTypeId),
+    supabase.from("adjustment_type_departments").delete().eq("adjustment_type_id", adjustmentTypeId),
+    supabase.from("adjustment_type_positions").delete().eq("adjustment_type_id", adjustmentTypeId),
+  ])
+
+  if (scopeType === "specific_employees" || scopeType === "all_except") {
+    const empIds = ids.employee_ids || []
+    if (empIds.length > 0) {
+      await supabase.from("adjustment_type_employees").insert(
+        empIds.map((employee_id) => ({ adjustment_type_id: adjustmentTypeId, employee_id }))
+      )
+    }
+  } else if (scopeType === "by_department_position") {
+    const deptIds = ids.department_ids || []
+    const posIds = ids.position_ids || []
+    if (deptIds.length > 0) {
+      await supabase.from("adjustment_type_departments").insert(
+        deptIds.map((department_id) => ({ adjustment_type_id: adjustmentTypeId, department_id }))
+      )
+    }
+    if (posIds.length > 0) {
+      await supabase.from("adjustment_type_positions").insert(
+        posIds.map((position_id) => ({ adjustment_type_id: adjustmentTypeId, position_id }))
+      )
+    }
+  }
 }
 
 export async function updateAdjustmentType(
@@ -123,17 +164,22 @@ export async function updateAdjustmentType(
     is_active?: boolean
     effective_from?: string | null
     effective_to?: string | null
-    employee_ids?: string[] // Danh sách ID nhân viên được chọn (nếu rỗng = toàn công ty)
+    scope_type?: AdjustmentScopeType
+    employee_ids?: string[]
+    department_ids?: string[]
+    position_ids?: string[]
   }
 ) {
   const supabase = await createClient()
 
-  // Tách employee_ids ra khỏi input để không gửi vào update
-  const { employee_ids, ...updateData } = input
+  const { employee_ids, department_ids, position_ids, scope_type, ...updateData } = input
+
+  const payload: any = { ...updateData }
+  if (scope_type !== undefined) payload.scope_type = scope_type
 
   const { error } = await supabase
     .from("payroll_adjustment_types")
-    .update(updateData)
+    .update(payload)
     .eq("id", id)
 
   if (error) {
@@ -141,29 +187,13 @@ export async function updateAdjustmentType(
     return { success: false, error: error.message }
   }
 
-  // Nếu có employee_ids trong input, cập nhật danh sách nhân viên
-  if (employee_ids !== undefined) {
-    // Xóa tất cả assignments cũ
-    await supabase
-      .from("adjustment_type_employees")
-      .delete()
-      .eq("adjustment_type_id", id)
-    
-    // Thêm assignments mới (nếu có)
-    if (employee_ids.length > 0) {
-      const assignments = employee_ids.map(emp_id => ({
-        adjustment_type_id: id,
-        employee_id: emp_id,
-      }))
-      
-      const { error: assignError } = await supabase
-        .from("adjustment_type_employees")
-        .insert(assignments)
-      
-      if (assignError) {
-        console.error("Error assigning employees:", assignError)
-      }
-    }
+  // Chỉ sync junction khi caller có gửi scope_type — nếu không thì giữ nguyên
+  if (scope_type !== undefined) {
+    await syncScopeAssignments(supabase, id, scope_type, {
+      employee_ids,
+      department_ids,
+      position_ids,
+    })
   }
 
   revalidatePath("/dashboard/allowances")

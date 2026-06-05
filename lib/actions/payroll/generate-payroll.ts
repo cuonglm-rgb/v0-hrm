@@ -102,7 +102,7 @@ export async function generatePayroll(month: number, year: number) {
   // Lấy danh sách nhân viên active hoặc onboarding
   const { data: employees, error: empError } = await supabase
     .from("employees")
-    .select("id, full_name, employee_code, shift_id, official_date, join_date")
+    .select("id, full_name, employee_code, shift_id, official_date, join_date, department_id, position_id")
     .in("status", ["active", "onboarding"])
 
   if (empError || !employees || employees.length === 0) {
@@ -1327,6 +1327,55 @@ async function processLeaveRequests(
 // PROCESS ADJUSTMENTS (ALLOWANCES, DEDUCTIONS, PENALTIES)
 // =============================================
 
+/**
+ * Kiểm tra nhân viên có nằm trong phạm vi áp dụng của 1 loại phụ cấp/khấu trừ/phạt không.
+ * Caller đã ensure scopeType !== 'all_company' trước khi gọi.
+ */
+async function isEmployeeInAdjustmentScope(
+  supabase: any,
+  adjustmentTypeId: string,
+  scopeType: string,
+  emp: { id: string; department_id?: string | null; position_id?: string | null }
+): Promise<boolean> {
+  if (scopeType === "specific_employees") {
+    const { data } = await supabase
+      .from("adjustment_type_employees")
+      .select("employee_id")
+      .eq("adjustment_type_id", adjustmentTypeId)
+    return (data || []).some((r: any) => r.employee_id === emp.id)
+  }
+
+  if (scopeType === "all_except") {
+    const { data } = await supabase
+      .from("adjustment_type_employees")
+      .select("employee_id")
+      .eq("adjustment_type_id", adjustmentTypeId)
+    return !(data || []).some((r: any) => r.employee_id === emp.id)
+  }
+
+  if (scopeType === "by_department_position") {
+    const [{ data: depts }, { data: poses }] = await Promise.all([
+      supabase
+        .from("adjustment_type_departments")
+        .select("department_id")
+        .eq("adjustment_type_id", adjustmentTypeId),
+      supabase
+        .from("adjustment_type_positions")
+        .select("position_id")
+        .eq("adjustment_type_id", adjustmentTypeId),
+    ])
+    const deptIds = (depts || []).map((r: any) => r.department_id)
+    const posIds = (poses || []).map((r: any) => r.position_id)
+    // OR logic: thuộc phòng ban được chọn HOẶC chức vụ được chọn
+    if (deptIds.length === 0 && posIds.length === 0) return false
+    if (emp.department_id && deptIds.includes(emp.department_id)) return true
+    if (emp.position_id && posIds.includes(emp.position_id)) return true
+    return false
+  }
+
+  return true
+}
+
 export async function processAdjustments(
   supabase: any,
   emp: any,
@@ -1372,22 +1421,18 @@ export async function processAdjustments(
     for (const adjType of adjustmentTypes as PayrollAdjustmentType[]) {
       if (!adjType.is_auto_applied) continue
 
-      // Kiểm tra phạm vi áp dụng: Nếu có assigned_employees thì chỉ áp dụng cho nhân viên được chọn
-      const { data: assignedEmployees } = await supabase
-        .from("adjustment_type_employees")
-        .select("employee_id")
-        .eq("adjustment_type_id", adjType.id)
-      
-      // Nếu có danh sách nhân viên được chọn (không rỗng)
-      if (assignedEmployees && assignedEmployees.length > 0) {
-        // Kiểm tra nhân viên hiện tại có trong danh sách không
-        const isAssigned = assignedEmployees.some((ae: any) => ae.employee_id === emp.id)
-        if (!isAssigned) {
-          console.log(`[Adjustment] Bỏ qua ${adjType.name} - không áp dụng cho nhân viên này`)
-          continue // Bỏ qua adjustment type này
+      // Kiểm tra phạm vi áp dụng theo scope_type
+      // Fallback: nếu DB cũ chưa có scope_type, suy từ junction (rỗng = all_company, có = specific_employees)
+      const scopeType: string = (adjType as any).scope_type
+        || ((adjType as any).assigned_employees?.length > 0 ? "specific_employees" : "all_company")
+
+      if (scopeType !== "all_company") {
+        const inScope = await isEmployeeInAdjustmentScope(supabase, adjType.id, scopeType, emp)
+        if (!inScope) {
+          console.log(`[Adjustment] Bỏ qua ${adjType.name} - không áp dụng cho ${emp.full_name} (scope=${scopeType})`)
+          continue
         }
       }
-      // Nếu không có ai được chọn (rỗng) -> áp dụng toàn công ty -> tiếp tục xử lý
 
       const rules = adjType.auto_rules as AdjustmentAutoRules | null
       const empOverride = empAdjustments?.find((ea: any) => ea.adjustment_type_id === adjType.id)

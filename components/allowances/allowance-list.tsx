@@ -48,13 +48,17 @@ import type {
   PayrollAdjustmentType,
   AdjustmentAutoRules,
   AdjustmentCategory,
+  AdjustmentScopeType,
   ExemptRequestType,
   RequestType,
   PenaltyCondition,
   EmployeeWithRelations,
+  Department,
+  Position,
 } from "@/lib/types/database"
 import { listRequestTypes } from "@/lib/actions/request-type-actions"
 import { listEmployees } from "@/lib/actions/employee-actions"
+import { listDepartments, listPositions } from "@/lib/actions/department-actions"
 import { EmployeeMultiSelect } from "@/components/ui/employee-multi-select"
 
 interface AllowanceListProps {
@@ -93,9 +97,11 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
   const [saving, setSaving] = useState(false)
   const [requestTypes, setRequestTypes] = useState<RequestType[]>([])
   
-  // Danh sách nhân viên để chọn
+  // Danh sách nhân viên / phòng ban / chức vụ để chọn
   const [employees, setEmployees] = useState<EmployeeWithRelations[]>([])
   const [loadingEmployees, setLoadingEmployees] = useState(false)
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [positions, setPositions] = useState<Position[]>([])
 
   const [formData, setFormData] = useState({
     name: "",
@@ -106,8 +112,10 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
     is_auto_applied: false,
     description: "",
     auto_rules: { ...defaultAutoRules },
-    apply_to_selected_employees: false, // Mới: toggle chọn nhân viên cụ thể
-    selected_employee_ids: [] as string[], // Mới: danh sách ID nhân viên được chọn
+    scope_type: "all_company" as AdjustmentScopeType,
+    selected_employee_ids: [] as string[],
+    selected_department_ids: [] as string[],
+    selected_position_ids: [] as string[],
     effective_from: "",
     effective_to: "",
   })
@@ -121,15 +129,28 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
     loadRequestTypes()
   }, [])
   
-  // Load danh sách nhân viên khi cần
+  // Load danh sách nhân viên khi cần (cho specific_employees / all_except)
   useEffect(() => {
-    if (formData.is_auto_applied && formData.apply_to_selected_employees && employees.length === 0) {
+    const needsEmployees =
+      formData.is_auto_applied &&
+      (formData.scope_type === "specific_employees" || formData.scope_type === "all_except")
+    if (needsEmployees && employees.length === 0) {
       setLoadingEmployees(true)
       listEmployees()
         .then(setEmployees)
         .finally(() => setLoadingEmployees(false))
     }
-  }, [formData.is_auto_applied, formData.apply_to_selected_employees, employees.length])
+  }, [formData.is_auto_applied, formData.scope_type, employees.length])
+
+  // Load phòng ban + chức vụ khi cần
+  useEffect(() => {
+    const needsDeptPos =
+      formData.is_auto_applied && formData.scope_type === "by_department_position"
+    if (needsDeptPos && departments.length === 0) {
+      listDepartments().then(setDepartments)
+      listPositions().then(setPositions)
+    }
+  }, [formData.is_auto_applied, formData.scope_type, departments.length])
 
   const allowances = adjustments.filter((a) => a.category === "allowance")
   const deductions = adjustments.filter((a) => a.category === "deduction")
@@ -146,8 +167,10 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
       is_auto_applied: false,
       description: "",
       auto_rules: { ...defaultAutoRules },
-      apply_to_selected_employees: false,
+      scope_type: "all_company",
       selected_employee_ids: [],
+      selected_department_ids: [],
+      selected_position_ids: [],
       effective_from: "",
       effective_to: "",
     })
@@ -157,22 +180,26 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
   const handleOpenEdit = (item: PayrollAdjustmentType) => {
     setEditing(item)
     const rules = (item.auto_rules as AdjustmentAutoRules) || { ...defaultAutoRules }
-    
-    // Lấy danh sách employee_ids từ assigned_employees
-    const assignedIds = (item as any).assigned_employees?.map((ae: any) => ae.employee_id) || []
-    
-    // Determine calculation_type display value based on calculate_from
+
+    const assignedEmpIds = (item as any).assigned_employees?.map((ae: any) => ae.employee_id) || []
+    const assignedDeptIds = (item as any).assigned_departments?.map((ad: any) => ad.department_id) || []
+    const assignedPosIds = (item as any).assigned_positions?.map((ap: any) => ap.position_id) || []
+
+    // Fallback cho dữ liệu cũ chưa có scope_type
+    const scopeType: AdjustmentScopeType =
+      (item as any).scope_type || (assignedEmpIds.length > 0 ? "specific_employees" : "all_company")
+
     let displayCalculationType = item.calculation_type
     if (item.calculation_type === "percentage" && rules.calculate_from === "insurance_salary") {
       displayCalculationType = "percentage_insurance" as any
     }
-    
+
     setFormData({
       name: item.name,
       code: item.code || "",
       category: item.category,
-      amount: item.calculation_type === "percentage" 
-        ? item.amount.toString() 
+      amount: item.calculation_type === "percentage"
+        ? item.amount.toString()
         : formatInputCurrency(item.amount.toString()),
       calculation_type: displayCalculationType,
       is_auto_applied: item.is_auto_applied,
@@ -180,10 +207,12 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
       auto_rules: {
         ...defaultAutoRules,
         ...rules,
-        calculate_from: rules.calculate_from || "base_salary", // Đảm bảo có giá trị mặc định
+        calculate_from: rules.calculate_from || "base_salary",
       },
-      apply_to_selected_employees: assignedIds.length > 0,
-      selected_employee_ids: assignedIds,
+      scope_type: scopeType,
+      selected_employee_ids: assignedEmpIds,
+      selected_department_ids: assignedDeptIds,
+      selected_position_ids: assignedPosIds,
       effective_from: item.effective_from || "",
       effective_to: item.effective_to || "",
     })
@@ -196,10 +225,24 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
       return
     }
 
-    // Validate: Nếu chọn áp dụng cho nhân viên cụ thể thì phải chọn ít nhất 1 nhân viên
-    if (formData.is_auto_applied && formData.apply_to_selected_employees && formData.selected_employee_ids.length === 0) {
-      toast.error("Vui lòng chọn ít nhất 1 nhân viên")
-      return
+    // Validate scope
+    if (formData.is_auto_applied) {
+      if (formData.scope_type === "specific_employees" && formData.selected_employee_ids.length === 0) {
+        toast.error("Vui lòng chọn ít nhất 1 nhân viên")
+        return
+      }
+      if (formData.scope_type === "all_except" && formData.selected_employee_ids.length === 0) {
+        toast.error("Vui lòng chọn ít nhất 1 nhân viên để loại trừ")
+        return
+      }
+      if (
+        formData.scope_type === "by_department_position" &&
+        formData.selected_department_ids.length === 0 &&
+        formData.selected_position_ids.length === 0
+      ) {
+        toast.error("Vui lòng chọn ít nhất 1 phòng ban hoặc chức vụ")
+        return
+      }
     }
 
     if (formData.effective_from && formData.effective_to && formData.effective_from > formData.effective_to) {
@@ -243,16 +286,16 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
         }
       }
 
-      // Nếu không áp dụng cho nhân viên cụ thể, gửi mảng rỗng (= toàn công ty)
-      const employeeIds = formData.is_auto_applied && formData.apply_to_selected_employees
-        ? formData.selected_employee_ids
-        : []
+      // Chuẩn hóa scope: nếu không bật auto-apply thì luôn là all_company
+      const effectiveScope: AdjustmentScopeType = formData.is_auto_applied
+        ? formData.scope_type
+        : "all_company"
 
       const data = {
         name: formData.name,
         code: formData.code || undefined,
         category: formData.category,
-        amount: actualCalculationType === "percentage" 
+        amount: actualCalculationType === "percentage"
           ? parseFloat(formData.amount) || 0
           : parseFloat(formData.amount.replace(/[^\d]/g, "")) || 0,
         calculation_type: actualCalculationType,
@@ -263,7 +306,15 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
           : undefined,
         effective_from: formData.effective_from || null,
         effective_to: formData.effective_to || null,
-        employee_ids: employeeIds,
+        scope_type: effectiveScope,
+        employee_ids:
+          effectiveScope === "specific_employees" || effectiveScope === "all_except"
+            ? formData.selected_employee_ids
+            : [],
+        department_ids:
+          effectiveScope === "by_department_position" ? formData.selected_department_ids : [],
+        position_ids:
+          effectiveScope === "by_department_position" ? formData.selected_position_ids : [],
       }
 
       if (editing) {
@@ -347,6 +398,11 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
             ) : (
               items.map((item) => {
                 const assignedEmployees = (item as any).assigned_employees || []
+                const assignedDepts = (item as any).assigned_departments || []
+                const assignedPoses = (item as any).assigned_positions || []
+                const itemScope: AdjustmentScopeType =
+                  (item as any).scope_type
+                  || (assignedEmployees.length > 0 ? "specific_employees" : "all_company")
                 return (
                   <TableRow key={item.id}>
                     <TableCell>
@@ -408,14 +464,24 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                     </TableCell>
                     <TableCell>
                       {item.is_auto_applied ? (
-                        assignedEmployees.length > 0 ? (
+                        itemScope === "all_company" ? (
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                            Toàn công ty
+                          </Badge>
+                        ) : itemScope === "by_department_position" ? (
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 gap-1">
+                            <Users className="h-3 w-3" />
+                            {assignedDepts.length} PB / {assignedPoses.length} CV
+                          </Badge>
+                        ) : itemScope === "all_except" ? (
+                          <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 gap-1">
+                            <Users className="h-3 w-3" />
+                            Trừ {assignedEmployees.length} NV
+                          </Badge>
+                        ) : (
                           <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 gap-1">
                             <Users className="h-3 w-3" />
                             {assignedEmployees.length} NV
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
-                            Toàn công ty
                           </Badge>
                         )
                       ) : (
@@ -662,32 +728,101 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                 <div className="pt-3 border-t space-y-3">
                   <Label className="text-sm">Phạm vi áp dụng:</Label>
                   <div className="space-y-2">
+                    {/* 1. Toàn công ty */}
                     <label className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
                       <input
                         type="radio"
                         name="apply_scope"
-                        checked={!formData.apply_to_selected_employees}
-                        onChange={() => setFormData({ 
-                          ...formData, 
-                          apply_to_selected_employees: false,
-                          selected_employee_ids: []
-                        })}
+                        checked={formData.scope_type === "all_company"}
+                        onChange={() => setFormData({ ...formData, scope_type: "all_company" })}
                         className="h-4 w-4 text-primary"
                       />
                       <div className="flex-1">
                         <div className="font-medium text-sm">Toàn công ty</div>
-                        <p className="text-xs text-muted-foreground">Áp dụng cho tất cả nhân viên</p>
+                        <p className="text-xs text-muted-foreground">Áp dụng cho tất cả nhân viên (kể cả NV mới)</p>
                       </div>
                     </label>
+
+                    {/* 2. Theo phòng ban / chức vụ */}
                     <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
                       <input
                         type="radio"
                         name="apply_scope"
-                        checked={formData.apply_to_selected_employees}
-                        onChange={() => setFormData({ 
-                          ...formData, 
-                          apply_to_selected_employees: true
-                        })}
+                        checked={formData.scope_type === "by_department_position"}
+                        onChange={() => setFormData({ ...formData, scope_type: "by_department_position" })}
+                        className="h-4 w-4 text-primary mt-0.5"
+                      />
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <div className="font-medium text-sm">Theo phòng ban / chức vụ</div>
+                          <p className="text-xs text-muted-foreground">
+                            NV thuộc phòng ban HOẶC chức vụ được chọn (NV mới tự động được áp)
+                          </p>
+                        </div>
+                        {formData.scope_type === "by_department_position" && (
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Phòng ban</Label>
+                              <div className="border rounded-md p-2 max-h-40 overflow-y-auto space-y-1 bg-background">
+                                {departments.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">Đang tải...</p>
+                                ) : (
+                                  departments.map((d) => (
+                                    <label key={d.id} className="flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={formData.selected_department_ids.includes(d.id)}
+                                        onChange={(e) => {
+                                          const next = e.target.checked
+                                            ? [...formData.selected_department_ids, d.id]
+                                            : formData.selected_department_ids.filter((x) => x !== d.id)
+                                          setFormData({ ...formData, selected_department_ids: next })
+                                        }}
+                                        className="h-4 w-4"
+                                      />
+                                      <span className="truncate">{d.name}</span>
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Chức vụ</Label>
+                              <div className="border rounded-md p-2 max-h-40 overflow-y-auto space-y-1 bg-background">
+                                {positions.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">Đang tải...</p>
+                                ) : (
+                                  positions.map((p) => (
+                                    <label key={p.id} className="flex items-center gap-2 text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={formData.selected_position_ids.includes(p.id)}
+                                        onChange={(e) => {
+                                          const next = e.target.checked
+                                            ? [...formData.selected_position_ids, p.id]
+                                            : formData.selected_position_ids.filter((x) => x !== p.id)
+                                          setFormData({ ...formData, selected_position_ids: next })
+                                        }}
+                                        className="h-4 w-4"
+                                      />
+                                      <span className="truncate">{p.name}</span>
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </label>
+
+                    {/* 3. Nhân viên cụ thể (include) */}
+                    <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name="apply_scope"
+                        checked={formData.scope_type === "specific_employees"}
+                        onChange={() => setFormData({ ...formData, scope_type: "specific_employees" })}
                         className="h-4 w-4 text-primary mt-0.5"
                       />
                       <div className="flex-1 space-y-2">
@@ -695,7 +830,7 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                           <div className="font-medium text-sm">Nhân viên cụ thể</div>
                           <p className="text-xs text-muted-foreground">Chỉ áp dụng cho các nhân viên được chọn</p>
                         </div>
-                        {formData.apply_to_selected_employees && (
+                        {formData.scope_type === "specific_employees" && (
                           <div className="space-y-2">
                             <EmployeeMultiSelect
                               employees={employees}
@@ -708,6 +843,42 @@ export function AllowanceList({ adjustments, isHROrAdmin }: AllowanceListProps) 
                             {formData.selected_employee_ids.length > 0 && (
                               <p className="text-xs text-muted-foreground">
                                 Đã chọn {formData.selected_employee_ids.length} nhân viên
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+
+                    {/* 4. Toàn công ty TRỪ (exclude) */}
+                    <label className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                      <input
+                        type="radio"
+                        name="apply_scope"
+                        checked={formData.scope_type === "all_except"}
+                        onChange={() => setFormData({ ...formData, scope_type: "all_except" })}
+                        className="h-4 w-4 text-primary mt-0.5"
+                      />
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <div className="font-medium text-sm">Toàn công ty trừ một số người</div>
+                          <p className="text-xs text-muted-foreground">
+                            NV mới mặc định được áp dụng, chỉ loại trừ những người được chọn
+                          </p>
+                        </div>
+                        {formData.scope_type === "all_except" && (
+                          <div className="space-y-2">
+                            <EmployeeMultiSelect
+                              employees={employees}
+                              selected={formData.selected_employee_ids}
+                              onChange={(ids) => setFormData({ ...formData, selected_employee_ids: ids })}
+                              loading={loadingEmployees}
+                              placeholder="Tìm và chọn nhân viên cần loại trừ..."
+                              maxHeight="150px"
+                            />
+                            {formData.selected_employee_ids.length > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Loại trừ {formData.selected_employee_ids.length} nhân viên
                               </p>
                             )}
                           </div>

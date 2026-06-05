@@ -218,6 +218,12 @@ export interface AdjustmentAutoRules {
   percentage?: number
 }
 
+export type AdjustmentScopeType =
+  | "all_company"
+  | "by_department_position"
+  | "specific_employees"
+  | "all_except"
+
 export interface PayrollAdjustmentType {
   id: string
   name: string
@@ -231,12 +237,15 @@ export interface PayrollAdjustmentType {
   is_active: boolean
   effective_from: string | null
   effective_to: string | null
+  scope_type: AdjustmentScopeType
   created_at: string
 }
 
-// Extended type với danh sách nhân viên được chọn
+// Extended type với danh sách nhân viên/phòng ban/chức vụ được chọn
 export interface PayrollAdjustmentTypeWithEmployees extends PayrollAdjustmentType {
   assigned_employees?: { employee_id: string; employee?: { id: string; full_name: string; employee_code: string | null } }[]
+  assigned_departments?: { department_id: string; department?: { id: string; name: string } }[]
+  assigned_positions?: { position_id: string; position?: { id: string; name: string } }[]
 }
 
 export interface EmployeeAdjustment {
