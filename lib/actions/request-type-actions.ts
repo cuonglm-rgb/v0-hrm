@@ -766,6 +766,29 @@ export async function createEmployeeRequest(input: {
         else if (deficitAmountByDate[v.date] === undefined) deficitAmountByDate[v.date] = 0
       }
 
+      // Thiếu công nửa ngày do NGHỈ SÁNG + LÀM CHIỀU:
+      // getEmployeeViolations chỉ đánh dấu isHalfDay cho trường hợp "làm sáng, về trước trưa".
+      // Trường hợp ngược lại (check-in sau giờ nghỉ trưa, làm đủ buổi chiều) bị coi là "đi muộn"
+      // nên deficit = 0. Bổ sung phát hiện tại đây (chỉ dùng cho validate làm bù) → deficit 0.5.
+      const parseHM = (t: string) => {
+        const [h, m] = t.split(":").map(Number)
+        return h * 60 + m
+      }
+      if (shiftInfo.breakStart && shiftInfo.breakEnd) {
+        const shiftStartMin = parseHM(shiftInfo.startTime)
+        const breakStartMin = parseHM(shiftInfo.breakStart)
+        const morningDurationMin = breakStartMin - shiftStartMin
+        for (const v of violations) {
+          if (deficitAmountByDate[v.date]) continue // đã có deficit (vắng/half-day sáng)
+          const workedFullAfternoon =
+            v.hasCheckIn && v.hasCheckOut && !v.forgotCheckIn && !v.forgotCheckOut && v.earlyMinutes === 0
+          const missedWholeMorning = morningDurationMin > 0 && v.lateMinutes >= morningDurationMin
+          if (workedFullAfternoon && missedWholeMorning) {
+            deficitAmountByDate[v.date] = 0.5
+          }
+        }
+      }
+
       // Lấy saturday schedules và holidays cho các ngày thiếu công
       // để kiểm tra ngày nào là ngày làm việc nhưng không có attendance log (vắng cả ngày)
       const { data: deficitSatSchedules } = await supabase
