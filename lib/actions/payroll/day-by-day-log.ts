@@ -282,8 +282,8 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
 
     const INDENT = "      "
 
-    // Violations
-    if (violation) {
+    // Violations (ngày làm bù được miễn vi phạm đi muộn/về sớm → không hiển thị)
+    if (violation && !isMakeup) {
       const vparts: string[] = []
       if (violation.lateMinutes > 0) vparts.push(`Đi muộn ${violation.lateMinutes}p`)
       if (violation.earlyMinutes > 0) vparts.push(`Về sớm ${violation.earlyMinutes}p`)

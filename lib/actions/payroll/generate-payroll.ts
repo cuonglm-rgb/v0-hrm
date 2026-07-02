@@ -721,7 +721,10 @@ async function processEmployeePayroll(
     breakEnd: breakEnd || null,
   }
   const violations = await getEmployeeViolations(supabase, emp.id, startDate, effectiveEndDate, shiftInfo)
-  const violationsWithoutOT = violations.filter((v) => !overtimeDates.has(v.date))
+  // Ngày làm bù (full_day_makeup) không tính vi phạm đi muộn/về sớm: nhân viên tự nguyện
+  // đi làm bù ngày nghỉ và có thể chọn ca sáng hoặc ca chiều, nên loại khỏi danh sách vi phạm
+  // dùng để tính phạt & phụ cấp. Công bù vẫn được cộng riêng qua consumed_days.
+  const violationsWithoutOT = violations.filter((v) => !overtimeDates.has(v.date) && !makeupDates.has(v.date))
 
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
