@@ -291,8 +291,12 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
 
     const INDENT = "      "
 
+    // Ngày nghỉ theo lịch có phiếu late_early_makeup: đi làm bù → không tính công, không tính vi phạm/phạt
+    const reqs = requestsByDate.get(dateStr) || []
+    const isLateEarlyMakeupOffDay = isScheduledOff && reqs.some((r) => r.code === "late_early_makeup")
+
     // Violations (ngày làm bù được miễn vi phạm đi muộn/về sớm → không hiển thị)
-    if (violation && !isMakeup) {
+    if (violation && !isMakeup && !isLateEarlyMakeupOffDay) {
       const vparts: string[] = []
       if (violation.lateMinutes > 0) vparts.push(`Đi muộn ${violation.lateMinutes}p`)
       if (violation.earlyMinutes > 0) vparts.push(`Về sớm ${violation.earlyMinutes}p`)
@@ -314,7 +318,6 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
     }
 
     // All requests/tickets on this day
-    const reqs = requestsByDate.get(dateStr) || []
     for (const r of reqs) {
       lines.push(`${INDENT}📄 Phiếu: ${r.typeName}${r.hint ? ` (${r.hint})` : ""}`)
     }

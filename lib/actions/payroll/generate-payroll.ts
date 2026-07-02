@@ -300,7 +300,16 @@ async function processEmployeePayroll(
     return !isSaturdayOff(new Date(Date.UTC(y, m - 1, d)))
   }
 
+  // Ngày nghỉ theo lịch (CN hoặc T7 nghỉ)
+  const isOffScheduleDay = (dateStr: string): boolean => {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
+    return dow === 0 || (dow === 6 && !isEmployeeWorkingSaturday(dateStr))
+  }
+
   const makeupDates = new Set<string>()
+  // Ngày có phiếu làm bù đi muộn/về sớm (late_early_makeup)
+  const lateEarlyMakeupDates = new Set<string>()
   // Map: date -> { fromTime, toTime, dayFraction } for partial-day WFH requests
   const partialWfhDates = new Map<string, { fromTime: string, toTime: string, dayFraction: number }>()
   
@@ -356,7 +365,10 @@ async function processEmployeePayroll(
       if (reqType?.code === "full_day_makeup" && request.request_date) {
         makeupDates.add(request.request_date)
       }
-      
+      if (reqType?.code === "late_early_makeup" && request.request_date) {
+        lateEarlyMakeupDates.add(request.request_date)
+      }
+
       // Identify partial-day WFH requests
       // Handle both single date format (request_date) and date range format (from_date = to_date)
       if (reqType?.code === "work_from_home" && (request.request_date || (request.from_date === request.to_date))) {
@@ -504,9 +516,10 @@ async function processEmployeePayroll(
       attendanceDates.add(logDate)
       if (makeupDates.has(logDate)) continue
       if (!overtimeDates.has(logDate) && !countedDates.has(logDate)) {
-        // Bỏ qua thứ 7 nghỉ: nhân viên tự đến không có phiếu OT
-        const [ly, lm, ld] = logDate.split('-').map(Number)
-        if (new Date(Date.UTC(ly, lm - 1, ld)).getUTCDay() === 6 && !isEmployeeWorkingSaturday(logDate)) {
+        // Ngày nghỉ theo lịch mà nhân viên đi làm:
+        // - Có phiếu late_early_makeup → đi làm để bù đi muộn/về sớm: không tính gì cả (không công, không phạt)
+        // - Không có phiếu → tính công như 1 ngày làm việc bình thường (kể cả vi phạm/phạt)
+        if (isOffScheduleDay(logDate) && lateEarlyMakeupDates.has(logDate)) {
           continue
         }
 
@@ -732,7 +745,13 @@ async function processEmployeePayroll(
   // Ngày làm bù (full_day_makeup) không tính vi phạm đi muộn/về sớm: nhân viên tự nguyện
   // đi làm bù ngày nghỉ và có thể chọn ca sáng hoặc ca chiều, nên loại khỏi danh sách vi phạm
   // dùng để tính phạt & phụ cấp. Công bù vẫn được cộng riêng qua consumed_days.
-  const violationsWithoutOT = violations.filter((v) => !overtimeDates.has(v.date) && !makeupDates.has(v.date))
+  // Ngày nghỉ có phiếu late_early_makeup: đi làm bù nên không tính vi phạm/phạt (và cũng không tính công)
+  const violationsWithoutOT = violations.filter(
+    (v) =>
+      !overtimeDates.has(v.date) &&
+      !makeupDates.has(v.date) &&
+      !(isOffScheduleDay(v.date) && lateEarlyMakeupDates.has(v.date))
+  )
 
   const absentDays = violationsWithoutOT.filter((v) => v.isAbsent).length
   const halfDays = violationsWithoutOT.filter((v) => v.isHalfDay && !v.isAbsent).length
