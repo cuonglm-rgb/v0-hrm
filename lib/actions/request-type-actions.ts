@@ -581,7 +581,7 @@ export async function createEmployeeRequest(input: {
   // Validate số dư phép và thời hạn tạo phiếu
   const { data: requestType } = await supabase
     .from("request_types")
-    .select("code, deduct_leave_balance, submission_deadline, allows_multiple_time_slots")
+    .select("code, name, affects_payroll, deduct_leave_balance, submission_deadline, allows_multiple_time_slots")
     .eq("id", input.request_type_id)
     .single()
 
@@ -601,6 +601,75 @@ export async function createEmployeeRequest(input: {
         return {
           success: false,
           error: `Quá hạn tạo phiếu. Quy định yêu cầu tạo trong vòng ${requestType.submission_deadline} ngày sau khi sự việc xảy ra (bạn đang tạo trễ ${dayDiff} ngày).`
+        }
+      }
+    }
+  }
+
+  // Chặn tạo phiếu tính công (nghỉ phép/nghỉ không lương/WFH) trùng ngày & khung giờ
+  // với phiếu tính công đã tồn tại (chờ duyệt/đã duyệt) — chống cộng trùng công khi tính lương
+  const isCountedLeaveType = (code: string, affectsPayroll: boolean): boolean =>
+    code !== "overtime" &&
+    !isMakeupRequestType(code) &&
+    (affectsPayroll || code === "unpaid_leave")
+
+  if (requestType && isCountedLeaveType(requestType.code, requestType.affects_payroll === true)) {
+    const newFrom = input.from_date || input.request_date
+    const newTo = input.to_date || input.request_date
+
+    if (newFrom && newTo) {
+      const { data: existingLeaves } = await supabase
+        .from("employee_requests")
+        .select(`
+          id, status, request_date, from_date, to_date, from_time, to_time,
+          time_slots:request_time_slots(from_time, to_time),
+          request_type:request_types!request_type_id(code, name, affects_payroll)
+        `)
+        .eq("employee_id", employee.id)
+        .in("status", ["pending", "approved"])
+        .or(`and(request_date.gte.${newFrom},request_date.lte.${newTo}),and(from_date.lte.${newTo},to_date.gte.${newFrom})`)
+
+      // Lấy danh sách khung giờ của phiếu; không có giờ → cả ngày (mảng rỗng)
+      const getSlots = (slots: { from_time: string; to_time: string }[] | null | undefined, fromTime?: string | null, toTime?: string | null) => {
+        const result: { from: string; to: string }[] = []
+        if (slots && slots.length > 0) {
+          for (const s of slots) {
+            if (s.from_time && s.to_time) result.push({ from: s.from_time.slice(0, 5), to: s.to_time.slice(0, 5) })
+          }
+        } else if (fromTime && toTime) {
+          result.push({ from: fromTime.slice(0, 5), to: toTime.slice(0, 5) })
+        }
+        return result
+      }
+
+      const newIsMultiDay = newFrom !== newTo
+      const newSlots = newIsMultiDay ? [] : getSlots(input.time_slots, input.from_time, input.to_time)
+
+      for (const ex of existingLeaves || []) {
+        const exType = (ex as any).request_type
+        if (!exType || !isCountedLeaveType(exType.code, exType.affects_payroll === true)) continue
+
+        const exFrom = ex.from_date || ex.request_date
+        const exTo = ex.to_date || ex.request_date
+        if (!exFrom || !exTo) continue
+        if (exFrom > newTo || exTo < newFrom) continue // không giao ngày
+
+        // Phiếu nhiều ngày hoặc không có khung giờ → coi là chiếm cả ngày
+        const exIsMultiDay = exFrom !== exTo
+        const exSlots = exIsMultiDay ? [] : getSlots((ex as any).time_slots, ex.from_time, ex.to_time)
+
+        const timeOverlaps =
+          newSlots.length === 0 ||
+          exSlots.length === 0 ||
+          newSlots.some((a) => exSlots.some((b) => a.from < b.to && b.from < a.to))
+
+        if (timeOverlaps) {
+          const statusLabel = ex.status === "approved" ? "đã duyệt" : "chờ duyệt"
+          const dateLabel = exIsMultiDay ? `${exFrom} → ${exTo}` : exFrom
+          return {
+            success: false,
+            error: `Bạn đã có phiếu "${exType.name}" (${statusLabel}) ngày ${dateLabel} trùng ngày/khung giờ với phiếu này. Vui lòng hủy phiếu cũ hoặc chọn khung giờ khác.`,
+          }
         }
       }
     }

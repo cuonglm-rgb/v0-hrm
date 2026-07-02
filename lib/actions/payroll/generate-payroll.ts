@@ -1180,6 +1180,19 @@ async function processLeaveRequests(
     return calculateDayFraction(from_time, to_time)
   }
 
+  // Cap tổng (công + phép) mỗi ngày tối đa 1 công — chống đếm trùng khi có
+  // nhiều phiếu nghỉ chồng nhau trong cùng 1 ngày (VD: phiếu 0.5 ngày + phiếu cả ngày)
+  const paidLeaveByDate = new Map<string, number>()
+  const addPaidLeave = (dateStr: string, amount: number): number => {
+    const attendanceFraction = attendanceDayFractions.get(dateStr) || 0
+    const alreadyLeave = paidLeaveByDate.get(dateStr) || 0
+    const capped = Math.min(amount, Math.max(0, 1 - attendanceFraction - alreadyLeave))
+    if (capped <= 0) return 0
+    paidLeaveByDate.set(dateStr, alreadyLeave + capped)
+    paidLeaveDays += capped
+    return capped
+  }
+
   if (employeeRequests) {
     for (const request of employeeRequests) {
       const reqType = request.request_type as any
@@ -1196,7 +1209,9 @@ async function processLeaveRequests(
 
       let days = 0
       let requestDate: string | null = null
-      
+      let rangeStart: Date | null = null
+      let rangeEnd: Date | null = null
+
       if (reqType.requires_date_range && request.from_date && request.to_date) {
         const parseDate = (dateStr: string) => {
           const [y, m, d] = dateStr.split('-').map(Number)
@@ -1216,6 +1231,8 @@ async function processLeaveRequests(
           requestDate = request.from_date
         } else {
           days = fullDays
+          rangeStart = reqStart
+          rangeEnd = reqEnd
         }
       } else if (reqType.requires_single_date && request.request_date) {
         days = calculateMultiSlotDayFraction(request)
@@ -1239,6 +1256,8 @@ async function processLeaveRequests(
           requestDate = request.from_date
         } else {
           days = fullDays
+          rangeStart = reqStart
+          rangeEnd = reqEnd
         }
       }
 
@@ -1289,7 +1308,19 @@ async function processLeaveRequests(
           workFromHomeDays += days
         }
       } else if (affectsPayroll) {
-        paidLeaveDays += days
+        // Cộng phép theo từng ngày, cap tổng (công + phép) mỗi ngày tối đa 1 công
+        if (requestDate) {
+          addPaidLeave(requestDate, days)
+        } else if (rangeStart && rangeEnd) {
+          const current = new Date(rangeStart)
+          while (current <= rangeEnd) {
+            const dateStr = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, '0')}-${String(current.getUTCDate()).padStart(2, '0')}`
+            addPaidLeave(dateStr, 1)
+            current.setUTCDate(current.getUTCDate() + 1)
+          }
+        } else {
+          paidLeaveDays += days
+        }
       }
     }
   }
