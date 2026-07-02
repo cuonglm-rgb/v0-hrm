@@ -1248,7 +1248,7 @@ export function PayrollDetailPanel({
 
       {/* Dialog hiển thị log tính lương */}
       <Dialog open={showLogDialog} onOpenChange={setShowLogDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -1261,7 +1261,7 @@ export function PayrollDetailPanel({
                 <p className="text-sm text-muted-foreground">Đang tải log...</p>
               </div>
             ) : (
-              <div className="bg-slate-950 text-green-400 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap" style={{ fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', 'Courier New', monospace" }}>
+              <div className="bg-slate-950 text-green-400 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap" style={{ fontFamily: "'SF Mono', 'Cascadia Code', 'Consolas', 'Courier New', monospace" }}>
                 {calculationLog}
               </div>
             )}

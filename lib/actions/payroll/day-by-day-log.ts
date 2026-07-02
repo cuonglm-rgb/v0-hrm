@@ -42,6 +42,8 @@ interface DayLogParams {
   companyHolidayMap: Map<string, string>
   leaveInfoByDate: Map<string, { typeName: string; code: string; fraction: number }>
   makeupDates: Set<string>
+  // Chi tiết công bù đã cộng cho từng ngày làm bù (full_day_makeup có chấm công)
+  makeupConsumeByDate: Map<string, { amount: number; deficitDates: string[] }>
   overtimeDates: Set<string>
   overtimeWithinShift: Set<string>
   otDetailsByDate: Map<string, Array<{ otType: string; hours: number; multiplier: number; amount: number }>>
@@ -93,6 +95,7 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
     companyHolidayMap,
     leaveInfoByDate,
     makeupDates,
+    makeupConsumeByDate,
     overtimeDates,
     overtimeWithinShift,
     otDetailsByDate,
@@ -256,7 +259,13 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
       const ci = fmtTime(att.check_in) || "—"
       const co = fmtTime(att.check_out) || "—"
       summary = `Vào ${ci} | Ra ${co}`
-      if (wasCounted && attFraction !== undefined) {
+      const makeupConsume = isMakeup ? makeupConsumeByDate.get(dateStr) : undefined
+      if (makeupConsume && makeupConsume.amount > 0) {
+        // Ngày làm bù: công không cộng trực tiếp mà cộng qua công bù (consumed_days) cho ngày thiếu công gốc
+        summary += ` (đã cộng ${makeupConsume.amount} công bù cho ${makeupConsume.deficitDates.join(", ")})`
+      } else if (isMakeup) {
+        summary += ` (làm bù nhưng chưa cộng công — chưa liên kết ngày thiếu công)`
+      } else if (wasCounted && attFraction !== undefined) {
         summary += ` → ${attFraction} công`
       } else if (!wasCounted && isScheduledOff) {
         summary += ` (không tính công)`

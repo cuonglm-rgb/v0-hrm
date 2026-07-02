@@ -422,6 +422,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   let consumed_days = 0
   const consumedDetailPairs: string[] = []
   const makeupLogLines: string[] = []
+  const makeupConsumeByDate = new Map<string, { amount: number; deficitDates: string[] }>()
   if (employeeRequests) {
     for (const request of employeeRequests) {
       const reqType = request.request_type as any
@@ -432,6 +433,13 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       const requestSum = links.reduce((s, l) => s + l.amount, 0)
       if (hasAttendance) {
         consumed_days += requestSum
+        const existing = makeupConsumeByDate.get(request.request_date)
+        if (existing) {
+          existing.amount += requestSum
+          existing.deficitDates.push(...links.map((l) => l.deficit_date))
+        } else {
+          makeupConsumeByDate.set(request.request_date, { amount: requestSum, deficitDates: links.map((l) => l.deficit_date) })
+        }
         for (const link of links) consumedDetailPairs.push(`${link.deficit_date}:${link.amount}`)
         makeupLogLines.push(`  [COUNTED] request_id=${request.id} ngày làm bù=${request.request_date} có chấm công → bù ${linkDesc} (cộng ${requestSum} ngày)`)
       } else {
@@ -922,6 +930,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     companyHolidayMap,
     leaveInfoByDate,
     makeupDates,
+    makeupConsumeByDate,
     overtimeDates,
     overtimeWithinShift,
     otDetailsByDate,
