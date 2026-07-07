@@ -694,13 +694,25 @@ export function PayrollDetailPanel({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      {item.working_days ? item.working_days.toFixed(1).replace(/\.0$/, '') : 0}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {item.makeup_days ? item.makeup_days.toFixed(1).replace(/\.0$/, '') : 0}
-                    </TableCell>
-                    <TableCell className="text-right">{item.leave_days || 0}</TableCell>
+                    {(() => {
+                      // Ngày công + công bù + nghỉ phép vượt công chuẩn → dữ liệu bất thường, tô đỏ để rà soát
+                      // (công bù không được chuyển sang tháng khác nên tính gộp trong tháng)
+                      const overStandard =
+                        (item.working_days || 0) + (item.makeup_days || 0) + (item.leave_days || 0) >
+                        (item.standard_working_days || standardWorkingDays)
+                      const warnClass = overStandard ? " text-red-600 font-semibold" : ""
+                      return (
+                        <>
+                          <TableCell className={`text-right${warnClass}`}>
+                            {item.working_days ? item.working_days.toFixed(1).replace(/\.0$/, '') : 0}
+                          </TableCell>
+                          <TableCell className={`text-right${warnClass}`}>
+                            {item.makeup_days ? item.makeup_days.toFixed(1).replace(/\.0$/, '') : 0}
+                          </TableCell>
+                          <TableCell className={`text-right${warnClass}`}>{item.leave_days || 0}</TableCell>
+                        </>
+                      )
+                    })()}
                     <TableCell className="text-right">{item.unpaid_leave_days || 0}</TableCell>
                     <TableCell className="text-right">{formatCurrency(item.base_salary)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(item.allowances)}</TableCell>

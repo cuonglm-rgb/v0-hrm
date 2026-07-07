@@ -11,7 +11,7 @@ import { getEmployeeViolations } from "./violations"
 import { processAdjustments } from "./generate-payroll"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
-import { MAKEUP_CODES, getMakeupDeficitLinks, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
+import { MAKEUP_CODES, getMakeupDeficitLinks, isMakeupRequestType } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
 import { buildDayByDayLog, type RequestEntry } from "./day-by-day-log"
 import { calculateProbationSplit } from "./probation-salary"
@@ -354,6 +354,25 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     }
   }
 
+  // Ngày thiếu công đã liên kết phiếu làm bù (full_day_makeup) và ngày làm bù có chấm công:
+  // phần công thiếu được cộng qua consumed_days, nên chấm công ngày gốc chỉ tính phần thực làm
+  // (tránh đếm trùng: ví dụ nghỉ sáng đi làm chiều = 0.5 công chấm công + 0.5 công bù)
+  const deficitCutByDate = new Map<string, number>()
+  {
+    const logDatesPre = new Set<string>()
+    for (const log of allAttendanceLogs || []) {
+      logDatesPre.add(log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out))
+    }
+    for (const request of employeeRequests || []) {
+      const reqType = request.request_type as any
+      if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
+      if (!logDatesPre.has(request.request_date)) continue // chưa đi làm bù → không cắt công ngày gốc
+      for (const link of getMakeupDeficitLinks((request.custom_data as Record<string, unknown>) || null)) {
+        deficitCutByDate.set(link.deficit_date, (deficitCutByDate.get(link.deficit_date) || 0) + link.amount)
+      }
+    }
+  }
+
   // Đếm ngày công (ngày làm bù full_day_makeup không tăng working days — chỉ consume deficit)
   let workingDaysCount = 0
   let fullDayCount = 0
@@ -422,10 +441,13 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
             attendanceDayFractions.set(logDate, 0.5)
           }
         } else {
-          // Count as full day
-          workingDaysCount++
-          fullDayCount++
-          attendanceDayFractions.set(logDate, 1.0)
+          // Count as full day — trừ phần công thiếu đã được phiếu làm bù cover (cộng lại qua consumed_days)
+          const deficitCut = deficitCutByDate.get(logDate) || 0
+          const frac = Math.max(0, 1 - deficitCut)
+          workingDaysCount += frac
+          if (frac >= 1) fullDayCount++
+          else halfDayAttendanceCount++
+          attendanceDayFractions.set(logDate, frac)
         }
         countedDates.add(logDate)
       }
@@ -867,13 +889,15 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   const actualWorkingDays = actualAttendanceDays + workFromHomeDays
   
   // Tính tự động nghỉ không lương cho những ngày không có chấm công và không có phiếu
-  // Công thức: Nghỉ KL = Công chuẩn - Ngày công - Nghỉ phép - Nghỉ KL (có phiếu) - Vắng mặt
-  const totalAccountedDays = actualWorkingDays + paidLeaveDays + unpaidLeaveDays + absentDays
+  // Công thức: Nghỉ KL = Công chuẩn - Ngày công - Công bù - Nghỉ phép - Nghỉ KL (có phiếu) - Vắng mặt
+  const totalAccountedDays = actualWorkingDays + consumed_days + paidLeaveDays + unpaidLeaveDays + absentDays
   const autoUnpaidLeaveDays = Math.max(0, STANDARD_WORKING_DAYS - totalAccountedDays)
   const finalUnpaidLeaveDays = unpaidLeaveDays + autoUnpaidLeaveDays
   
   const probationRate = await getProbationSalaryRate()
-  const totalPaidDays = actualWorkingDays + paidLeaveDays
+  // Công bù (consumed_days) được cộng vào ngày công tính lương vì chấm công ngày thiếu công gốc
+  // đã bị trừ phần thiếu (deficitCutByDate) — không còn double count
+  const totalPaidDays = actualWorkingDays + consumed_days + paidLeaveDays
   const probationSplit = calculateProbationSplit({
     effectiveStartDate,
     effectiveEndDate,
@@ -949,9 +973,9 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
       } else if (r.from_time && r.to_time) {
         hint = `${r.from_time.slice(0, 5)}-${r.to_time.slice(0, 5)}`
       }
-      if (rt.code === "late_early_makeup" && r.custom_data) {
-        const linked = (r.custom_data as any)[LINKED_DEFICIT_DATE_KEY]
-        if (linked) hint = `bù cho ${linked}${hint ? `, ${hint}` : ""}`
+      if (isMakeupRequestType(rt.code)) {
+        const links = getMakeupDeficitLinks(r.custom_data as any)
+        if (links.length > 0) hint = `bù cho ${links.map((l) => l.deficit_date).join(", ")}${hint ? `, ${hint}` : ""}`
       }
 
       if (r.from_date && r.to_date) {
@@ -1008,16 +1032,14 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   logger.log(`- Nghỉ không lương (tổng): ${finalUnpaidLeaveDays} ngày`)
   logger.log(`- Vắng mặt: ${absentDays} ngày`)
   
-  const totalAllDays = actualWorkingDays + paidLeaveDays + finalUnpaidLeaveDays + absentDays
+  const totalAllDays = actualWorkingDays + consumed_days + paidLeaveDays + finalUnpaidLeaveDays + absentDays
   logger.log(`- Tổng: ${totalAllDays} ngày`)
-  
-  // Kiểm tra công thức: Ngày công + Nghỉ phép + Nghỉ KL = Công chuẩn (consumed_days chỉ để audit, không tính vào công thức)
-  const formulaTotal = actualWorkingDays + paidLeaveDays + finalUnpaidLeaveDays
+
+  // Kiểm tra công thức: Ngày công + Công bù + Nghỉ phép + Nghỉ KL = Công chuẩn
+  // (chấm công ngày thiếu công gốc đã trừ phần thiếu nên công bù được cộng thẳng vào công thức)
+  const formulaTotal = actualWorkingDays + consumed_days + paidLeaveDays + finalUnpaidLeaveDays
   logger.log(``)
-  logger.log(`✓ Kiểm tra công thức: ${actualWorkingDays} (công) + ${paidLeaveDays} (phép) + ${finalUnpaidLeaveDays} (KL) = ${formulaTotal} ngày`)
-  if (consumed_days > 0) {
-    logger.log(`  (Ngày bù ${consumed_days} chỉ để audit, không cộng vào công thức vì đã tính trong chấm công)`)
-  }
+  logger.log(`✓ Kiểm tra công thức: ${actualWorkingDays} (công) + ${consumed_days} (bù) + ${paidLeaveDays} (phép) + ${finalUnpaidLeaveDays} (KL) = ${formulaTotal} ngày`)
   
   if (formulaTotal < STANDARD_WORKING_DAYS) {
     logger.log(`⚠️  Thiếu ${STANDARD_WORKING_DAYS - formulaTotal} ngày so với công chuẩn`)
@@ -1031,6 +1053,9 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
   logger.log(`- Lương cơ bản: ${baseSalary.toLocaleString()} VNĐ`)
   logger.log(`- Lương ngày: ${dailySalary.toLocaleString()} VNĐ`)
   logger.log(`- Ngày công tính lương: ${actualWorkingDays} ngày`)
+  if (consumed_days > 0) {
+    logger.log(`- Công bù tính lương: ${consumed_days} ngày`)
+  }
   logger.log(`- Phép có lương: ${paidLeaveDays} ngày`)
   logger.log(`- Lương theo công (gốc): ${(dailySalary * totalPaidDays).toLocaleString()} VNĐ`)
   if (probationSplit.probationDiscount > 0) {

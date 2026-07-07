@@ -12,7 +12,7 @@ import { calculateStandardWorkingDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff } from "./working-days-utils"
-import { MAKEUP_CODES, getMakeupDeficitLinks, LINKED_DEFICIT_DATE_KEY } from "@/lib/utils/makeup-utils"
+import { MAKEUP_CODES, getMakeupDeficitLinks, isMakeupRequestType } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
 import { buildDayByDayLog, type AllowanceAudit, type PenaltyExempt, type RequestEntry } from "./day-by-day-log"
 import { calculateProbationSplit } from "./probation-salary"
@@ -493,6 +493,25 @@ async function processEmployeePayroll(
     .eq("employee_id", emp.id)
     .or(`and(check_in.gte.${startDate},check_in.lte.${effectiveEndDate}T23:59:59),and(check_in.is.null,check_out.gte.${startDate},check_out.lte.${effectiveEndDate}T23:59:59)`)
 
+  // Ngày thiếu công đã liên kết phiếu làm bù (full_day_makeup) và ngày làm bù có chấm công:
+  // phần công thiếu được cộng qua consumed_days, nên chấm công ngày gốc chỉ tính phần thực làm
+  // (tránh đếm trùng: ví dụ nghỉ sáng đi làm chiều = 0.5 công chấm công + 0.5 công bù)
+  const deficitCutByDate = new Map<string, number>()
+  {
+    const logDatesPre = new Set<string>()
+    for (const log of allAttendanceLogs || []) {
+      logDatesPre.add(log.check_in ? toDateStringVN(log.check_in) : toDateStringVN(log.check_out))
+    }
+    for (const request of employeeRequests || []) {
+      const reqType = request.request_type as any
+      if (reqType?.code !== "full_day_makeup" || !request.request_date) continue
+      if (!logDatesPre.has(request.request_date)) continue // chưa đi làm bù → không cắt công ngày gốc
+      for (const link of getMakeupDeficitLinks((request.custom_data as Record<string, unknown>) || null)) {
+        deficitCutByDate.set(link.deficit_date, (deficitCutByDate.get(link.deficit_date) || 0) + link.amount)
+      }
+    }
+  }
+
   // Đếm ngày công (ngày làm bù full_day_makeup KHÔNG tăng working days — chỉ dùng để consume deficit)
   let workingDaysCount = 0
   let fullDayCount = 0
@@ -561,10 +580,13 @@ async function processEmployeePayroll(
             attendanceDayFractions.set(logDate, 0.5)
           }
         } else {
-          // Count as full day
-          workingDaysCount++
-          fullDayCount++
-          attendanceDayFractions.set(logDate, 1.0)
+          // Count as full day — trừ phần công thiếu đã được phiếu làm bù cover (cộng lại qua consumed_days)
+          const deficitCut = deficitCutByDate.get(logDate) || 0
+          const frac = Math.max(0, 1 - deficitCut)
+          workingDaysCount += frac
+          if (frac >= 1) fullDayCount++
+          else halfDayAttendanceCount++
+          attendanceDayFractions.set(logDate, frac)
         }
         countedDates.add(logDate)
       }
@@ -884,9 +906,9 @@ async function processEmployeePayroll(
       } else if (r.from_time && r.to_time) {
         hint = `${r.from_time.slice(0, 5)}-${r.to_time.slice(0, 5)}`
       }
-      if (rt.code === "late_early_makeup" && r.custom_data) {
-        const linked = (r.custom_data as any)[LINKED_DEFICIT_DATE_KEY]
-        if (linked) hint = `bù cho ${linked}${hint ? `, ${hint}` : ""}`
+      if (isMakeupRequestType(rt.code)) {
+        const links = getMakeupDeficitLinks(r.custom_data as any)
+        if (links.length > 0) hint = `bù cho ${links.map((l) => l.deficit_date).join(", ")}${hint ? `, ${hint}` : ""}`
       }
 
       if (r.from_date && r.to_date) {
@@ -934,7 +956,8 @@ async function processEmployeePayroll(
   const actualWorkingDays = actualAttendanceDays + leaveResult.workFromHomeDays
   
   // Tính tự động nghỉ không lương cho những ngày không có chấm công và không có phiếu
-  const totalAccountedDays = actualWorkingDays + leaveResult.paidLeaveDays + leaveResult.unpaidLeaveDays + absentDays
+  // Cộng cả công bù (consumed_days) vì chấm công ngày thiếu công gốc đã bị trừ phần thiếu
+  const totalAccountedDays = actualWorkingDays + consumed_days + leaveResult.paidLeaveDays + leaveResult.unpaidLeaveDays + absentDays
   const autoUnpaidLeaveDays = Math.max(0, STANDARD_WORKING_DAYS - totalAccountedDays)
   const finalUnpaidLeaveDays = leaveResult.unpaidLeaveDays + autoUnpaidLeaveDays
   
@@ -967,16 +990,14 @@ async function processEmployeePayroll(
   logger.detail(`- Nghỉ không lương (tổng): ${finalUnpaidLeaveDays} ngày`)
   logger.detail(`- Vắng mặt: ${absentDays} ngày`)
   
-  const totalAllDays = actualWorkingDays + leaveResult.paidLeaveDays + finalUnpaidLeaveDays + absentDays
+  const totalAllDays = actualWorkingDays + consumed_days + leaveResult.paidLeaveDays + finalUnpaidLeaveDays + absentDays
   logger.detail(`- Tổng: ${totalAllDays} ngày`)
-  
-  // Kiểm tra công thức: Ngày công + Nghỉ phép + Nghỉ KL = Công chuẩn (consumed_days chỉ để audit, không tính vào công thức)
-  const formulaTotal = actualWorkingDays + leaveResult.paidLeaveDays + finalUnpaidLeaveDays
+
+  // Kiểm tra công thức: Ngày công + Công bù + Nghỉ phép + Nghỉ KL = Công chuẩn
+  // (chấm công ngày thiếu công gốc đã trừ phần thiếu nên công bù được cộng thẳng vào công thức)
+  const formulaTotal = actualWorkingDays + consumed_days + leaveResult.paidLeaveDays + finalUnpaidLeaveDays
   logger.detail(``)
-  logger.detail(`✓ Kiểm tra công thức: ${actualWorkingDays} (công) + ${leaveResult.paidLeaveDays} (phép) + ${finalUnpaidLeaveDays} (KL) = ${formulaTotal} ngày`)
-  if (consumed_days > 0) {
-    logger.detail(`  (Ngày bù ${consumed_days} được tính riêng vào lương vì đã loại khỏi workingDaysCount)`)
-  }
+  logger.detail(`✓ Kiểm tra công thức: ${actualWorkingDays} (công) + ${consumed_days} (bù) + ${leaveResult.paidLeaveDays} (phép) + ${finalUnpaidLeaveDays} (KL) = ${formulaTotal} ngày`)
   
   if (formulaTotal < STANDARD_WORKING_DAYS) {
     logger.detail(`⚠️  Thiếu ${STANDARD_WORKING_DAYS - formulaTotal} ngày so với công chuẩn`)
@@ -1472,12 +1493,15 @@ export async function processAdjustments(
   const auditAllowances: AllowanceAudit[] = []
   const auditPenaltyExempts: PenaltyExempt[] = []
 
-  const globalPenaltyByDate = new Map<string, { 
+  const globalPenaltyByDate = new Map<string, {
     date: string
     reason: string
     amount: number
     adjustmentTypeId: string
   }>()
+  // Mỗi ngày chỉ hiển thị 1 dòng miễn phạt đi muộn/về sớm trong audit:
+  // các mức phạt chồng ngưỡng nhau (>=30p, >=120p) nên không lặp lại cùng một miễn trừ
+  const lateExemptAuditDates = new Set<string>()
 
   if (adjustmentTypes) {
     for (const adjType of adjustmentTypes as PayrollAdjustmentType[]) {
@@ -1598,17 +1622,11 @@ export async function processAdjustments(
                 requestTypeNames.set(reqType.code, reqType.name)
               }
               
-              // Xử lý phiếu late_early_makeup: miễn cho ngày thiếu công gốc (linked_deficit_date)
-              if (reqType.code === "late_early_makeup" && req.custom_data) {
-                const linkedDeficitDate = (req.custom_data as any)[LINKED_DEFICIT_DATE_KEY]
-                if (linkedDeficitDate) {
-                  if (!exemptDatesByType.has(linkedDeficitDate)) {
-                    exemptDatesByType.set(linkedDeficitDate, new Set())
-                  }
-                  exemptDatesByType.get(linkedDeficitDate)!.add(reqType.code)
-                  console.log(`[Allowance] - Phiếu làm bù: ngày ${req.request_date} bù cho ngày thiếu công ${linkedDeficitDate} -> miễn phụ cấp cho ngày ${linkedDeficitDate}`)
-                  continue // Đã xử lý, bỏ qua logic bên dưới
-                }
+              // Phiếu làm bù có liên kết ngày thiếu công: miễn cho NGÀY THIẾU CÔNG GỐC
+              // (xử lý ở pass riêng bên dưới, không phụ thuộc config) — KHÔNG miễn cho
+              // ngày tạo phiếu hay ngày đi làm bù
+              if (isMakeupRequestType(reqType.code) && getMakeupDeficitLinks(req.custom_data as any).length > 0) {
+                continue
               }
               
               // Xử lý phiếu có date range
@@ -1641,7 +1659,38 @@ export async function processAdjustments(
               }
             }
           }
-          
+
+          // Phiếu làm bù (mọi loại: late_early_makeup, full_day_makeup) có liên kết ngày thiếu công:
+          // miễn cho NGÀY THIẾU CÔNG GỐC — không phụ thuộc config exempt_request_types,
+          // vì công thiếu đã được bù nên ngày gốc phải trung tính (không mất phụ cấp)
+          {
+            const { data: makeupLinkRequests } = await supabase
+              .from("employee_requests")
+              .select(`
+                request_date, custom_data,
+                request_type:request_types!request_type_id(code, name)
+              `)
+              .eq("employee_id", emp.id)
+              .eq("status", "approved")
+              .gte("request_date", startDate)
+              .lte("request_date", endDate)
+
+            for (const req of makeupLinkRequests || []) {
+              const reqType = req.request_type as any
+              if (!reqType?.code || !isMakeupRequestType(reqType.code)) continue
+              for (const link of getMakeupDeficitLinks(req.custom_data as any)) {
+                if (!requestTypeNames.has(reqType.code)) {
+                  requestTypeNames.set(reqType.code, reqType.name)
+                }
+                if (!exemptDatesByType.has(link.deficit_date)) {
+                  exemptDatesByType.set(link.deficit_date, new Set())
+                }
+                exemptDatesByType.get(link.deficit_date)!.add(reqType.code)
+                console.log(`[Allowance] - Phiếu làm bù: ngày ${req.request_date} bù cho ngày thiếu công ${link.deficit_date} -> miễn phụ cấp cho ngày ${link.deficit_date}`)
+              }
+            }
+          }
+
           // Lấy danh sách ngày có phiếu unpaid_leave để loại bỏ khỏi tính phụ cấp
           const unpaidLeaveDates = new Set<string>()
           const { data: unpaidLeaveRequests } = await supabase
@@ -1721,8 +1770,8 @@ export async function processAdjustments(
             const isViolation = hasLateViolation || hasEarlyViolation || hasOtherViolation
             if (!isViolation) return false
             
-            // Miễn trừ theo cấu hình: ngày có bất kỳ loại phiếu nào trong exempt_request_types thì được miễn
-            if (exemptWithRequest && exemptDatesByType.has(v.date)) {
+            // Miễn trừ theo cấu hình (exempt_request_types) hoặc ngày thiếu công đã có phiếu làm bù
+            if (exemptDatesByType.has(v.date)) {
               violationDaysWithExemptList.push(v.date)
               violationDaysWithExemptTypes.set(v.date, exemptDatesByType.get(v.date)!)
               return true
@@ -1758,7 +1807,7 @@ export async function processAdjustments(
             
             if (hasViolation) {
               // Kiểm tra xem có được miễn không
-              const isExempt = exemptWithRequest && exemptDatesByType.has(v.date)
+              const isExempt = exemptDatesByType.has(v.date)
               if (!isExempt) {
                 const reasons: string[] = []
                 if (v.lateMinutes > lateThresholdMinutes) reasons.push(`muộn ${v.lateMinutes}p`)
@@ -2012,7 +2061,7 @@ export async function processAdjustments(
             console.log(`[Penalty] - Loại phiếu được miễn: ${exemptRequestTypes.join(', ')}`)
           }
           
-          // Query phiếu late_early_makeup để lấy linked_deficit_date
+          // Query phiếu làm bù (mọi loại: late_early_makeup, full_day_makeup) để lấy ngày thiếu công liên kết
           const { data: makeupRequests } = await supabase
             .from("employee_requests")
             .select(`request_date, custom_data, request_type:request_types!request_type_id(code)`)
@@ -2020,16 +2069,15 @@ export async function processAdjustments(
             .eq("status", "approved")
             .gte("request_date", startDate)
             .lte("request_date", endDate)
-          
-          // Map: ngày thiếu công gốc -> ngày làm bù
+
+          // Map: ngày thiếu công gốc -> ngày làm bù (miễn phạt cho NGÀY THIẾU CÔNG, không phải ngày làm bù)
           const deficitDateToMakeupDate = new Map<string, string>()
           for (const req of makeupRequests || []) {
             const reqType = req.request_type as any
-            if (reqType?.code === "late_early_makeup" && req.custom_data) {
-              const linkedDeficitDate = (req.custom_data as any)[LINKED_DEFICIT_DATE_KEY]
-              if (linkedDeficitDate) {
-                deficitDateToMakeupDate.set(linkedDeficitDate, req.request_date)
-                console.log(`[Penalty] - Phiếu làm bù: ngày ${req.request_date} bù cho ngày thiếu công ${linkedDeficitDate}`)
+            if (reqType?.code && isMakeupRequestType(reqType.code)) {
+              for (const link of getMakeupDeficitLinks(req.custom_data as any)) {
+                deficitDateToMakeupDate.set(link.deficit_date, req.request_date)
+                console.log(`[Penalty] - Phiếu làm bù: ngày ${req.request_date} bù cho ngày thiếu công ${link.deficit_date}`)
               }
             }
           }
@@ -2061,7 +2109,10 @@ export async function processAdjustments(
                     .map((code: string) => requestTypeNameMap.get(code) || code)
                     .join(', ')
                   exemptedDays.push(`${v.date} (có phiếu: ${requestTypeNames})`)
-                  auditPenaltyExempts.push({ date: v.date, typeName: adjType.name, note: `có phiếu ${requestTypeNames}` })
+                  if (!lateExemptAuditDates.has(v.date)) {
+                    lateExemptAuditDates.add(v.date)
+                    auditPenaltyExempts.push({ date: v.date, typeName: adjType.name, note: `có phiếu ${requestTypeNames}` })
+                  }
                 }
               }
             }
@@ -2071,7 +2122,10 @@ export async function processAdjustments(
               isExempted = true
               const makeupDate = deficitDateToMakeupDate.get(v.date)
               exemptedDays.push(`${v.date} (có phiếu làm bù ngày ${makeupDate})`)
-              auditPenaltyExempts.push({ date: v.date, typeName: adjType.name, note: `phiếu làm bù ngày ${makeupDate}` })
+              if (!lateExemptAuditDates.has(v.date)) {
+                lateExemptAuditDates.add(v.date)
+                auditPenaltyExempts.push({ date: v.date, typeName: adjType.name, note: `phiếu làm bù ngày ${makeupDate}` })
+              }
             }
             
             if (isExempted) continue
