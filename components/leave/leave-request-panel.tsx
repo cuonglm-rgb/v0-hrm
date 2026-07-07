@@ -652,6 +652,8 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
         return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Đã duyệt</Badge>
       case "rejected":
         return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Từ chối</Badge>
+      case "cancelled":
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Đã hủy</Badge>
       default:
         return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Chờ duyệt</Badge>
     }
@@ -1272,6 +1274,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                   <SelectItem value="pending">Chờ duyệt</SelectItem>
                   <SelectItem value="approved">Đã duyệt</SelectItem>
                   <SelectItem value="rejected">Từ chối</SelectItem>
+                  <SelectItem value="cancelled">Đã hủy</SelectItem>
                 </SelectContent>
               </Select>
             </div>

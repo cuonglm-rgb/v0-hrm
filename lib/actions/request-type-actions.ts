@@ -427,8 +427,23 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
     .select("request_id, status, display_order")
     .in("request_id", assignedRequestIds)
 
-  const approvalMap = new Map<string, string>(assignedRequests.map(a => [a.request_id, a.status]))
-  const myDisplayOrderByRequest = new Map<string, number>(assignedRequests.map((a: any) => [a.request_id, a.display_order ?? 1]))
+  // Cùng 1 người có thể được gán nhiều bước trong 1 phiếu: ưu tiên dòng pending có bước nhỏ nhất
+  // (để canApproveNow đúng khi đến lượt bước sớm nhất của họ)
+  const approvalMap = new Map<string, string>()
+  const myDisplayOrderByRequest = new Map<string, number>()
+  for (const a of assignedRequests as any[]) {
+    const order = a.display_order ?? 1
+    const prevStatus = approvalMap.get(a.request_id)
+    if (prevStatus === undefined) {
+      approvalMap.set(a.request_id, a.status)
+      myDisplayOrderByRequest.set(a.request_id, order)
+    } else if (a.status === "pending" && prevStatus !== "pending") {
+      approvalMap.set(a.request_id, "pending")
+      myDisplayOrderByRequest.set(a.request_id, order)
+    } else if (a.status === "pending" && prevStatus === "pending" && order < (myDisplayOrderByRequest.get(a.request_id) ?? 1)) {
+      myDisplayOrderByRequest.set(a.request_id, order)
+    }
+  }
 
   // Tính bước hiện tại từng phiếu (để UI biết phiếu nào user được phép duyệt ngay)
   const currentStepByRequest = new Map<string, number | null>()
@@ -905,10 +920,12 @@ export async function createEmployeeRequest(input: {
         }
       }
 
-      // Nếu user không chọn giờ cho full_day_makeup → mặc định theo ca làm
+      // Nếu user không chọn giờ cho full_day_makeup → mặc định theo ca làm:
+      // bù 0.5 ngày → đầu ca đến nghỉ trưa; bù 1 ngày → đầu ca đến cuối ca
+      // (giờ chỉ để hiển thị — nhân viên đi làm bù giờ nào cũng được, không tính phạt/phụ cấp)
       if (!input.from_time || !input.to_time) {
         input.from_time = shiftInfo.startTime
-        input.to_time = shiftInfo.endTime
+        input.to_time = totalAmount <= 0.5 && shiftInfo.breakStart ? shiftInfo.breakStart : shiftInfo.endTime
       }
 
       normalizedMakeupCustomData = { [LINKED_DEFICIT_LINKS_KEY]: links }
@@ -976,23 +993,14 @@ export async function createEmployeeRequest(input: {
     }[] = []
 
     if (hasApproversWithOrder) {
-      // Tìm bước cuối cùng của mỗi người duyệt
-      const lastStepByApprover = new Map<string, number>()
+      // Tạo records: mọi bước đều pending, kể cả khi cùng 1 người ở nhiều bước
+      // (khi người đó bấm duyệt, tất cả các bước của họ sẽ được duyệt cùng lúc)
       for (const row of input.assigned_approvers_with_order!) {
-        const currentMax = lastStepByApprover.get(row.approver_id) || 0
-        if (row.display_order > currentMax) {
-          lastStepByApprover.set(row.approver_id, row.display_order)
-        }
-      }
-
-      // Tạo records: nếu người đó xuất hiện ở bước sau, tự động approved các bước trước
-      for (const row of input.assigned_approvers_with_order!) {
-        const isLastStep = lastStepByApprover.get(row.approver_id) === row.display_order
         records.push({
           request_id: newRequest.id,
           approver_id: row.approver_id,
           display_order: row.display_order,
-          status: isLastStep ? "pending" : "approved",
+          status: "pending",
         })
       }
     } else if (hasApproversByIds) {
@@ -1151,8 +1159,14 @@ export async function approveEmployeeRequest(id: string) {
   // Nếu có cấu hình người duyệt được chỉ định
   if (hasSequentialApprovers) {
     if (assignedApprovers && assignedApprovers.length > 0) {
-      const myRow = assignedApprovers.find((a) => a.approver_id === approverEmployee.id)
-      const isAssigned = !!myRow
+      // Cùng 1 người có thể được gán nhiều bước → lấy dòng pending có bước nhỏ nhất
+      // (khi bấm duyệt sẽ duyệt tất cả các bước của họ cùng lúc)
+      const myRows = assignedApprovers.filter((a) => a.approver_id === approverEmployee.id)
+      const myRow =
+        myRows
+          .filter((a) => a.status === "pending")
+          .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999))[0] || myRows[0]
+      const isAssigned = myRows.length > 0
       if (!isAssigned && !isHrOrAdmin) {
         return { success: false, error: "Bạn không nằm trong danh sách người duyệt được chỉ định cho phiếu này" }
       }
@@ -1244,6 +1258,25 @@ export async function approveEmployeeRequest(id: string) {
         if (updateStepError) {
           console.error("Error updating step approvers (HR/Admin):", updateStepError)
           return { success: false, error: updateStepError.message }
+        }
+
+        // Nếu HR/Admin cũng được gán ở các bước sau → duyệt luôn các dòng của chính họ
+        // (1 lần bấm duyệt cho tất cả các bước của cùng 1 người)
+        if (isAssigned) {
+          const { error: updateSelfRowsError } = await supabase
+            .from("request_assigned_approvers")
+            .update({
+              status: "approved",
+              approved_at: now,
+            })
+            .eq("request_id", id)
+            .eq("approver_id", approverEmployee.id)
+            .eq("status", "pending")
+
+          if (updateSelfRowsError) {
+            console.error("Error updating HR/Admin own approver rows:", updateSelfRowsError)
+            return { success: false, error: updateSelfRowsError.message }
+          }
         }
       } else if (isAssigned) {
         // Người duyệt thường: duyệt bước hiện tại
@@ -1660,8 +1693,13 @@ export async function rejectEmployeeRequest(id: string, rejection_reason?: strin
       .eq("request_id", id)
 
     if (assignedApprovers && assignedApprovers.length > 0) {
-      const myRow = assignedApprovers.find((a) => a.approver_id === approverEmployee.id)
-      const isAssigned = !!myRow
+      // Cùng 1 người có thể được gán nhiều bước → lấy dòng pending có bước nhỏ nhất
+      const myRows = assignedApprovers.filter((a) => a.approver_id === approverEmployee.id)
+      const myRow =
+        myRows
+          .filter((a) => a.status === "pending")
+          .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999))[0] || myRows[0]
+      const isAssigned = myRows.length > 0
 
       if (!isAssigned && !isHrOrAdmin) {
         return { success: false, error: "Bạn không nằm trong danh sách người duyệt được chỉ định cho phiếu này" }
@@ -2044,23 +2082,14 @@ export async function updateEmployeeRequest(
     }[] = []
 
     if (hasUpdatedApproversWithOrder) {
-      // Tìm bước cuối cùng của mỗi người duyệt
-      const lastStepByApprover = new Map<string, number>()
+      // Tạo records: mọi bước đều pending, kể cả khi cùng 1 người ở nhiều bước
+      // (khi người đó bấm duyệt, tất cả các bước của họ sẽ được duyệt cùng lúc)
       for (const row of input.assigned_approvers_with_order!) {
-        const currentMax = lastStepByApprover.get(row.approver_id) || 0
-        if (row.display_order > currentMax) {
-          lastStepByApprover.set(row.approver_id, row.display_order)
-        }
-      }
-
-      // Tạo records: nếu người đó xuất hiện ở bước sau, tự động approved các bước trước
-      for (const row of input.assigned_approvers_with_order!) {
-        const isLastStep = lastStepByApprover.get(row.approver_id) === row.display_order
         approverRecords.push({
           request_id: id,
           approver_id: row.approver_id,
           display_order: row.display_order,
-          status: isLastStep ? "pending" : "approved",
+          status: "pending",
         })
       }
     } else if (hasUpdatedApproversByIds) {
