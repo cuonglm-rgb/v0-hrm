@@ -1,10 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "cmdk"
 import { cn } from "@/lib/utils"
 import type { EligibleApprover } from "@/lib/types/database"
 
@@ -27,16 +25,9 @@ export function ApproverSelect({
 }: ApproverSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [inputValue, setInputValue] = React.useState("")
-  const [dropdownPos, setDropdownPos] = React.useState<{
-    left: number
-    top: number
-    width: number
-    maxHeight: number
-    placement: "bottom" | "top"
-  } | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
   const containerRef = React.useRef<HTMLDivElement>(null)
-  const dropdownRef = React.useRef<HTMLDivElement>(null)
+  const listRef = React.useRef<HTMLDivElement>(null)
 
   const selectedApprovers = approvers.filter((a) => selected.includes(a.id))
   const availableApprovers = approvers.filter((a) => !selected.includes(a.id))
@@ -55,6 +46,7 @@ export function ApproverSelect({
   const handleSelect = (approverId: string) => {
     onChange([...selected, approverId])
     setInputValue("")
+    inputRef.current?.focus()
   }
 
   const handleRemove = (approverId: string) => {
@@ -67,58 +59,23 @@ export function ApproverSelect({
     }
   }
 
-  // Compute dropdown position (fixed, via portal) so it is never clipped by
-  // the modal's scroll container. Flips above the field when space is tight.
-  const updatePosition = React.useCallback(() => {
-    const el = containerRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const margin = 8
-    const spaceBelow = window.innerHeight - rect.bottom - margin
-    const spaceAbove = rect.top - margin
-    const placement = spaceBelow < 220 && spaceAbove > spaceBelow ? "top" : "bottom"
-    const maxHeight = Math.max(160, Math.min(280, placement === "bottom" ? spaceBelow : spaceAbove))
-    setDropdownPos({
-      left: rect.left,
-      top: placement === "bottom" ? rect.bottom + 4 : rect.top - 4,
-      width: rect.width,
-      maxHeight,
-      placement,
-    })
-  }, [])
-
-  React.useLayoutEffect(() => {
-    if (!open) return
-    updatePosition()
-    window.addEventListener("resize", updatePosition)
-    // Reposition on scroll of any ancestor (e.g. the modal body)
-    window.addEventListener("scroll", updatePosition, true)
-    return () => {
-      window.removeEventListener("resize", updatePosition)
-      window.removeEventListener("scroll", updatePosition, true)
-    }
-  }, [open, updatePosition])
-
-  // Reposition when the selected badges reflow the field height
-  React.useLayoutEffect(() => {
-    if (open) updatePosition()
-  }, [open, selected.length, updatePosition])
-
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking/tapping outside
   React.useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(target) &&
-        !(dropdownRef.current && dropdownRef.current.contains(target))
-      ) {
+    const handlePointerOutside = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
     }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
+    document.addEventListener("pointerdown", handlePointerOutside)
+    return () => document.removeEventListener("pointerdown", handlePointerOutside)
   }, [])
+
+  // When the list opens, make sure it is scrolled into view inside the modal.
+  React.useEffect(() => {
+    if (open && listRef.current) {
+      listRef.current.scrollIntoView({ block: "nearest" })
+    }
+  }, [open, filteredApprovers.length])
 
   return (
     <div ref={containerRef} className="relative">
@@ -169,20 +126,12 @@ export function ApproverSelect({
         />
       </div>
 
-      {open && !disabled && dropdownPos && createPortal(
+      {/* In-flow dropdown: lives inside the modal's own scroll area so it is
+          never clipped and scrolls normally on desktop and touch devices. */}
+      {open && !disabled && (
         <div
-          ref={dropdownRef}
-          style={{
-            position: "fixed",
-            left: dropdownPos.left,
-            top: dropdownPos.placement === "bottom" ? dropdownPos.top : undefined,
-            bottom:
-              dropdownPos.placement === "top"
-                ? window.innerHeight - dropdownPos.top
-                : undefined,
-            width: dropdownPos.width,
-          }}
-          className="z-[100] rounded-md border bg-popover shadow-md"
+          ref={listRef}
+          className="mt-1 rounded-md border bg-popover shadow-md"
         >
           {loading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">
@@ -193,7 +142,7 @@ export function ApproverSelect({
               {inputValue ? "Không tìm thấy người duyệt" : "Không có người duyệt khả dụng"}
             </div>
           ) : (
-            <div className="overflow-y-auto p-1" style={{ maxHeight: dropdownPos.maxHeight }}>
+            <div className="max-h-[240px] overflow-y-auto overscroll-contain p-1">
               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                 Gợi ý
               </div>
@@ -221,8 +170,7 @@ export function ApproverSelect({
               ))}
             </div>
           )}
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   )
