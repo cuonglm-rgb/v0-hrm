@@ -602,18 +602,7 @@ export async function createEmployeeRequest(input: {
 
   // Validate deadline (Giới hạn thời gian tạo phiếu)
   if (requestType?.submission_deadline && requestType.submission_deadline > 0) {
-    // Với phiếu làm bù, "sự việc" là NGÀY THIẾU CÔNG GỐC (đi muộn/về sớm),
-    // không phải ngày làm bù. Lấy ngày thiếu công sớm nhất làm mốc (ràng buộc chặt nhất).
-    let eventDateStr = input.from_date || input.request_date
-    if (requestType.code && isMakeupRequestType(requestType.code)) {
-      const deficitDates = getMakeupDeficitLinks(input.custom_data)
-        .map((l) => l.deficit_date)
-        .filter(Boolean)
-        .sort()
-      if (deficitDates.length > 0) {
-        eventDateStr = deficitDates[0]
-      }
-    }
+    const eventDateStr = input.from_date || input.request_date
     // Nếu eventDateStr < today -> là phiếu bổ sung cho quá khứ
     if (eventDateStr) {
       const eventDate = startOfDay(parseISO(eventDateStr))
@@ -1965,24 +1954,13 @@ export async function updateEmployeeRequest(
   }
 
   // Validate deadline khi sửa phiếu (Giới hạn thời gian tạo phiếu áp dụng cả khi sửa ngày)
-  let newEventDateStr = input.from_date || input.request_date
+  const newEventDateStr = input.from_date || input.request_date
   if (newEventDateStr) {
     const { data: requestTypeForDeadline } = await supabase
       .from("request_types")
-      .select("code, submission_deadline")
+      .select("submission_deadline")
       .eq("id", currentRequest.request_type_id)
       .single()
-
-    // Với phiếu làm bù, "sự việc" là NGÀY THIẾU CÔNG GỐC, không phải ngày làm bù.
-    if (requestTypeForDeadline?.code && isMakeupRequestType(requestTypeForDeadline.code)) {
-      const deficitDates = getMakeupDeficitLinks(input.custom_data)
-        .map((l) => l.deficit_date)
-        .filter(Boolean)
-        .sort()
-      if (deficitDates.length > 0) {
-        newEventDateStr = deficitDates[0]
-      }
-    }
 
     if (requestTypeForDeadline?.submission_deadline && requestTypeForDeadline.submission_deadline > 0) {
       const eventDate = startOfDay(parseISO(newEventDateStr))
