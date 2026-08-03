@@ -1,9 +1,100 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { AttendanceLog, AttendanceLogWithRelations } from "@/lib/types/database"
-import { getTodayVN, getNowVN } from "@/lib/utils/date-utils"
+import { getTodayVN, getNowVN, createVNTimestamp } from "@/lib/utils/date-utils"
+
+// Kiểm tra user hiện tại có phải HR/Admin không (cho các thao tác chỉnh chấm công thủ công)
+async function requireHrOrAdmin(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: "Chưa đăng nhập" }
+
+  const { data: roles } = await supabase
+    .from("user_roles")
+    .select("role:roles!role_id(code)")
+    .eq("user_id", user.id)
+
+  const isHrAdmin = (roles || []).some(
+    (r: any) => r.role?.code === "hr" || r.role?.code === "admin"
+  )
+  return isHrAdmin ? { ok: true } : { ok: false, error: "Bạn không có quyền chỉnh sửa chấm công" }
+}
+
+// Tạo mới hoặc cập nhật một bản ghi chấm công thủ công (HR/Admin) cho một ngày cụ thể.
+// check_in_time / check_out_time dạng "HH:mm" theo giờ VN; để trống = null.
+export async function upsertAttendanceLog(input: {
+  id?: string
+  employee_id: string
+  date: string // YYYY-MM-DD
+  check_in_time?: string | null
+  check_out_time?: string | null
+  note?: string | null
+}): Promise<{ success: boolean; error?: string }> {
+  const guard = await requireHrOrAdmin()
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  if (!input.employee_id || !input.date) {
+    return { success: false, error: "Thiếu thông tin nhân viên hoặc ngày" }
+  }
+
+  const check_in = input.check_in_time ? createVNTimestamp(input.date, input.check_in_time) : null
+  const check_out = input.check_out_time ? createVNTimestamp(input.date, input.check_out_time) : null
+
+  if (!check_in && !check_out) {
+    return { success: false, error: "Cần nhập ít nhất giờ vào hoặc giờ ra" }
+  }
+  if (check_in && check_out && check_out < check_in) {
+    return { success: false, error: "Giờ ra phải sau giờ vào" }
+  }
+
+  // Đã xác thực HR/Admin -> dùng service client để chỉnh bản ghi của nhân viên khác (bỏ RLS)
+  const supabase = createServiceClient()
+
+  if (input.id) {
+    const { error } = await supabase
+      .from("attendance_logs")
+      .update({ check_in, check_out, note: input.note ?? null, source: "manual" })
+      .eq("id", input.id)
+    if (error) {
+      console.error("Error updating attendance log:", error)
+      return { success: false, error: error.message }
+    }
+  } else {
+    const { error } = await supabase.from("attendance_logs").insert({
+      employee_id: input.employee_id,
+      check_in,
+      check_out,
+      note: input.note ?? null,
+      source: "manual",
+    })
+    if (error) {
+      console.error("Error creating attendance log:", error)
+      return { success: false, error: error.message }
+    }
+  }
+
+  revalidatePath("/dashboard/attendance-management")
+  revalidatePath("/dashboard/attendance")
+  return { success: true }
+}
+
+export async function deleteAttendanceLog(id: string): Promise<{ success: boolean; error?: string }> {
+  const guard = await requireHrOrAdmin()
+  if (!guard.ok) return { success: false, error: guard.error }
+
+  const supabase = createServiceClient()
+  const { error } = await supabase.from("attendance_logs").delete().eq("id", id)
+  if (error) {
+    console.error("Error deleting attendance log:", error)
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath("/dashboard/attendance-management")
+  revalidatePath("/dashboard/attendance")
+  return { success: true }
+}
 
 export async function getMyAttendance(from?: string, to?: string): Promise<AttendanceLog[]> {
   const supabase = await createClient()

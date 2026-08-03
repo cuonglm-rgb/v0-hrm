@@ -48,6 +48,7 @@ interface AttendanceManagementViewProps {
   holidays: Holiday[]
   specialDays: SpecialWorkDayWithEmployees[]
   saturdaySchedules: SaturdaySchedule[]
+  canEdit?: boolean
 }
 
 export function AttendanceManagementView({
@@ -57,6 +58,7 @@ export function AttendanceManagementView({
   holidays,
   specialDays,
   saturdaySchedules,
+  canEdit = false,
 }: AttendanceManagementViewProps) {
   const [open, setOpen] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(
@@ -414,6 +416,7 @@ export function AttendanceManagementView({
           specialDays={specialDays}
           saturdaySchedules={filteredSaturdaySchedules}
           employeeId={selectedEmployeeId}
+          editable={canEdit}
         />
       )}
     </div>

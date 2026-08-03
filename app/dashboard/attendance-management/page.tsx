@@ -111,6 +111,7 @@ export default async function AttendanceManagementPage() {
                 holidays={holidays}
                 specialDays={specialDays}
                 saturdaySchedules={saturdaySchedules}
+                canEdit={isHROrAdmin}
               />
             </TabsContent>
 

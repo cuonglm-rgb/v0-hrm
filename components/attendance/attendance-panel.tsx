@@ -18,7 +18,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { checkIn, checkOut } from "@/lib/actions/attendance-actions"
+import { checkIn, checkOut, upsertAttendanceLog, deleteAttendanceLog } from "@/lib/actions/attendance-actions"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, SpecialWorkDayWithEmployees } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
 import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
@@ -31,7 +43,7 @@ import {
   calculateLeaveDays,
 } from "@/lib/utils/date-utils"
 import { calculateLeaveEntitlement } from "@/lib/utils/leave-utils"
-import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter, Calendar } from "lucide-react"
+import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter, Calendar, Pencil, Trash2 } from "lucide-react"
 import { usePagination } from "@/hooks/use-pagination"
 import { DataPagination } from "@/components/shared/data-pagination"
 
@@ -270,15 +282,67 @@ interface AttendancePanelProps {
   specialDays?: SpecialWorkDayWithEmployees[]
   saturdaySchedules?: SaturdaySchedule[]
   employeeId?: string
+  /** Cho phép HR/Admin chỉnh sửa chấm công thủ công */
+  editable?: boolean
 }
 
 // Tạm ẩn phần chấm công hôm nay - có thể bật lại sau
 const SHOW_TODAY_CHECKIN = false
 
-export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null, holidays = [], specialDays = [], saturdaySchedules = [], employeeId }: AttendancePanelProps) {
+export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], officialDate = null, holidays = [], specialDays = [], saturdaySchedules = [], employeeId, editable = false }: AttendancePanelProps) {
+  const router = useRouter()
   const [loading, setLoading] = useState<"checkin" | "checkout" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
+
+  // Chỉnh sửa chấm công thủ công (HR/Admin)
+  const [editRow, setEditRow] = useState<{ date: string; log: AttendanceLog | null } | null>(null)
+  const [editIn, setEditIn] = useState("")
+  const [editOut, setEditOut] = useState("")
+  const [editNote, setEditNote] = useState("")
+  const [savingEdit, setSavingEdit] = useState(false)
+
+  const openEdit = (date: string, log: AttendanceLog | null) => {
+    setEditRow({ date, log })
+    setEditIn(log?.check_in ? formatTimeVN(log.check_in) : "")
+    setEditOut(log?.check_out ? formatTimeVN(log.check_out) : "")
+    setEditNote(log?.note || "")
+  }
+
+  const saveEdit = async () => {
+    if (!editRow || !employeeId) return
+    setSavingEdit(true)
+    const res = await upsertAttendanceLog({
+      id: editRow.log?.id,
+      employee_id: employeeId,
+      date: editRow.date,
+      check_in_time: editIn || null,
+      check_out_time: editOut || null,
+      note: editNote || null,
+    })
+    setSavingEdit(false)
+    if (res.success) {
+      toast.success("Đã lưu chấm công")
+      setEditRow(null)
+      router.refresh()
+    } else {
+      toast.error(res.error || "Không thể lưu")
+    }
+  }
+
+  const deleteEdit = async () => {
+    if (!editRow?.log) return
+    setSavingEdit(true)
+    const res = await deleteAttendanceLog(editRow.log.id)
+    setSavingEdit(false)
+    if (res.success) {
+      toast.success("Đã xóa bản ghi chấm công")
+      setEditRow(null)
+      router.refresh()
+    } else {
+      toast.error(res.error || "Không thể xóa")
+    }
+  }
 
   // Bộ lọc lịch sử chấm công
   const currentDate = new Date()
@@ -737,12 +801,13 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                   <TableHead>Giờ ra</TableHead>
                   <TableHead>Nguồn</TableHead>
                   <TableHead>Trạng thái</TableHead>
+                  {editable && <TableHead className="text-right">Thao tác</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedAttendance.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    <TableCell colSpan={editable ? 7 : 6} className="text-center text-muted-foreground">
                       Không có dữ liệu chấm công
                     </TableCell>
                   </TableRow>
@@ -1090,6 +1155,19 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                             <Badge variant="secondary">Chưa ra</Badge>
                           )}
                         </TableCell>
+                        {editable && (
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 gap-1 px-2"
+                              onClick={() => openEdit(date, log ?? null)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              {log ? "Sửa" : "Thêm"}
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     )
                   })
@@ -1107,6 +1185,62 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
           />
         </CardContent>
       </Card>
+
+      {/* Dialog chỉnh sửa chấm công thủ công (HR/Admin) */}
+      {editable && (
+        <Dialog open={!!editRow} onOpenChange={(o) => !o && setEditRow(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Chỉnh sửa chấm công</DialogTitle>
+              <DialogDescription>
+                {editRow ? formatDateVN(editRow.date) : ""} · Điều chỉnh thủ công (nguồn sẽ ghi là "Thủ công")
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-checkin">Giờ vào</Label>
+                  <Input id="edit-checkin" type="time" value={editIn} onChange={(e) => setEditIn(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-checkout">Giờ ra</Label>
+                  <Input id="edit-checkout" type="time" value={editOut} onChange={(e) => setEditOut(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-note">Ghi chú (lý do điều chỉnh)</Label>
+                <Input
+                  id="edit-note"
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                  placeholder="VD: Trường hợp đặc biệt, quên chấm công..."
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Để trống cả giờ vào và giờ ra sẽ không lưu được. Xóa bản ghi bằng nút "Xóa".
+              </p>
+            </div>
+            <DialogFooter className="sm:justify-between">
+              {editRow?.log ? (
+                <Button variant="outline" className="text-rose-600" onClick={deleteEdit} disabled={savingEdit}>
+                  <Trash2 className="mr-1 h-4 w-4" />
+                  Xóa
+                </Button>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setEditRow(null)} disabled={savingEdit}>
+                  Hủy
+                </Button>
+                <Button onClick={saveEdit} disabled={savingEdit}>
+                  {savingEdit ? "Đang lưu..." : "Lưu"}
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
