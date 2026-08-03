@@ -40,6 +40,7 @@ export interface Employee {
   join_date: string | null
   official_date: string | null
   resignation_date: string | null
+  dob: string | null
   status: EmployeeStatus
   created_at: string
   updated_at: string
@@ -589,4 +590,24 @@ export interface KPIEvaluation {
 export interface KPIEvaluationWithRelations extends KPIEvaluation {
   employee?: Employee | null
   evaluator?: Employee | null
+}
+
+// =============================================
+// COMPANY NEWS (Tin tức công ty)
+// =============================================
+
+export interface CompanyNews {
+  id: string
+  title: string
+  content: string | null
+  image_url: string | null
+  is_published: boolean
+  published_at: string | null
+  author_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CompanyNewsWithRelations extends CompanyNews {
+  author?: Employee | null
 }

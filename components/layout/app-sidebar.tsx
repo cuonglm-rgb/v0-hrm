@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut, Clock, CalendarDays, CheckSquare, Wallet, Receipt, FileSpreadsheet, Coins, Target } from "lucide-react"
+import { LayoutDashboard, Users, Building2, UserCircle, Settings, LogOut, Clock, CalendarDays, CheckSquare, Wallet, Receipt, FileSpreadsheet, Coins, Target, Newspaper } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -184,6 +184,14 @@ export function AppSidebar({ employee, userRoles, canApproveRequests, canAccessS
             <SidebarGroupLabel>Quản trị</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings/news" || pathname.startsWith("/dashboard/settings/news/")}>
+                    <Link href="/dashboard/settings/news">
+                      <Newspaper className="h-4 w-4" />
+                      <span>Tin tức</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings"}>
                     <Link href="/dashboard/settings">

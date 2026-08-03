@@ -103,7 +103,7 @@ export async function getEmployee(id: string): Promise<EmployeeWithRelations | n
 
 export async function updateEmployee(
   id: string,
-  data: Partial<Pick<Employee, "full_name" | "phone" | "employee_code" | "department_id" | "position_id" | "shift_id" | "status" | "join_date" | "official_date" | "resignation_date">>,
+  data: Partial<Pick<Employee, "full_name" | "phone" | "employee_code" | "department_id" | "position_id" | "shift_id" | "status" | "join_date" | "official_date" | "resignation_date" | "dob">>,
 ) {
   const supabase = await createClient()
 
@@ -192,6 +192,7 @@ export async function createEmployee(data: {
   department_id?: string | null
   position_id?: string | null
   join_date?: string | null
+  dob?: string | null
 }) {
   const supabase = await createClient()
 
@@ -208,6 +209,7 @@ export async function createEmployee(data: {
     department_id: data.department_id,
     position_id: data.position_id,
     join_date: data.join_date,
+    dob: data.dob,
     status: "onboarding",
   })
 

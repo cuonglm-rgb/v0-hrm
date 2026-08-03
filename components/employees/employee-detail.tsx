@@ -70,6 +70,7 @@ export function EmployeeDetail({
     position_id: employee.position_id || "",
     shift_id: employee.shift_id || "",
     status: employee.status,
+    dob: employee.dob || "",
     join_date: employee.join_date || "",
     official_date: employee.official_date || "",
     resignation_date: employee.resignation_date || "",
@@ -121,6 +122,7 @@ export function EmployeeDetail({
         department_id: formData.department_id || null,
         position_id: formData.position_id || null,
         shift_id: formData.shift_id || null,
+        dob: formData.dob || null,
         join_date: formData.join_date || null,
         official_date: formData.official_date || null,
         resignation_date: formData.resignation_date || null,
@@ -278,6 +280,16 @@ export function EmployeeDetail({
                       onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
                       disabled={!isHROrAdmin}
                       placeholder="Nhập mã nhân viên"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dob">Ngày sinh</Label>
+                    <Input
+                      id="dob"
+                      type="date"
+                      value={formData.dob}
+                      onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                      disabled={!isHROrAdmin}
                     />
                   </div>
                 </div>

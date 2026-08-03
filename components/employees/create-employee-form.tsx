@@ -32,6 +32,7 @@ const COLUMN_MAPPING: Record<string, string> = {
   "CHỨC VỤ PHÒNG BAN": "position_name",
   "NGÀY VÀO LÀM": "join_date",
   "NGÀY CHÍNH THỨC VÀO LÀM": "official_date",
+  "NGÀY SINH": "dob",
   "MỨC LƯƠNG THÁNG": "base_salary",
   "CA LÀM VIỆC": "shift_name",
 }
@@ -57,6 +58,7 @@ export function CreateEmployeeForm({ departments, positions }: CreateEmployeeFor
     department_id: "",
     position_id: "",
     join_date: "",
+    dob: "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,6 +78,7 @@ export function CreateEmployeeForm({ departments, positions }: CreateEmployeeFor
         department_id: formData.department_id || null,
         position_id: formData.position_id || null,
         join_date: formData.join_date || null,
+        dob: formData.dob || null,
       })
 
       if (result.success) {
@@ -148,6 +151,7 @@ export function CreateEmployeeForm({ departments, positions }: CreateEmployeeFor
         position_name?: string
         join_date?: string | number
         official_date?: string | number
+        dob?: string | number
         base_salary?: number | string
         shift_name?: string
       }[]
@@ -235,6 +239,7 @@ export function CreateEmployeeForm({ departments, positions }: CreateEmployeeFor
               <span>• CHỨC VỤ PHÒNG BAN</span>
               <span>• NGÀY VÀO LÀM (DD/MM/YYYY)</span>
               <span>• NGÀY CHÍNH THỨC VÀO LÀM</span>
+              <span>• NGÀY SINH (DD/MM/YYYY)</span>
               <span>• MỨC LƯƠNG THÁNG</span>
               <span>• CA LÀM VIỆC</span>
             </div>
@@ -321,6 +326,15 @@ export function CreateEmployeeForm({ departments, positions }: CreateEmployeeFor
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="Nhập số điện thoại"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dob">Ngày sinh</Label>
+                <Input
+                  id="dob"
+                  type="date"
+                  value={formData.dob}
+                  onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
                 />
               </div>
               <div className="space-y-2">

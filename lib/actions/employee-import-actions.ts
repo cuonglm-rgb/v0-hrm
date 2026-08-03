@@ -13,6 +13,7 @@ interface ImportEmployeeRow {
   position_name?: string
   join_date?: string | number
   official_date?: string | number
+  dob?: string | number
   base_salary?: number | string
   insurance_salary?: number | string
   shift_name?: string
@@ -126,6 +127,7 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
     // Parse dates - keep original value for Excel serial number support
     const joinDate = parseDate(row.join_date)
     const officialDate = parseDate(row.official_date)
+    const dob = parseDate(row.dob)
     // Parse salary - handle formats like "5000000", "5,000,000", "5.000.000"
     const baseSalaryRaw = row.base_salary != null ? String(row.base_salary).trim() : ""
     let baseSalary = 0
@@ -191,6 +193,7 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
         updateData.official_date = officialDate
         updateData.status = "active"
       }
+      if (dob) updateData.dob = dob
       if (phone) updateData.phone = phone
       
       // Update employee if there's data to update
@@ -293,6 +296,7 @@ export async function importEmployees(rows: ImportEmployeeRow[]): Promise<Import
         shift_id: shiftId,
         join_date: joinDate,
         official_date: officialDate,
+        dob: dob,
         status: officialDate ? "active" : "onboarding"
       })
       .select("id")
