@@ -17,6 +17,7 @@ import {
   type MyLeaveBalance,
 } from "@/lib/actions/dashboard-actions"
 import { getTodayVN, getLastDayOfMonthVN } from "@/lib/utils/date-utils"
+import { resolveScheduleScope } from "@/lib/utils/dashboard-scope"
 import { DashboardHome } from "@/components/dashboard/dashboard-home"
 import type { RequestLite } from "@/components/dashboard/widgets/my-requests-widget"
 
@@ -72,6 +73,20 @@ export default async function DashboardPage() {
     getSeniorityData(30),
   ])
 
+  // Phân quyền hiển thị widget "Lịch làm việc": HR/Admin (all), leader (phòng ban), nhân viên (ẩn)
+  const roleCodes = userRoles.map((ur) => ur.role.code)
+  const managerDeptIds = userRoles
+    .filter((ur) => ur.role.code === "manager" && ur.department_id)
+    .map((ur) => ur.department_id as string)
+  const scheduleScope = resolveScheduleScope({
+    roleCodes,
+    positionLevel: employee?.position?.level ?? 0,
+    managerDeptIds,
+    ownDeptId: employee?.department_id ?? null,
+    ownEmployeeId: employee?.id ?? null,
+  })
+  const showWorkSchedule = scheduleScope.mode !== "none"
+
   // Phép của tôi (năm hiện tại) & danh sách đơn của tôi (client tự lọc theo tháng/khoảng)
   let leave: MyLeaveBalance = { year: ty, total: 0, remaining: 0, used: 0, expired: 0 }
   let requestList: RequestLite[] = []
@@ -97,6 +112,7 @@ export default async function DashboardPage() {
     >
       <DashboardHome
         news={news}
+        showWorkSchedule={showWorkSchedule}
         schedule={{ initialSummary: todaySummary, today, tomorrow, weekStart, weekEnd }}
         calendar={{ year: ty, month: tm, events: calendarEvents }}
         birthdays={birthdays}

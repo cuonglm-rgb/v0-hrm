@@ -4,6 +4,49 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getTodayVN, getTimePartsVN, toDateStringVN } from "@/lib/utils/date-utils"
 import { getAnnualLeaveUsage } from "@/lib/actions/request-type-actions"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
+import { resolveScheduleScope, type ScheduleScope } from "@/lib/utils/dashboard-scope"
+
+// Xác định phạm vi xem "Lịch làm việc" của user hiện tại (tự phân quyền, không tin tham số client)
+async function getMyScheduleScope(): Promise<ScheduleScope> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { mode: "none" }
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id, department_id, position:positions!position_id(level)")
+    .eq("user_id", user.id)
+    .single()
+
+  const { data: roles } = await supabase
+    .from("user_roles")
+    .select("department_id, role:roles!role_id(code)")
+    .eq("user_id", user.id)
+
+  const roleCodes = (roles || []).map((r: any) => r.role?.code).filter(Boolean)
+  const managerDeptIds = (roles || [])
+    .filter((r: any) => r.role?.code === "manager" && r.department_id)
+    .map((r: any) => r.department_id as string)
+  const positionLevel = (employee as any)?.position?.level ?? 0
+  const ownDeptId = employee?.department_id ?? null
+  const ownEmployeeId = employee?.id ?? null
+
+  return resolveScheduleScope({ roleCodes, positionLevel, managerDeptIds, ownDeptId, ownEmployeeId })
+}
+
+// Giới hạn truy vấn danh sách nhân viên theo phạm vi xem
+function scopeEmployeeQuery<T>(query: T, scope: ScheduleScope): T {
+  const q = query as any
+  if (scope.mode === "dept") return q.in("department_id", scope.deptIds)
+  if (scope.mode === "self") return q.eq("id", scope.employeeId)
+  return query // all
+}
+
+/** Widget "Lịch làm việc" có được hiển thị cho user hiện tại không */
+export async function canViewWorkSchedule(): Promise<boolean> {
+  const scope = await getMyScheduleScope()
+  return scope.mode !== "none"
+}
 
 // =============================================
 // DASHBOARD (Trang chủ) - Các truy vấn tổng hợp
@@ -53,7 +96,6 @@ function daysUntilAnnual(month: number, day: number, todayStr: string): { days: 
  * Ngày tương lai chỉ có nghỉ phép đã lên lịch (present/late/absent = 0).
  */
 export async function getWorkScheduleSummary(dateStr: string): Promise<WorkScheduleSummary> {
-  const supabase = createServiceClient()
   const today = getTodayVN()
   const isFuture = dateStr > today
 
@@ -68,11 +110,18 @@ export async function getWorkScheduleSummary(dateStr: string): Promise<WorkSched
     hasAttendanceData: !isFuture,
   }
 
-  // Nhân viên đang làm việc (không tính đã nghỉ việc)
-  const { data: employees } = await supabase
+  const scope = await getMyScheduleScope()
+  if (scope.mode === "none") return empty
+
+  const supabase = createServiceClient()
+
+  // Nhân viên đang làm việc (không tính đã nghỉ việc), giới hạn theo phạm vi xem
+  let empQuery = supabase
     .from("employees")
     .select("id, full_name, shift_id, status")
     .neq("status", "resigned")
+  empQuery = scopeEmployeeQuery(empQuery, scope)
+  const { data: employees } = await empQuery
 
   const activeEmployees = employees || []
   const empMap = new Map(activeEmployees.map((e) => [e.id, e]))
@@ -388,13 +437,29 @@ export async function getSeniorityData(windowDays = 30, rankingLimit = 8): Promi
  * Chỉ tính tới hôm nay (ngày tương lai chưa có dữ liệu chấm công).
  */
 export async function getWorkScheduleRange(fromStr: string, toStr: string): Promise<WorkScheduleSummary> {
-  const supabase = createServiceClient()
   const today = getTodayVN()
 
-  const { data: employees } = await supabase
+  const scope = await getMyScheduleScope()
+  if (scope.mode === "none") {
+    return {
+      present: 0,
+      late: 0,
+      absent: 0,
+      onLeave: 0,
+      presentNames: [],
+      lateNames: [],
+      leaveNames: [],
+      hasAttendanceData: fromStr <= today,
+    }
+  }
+  const supabase = createServiceClient()
+
+  let empQuery = supabase
     .from("employees")
     .select("id, full_name, shift_id, status")
     .neq("status", "resigned")
+  empQuery = scopeEmployeeQuery(empQuery, scope)
+  const { data: employees } = await empQuery
   const activeEmployees = employees || []
   const empMap = new Map(activeEmployees.map((e) => [e.id, e]))
 
