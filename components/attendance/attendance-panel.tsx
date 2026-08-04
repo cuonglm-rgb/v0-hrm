@@ -43,6 +43,7 @@ import {
   calculateLeaveDays,
 } from "@/lib/utils/date-utils"
 import { calculateLeaveEntitlement } from "@/lib/utils/leave-utils"
+import { getMakeupDeficitLinks } from "@/lib/utils/makeup-utils"
 import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter, Calendar, Pencil, Trash2 } from "lucide-react"
 import { usePagination } from "@/hooks/use-pagination"
 import { DataPagination } from "@/components/shared/data-pagination"
@@ -221,6 +222,29 @@ function generateWorkingDays(fromDate: Date, toDate: Date): string[] {
   }
 
   return days
+}
+
+// Gộp nhiều log chấm công trùng ngày thành 1 (giờ vào sớm nhất + giờ ra muộn nhất)
+// Tránh trường hợp DB có nhiều bản ghi cùng ngày (VD import + manual) khiến .find() chọn nhầm log
+function getMergedLogForDate(logs: AttendanceLog[], date: string): AttendanceLog | undefined {
+  const dayLogs = logs.filter(
+    (l) => l.check_in?.startsWith(date) || l.check_out?.startsWith(date)
+  )
+  if (dayLogs.length === 0) return undefined
+  if (dayLogs.length === 1) return dayLogs[0]
+
+  let earliestIn: string | null = null
+  let latestOut: string | null = null
+  for (const l of dayLogs) {
+    if (l.check_in && (!earliestIn || l.check_in < earliestIn)) earliestIn = l.check_in
+    if (l.check_out && (!latestOut || l.check_out > latestOut)) latestOut = l.check_out
+  }
+  // Bản đại diện để giữ id/source/note khi chỉnh sửa: ưu tiên bản chứa giờ vào sớm nhất
+  const rep =
+    dayLogs.find((l) => l.check_in === earliestIn) ||
+    dayLogs.find((l) => l.check_in) ||
+    dayLogs[0]
+  return { ...rep, check_in: earliestIn, check_out: latestOut }
 }
 
 // Hàm kiểm tra xem ngày có phiếu nghỉ được duyệt không
@@ -521,9 +545,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
     // Kết hợp với attendance logs
     const combined = workingDays.map((date) => {
       // Tìm log theo check_in hoặc check_out (trường hợp check_in null - quên chấm công vào)
-      const log = filteredLogs.find((l) => 
-        l.check_in?.startsWith(date) || l.check_out?.startsWith(date)
-      )
+      // Gộp nếu có nhiều bản ghi trùng ngày để không bỏ sót giờ vào/ra
+      const log = getMergedLogForDate(filteredLogs, date)
       const leaveRequest = getLeaveRequestForDate(date, leaveRequests)
       const holiday = getHolidayForDate(date, holidays)
       const specialDay = getSpecialDayForDate(date, specialDays, employeeId)
@@ -922,6 +945,60 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                         r.request_date === date
                     ) : null
 
+                    // Phiếu Tăng ca (hiển thị kèm khung giờ tăng ca). Có thể có nhiều phiếu cùng ngày.
+                    const overtimeRequests = employeeId ? leaveRequests.filter(
+                      (r) =>
+                        r.employee_id === employeeId &&
+                        r.status === "approved" &&
+                        (r.request_type as { code?: string })?.code === "overtime" &&
+                        r.request_date === date
+                    ) : []
+
+                    const overtimeEntries = overtimeRequests.flatMap((r) => {
+                      const name = r.request_type?.name || "Tăng ca"
+                      const slots = (r.time_slots || [])
+                        .slice()
+                        .sort((a, b) => (a.slot_order ?? 0) - (b.slot_order ?? 0))
+                      // Ưu tiên nhiều khung giờ trong request_time_slots
+                      if (slots.length > 0) {
+                        return slots.map((s) => ({
+                          name,
+                          timeRange: `${s.from_time.slice(0, 5)} - ${s.to_time.slice(0, 5)}`,
+                        }))
+                      }
+                      // Fallback: khung giờ đơn lưu ở from_time/to_time
+                      return [{
+                        name,
+                        timeRange:
+                          r.from_time && r.to_time
+                            ? `${r.from_time.slice(0, 5)} - ${r.to_time.slice(0, 5)}`
+                            : "",
+                      }]
+                    })
+
+                    // Phiếu làm bù cả ngày cho ngày này (request_date = ngày đi làm bù).
+                    // Mỗi phiếu có thể bù cho nhiều ngày thiếu công (linked_deficit_links).
+                    const fullDayMakeupRequests = employeeId ? leaveRequests.filter(
+                      (r) =>
+                        r.employee_id === employeeId &&
+                        r.status === "approved" &&
+                        (r.request_type as { code?: string })?.code === "full_day_makeup" &&
+                        r.request_date === date
+                    ) : []
+
+                    const fullDayMakeupLinks = fullDayMakeupRequests.flatMap((r) => {
+                      const name = r.request_type?.name || "Làm bù cả ngày"
+                      const links = getMakeupDeficitLinks(r.custom_data)
+                      if (links.length === 0) {
+                        return [{ name, deficitDate: null as string | null, amount: null as number | null }]
+                      }
+                      return links.map((link) => ({
+                        name,
+                        deficitDate: link.deficit_date as string | null,
+                        amount: link.amount as number | null,
+                      }))
+                    })
+
                     const hasOnlyTimeViolation = (isLate || isEarlyLeave) && !noCheckIn && !noCheckOut
                     let madeUp = false
                     let madeUpTooltip = ""
@@ -1049,6 +1126,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                           )}
                         </TableCell>
                         <TableCell>
+                          <div className="flex flex-col items-start gap-1">
                           {hasNoAttendance ? (
                             specialDay?.is_company_holiday ? (
                               <Tooltip>
@@ -1154,6 +1232,39 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                           ) : (
                             <Badge variant="secondary">Chưa ra</Badge>
                           )}
+                          {overtimeEntries.map((o, i) => (
+                            <Tooltip key={`ot-${i}`}>
+                              <TooltipTrigger asChild>
+                                <Badge className="bg-indigo-100 text-indigo-800 gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {o.name}
+                                  {o.timeRange ? ` ${o.timeRange}` : ""}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {o.timeRange
+                                  ? `Tăng ca khung giờ ${o.timeRange}`
+                                  : "Đã có phiếu tăng ca được duyệt"}
+                              </TooltipContent>
+                            </Tooltip>
+                          ))}
+                          {fullDayMakeupLinks.map((m, i) => (
+                            <Tooltip key={`makeup-${i}`}>
+                              <TooltipTrigger asChild>
+                                <Badge className="bg-teal-100 text-teal-800 gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {m.name}
+                                  {m.deficitDate ? ` cho ngày ${formatDateVN(m.deficitDate)}` : ""}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {m.deficitDate
+                                  ? `Làm bù ${m.amount ?? ""} công cho ngày thiếu ${formatDateVN(m.deficitDate)}`
+                                  : "Đã có phiếu làm bù cả ngày được duyệt"}
+                              </TooltipContent>
+                            </Tooltip>
+                          ))}
+                          </div>
                         </TableCell>
                         {editable && (
                           <TableCell className="text-right">

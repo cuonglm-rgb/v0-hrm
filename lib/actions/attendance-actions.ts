@@ -52,27 +52,61 @@ export async function upsertAttendanceLog(input: {
   // Đã xác thực HR/Admin -> dùng service client để chỉnh bản ghi của nhân viên khác (bỏ RLS)
   const supabase = createServiceClient()
 
-  if (input.id) {
+  // Khoảng thời gian của ngày (theo giờ VN) để tìm & dọn các bản ghi trùng ngày
+  const dayStart = `${input.date}T00:00:00+07:00`
+  const dayEnd = `${input.date}T23:59:59+07:00`
+  const sameDayFilter = `and(check_in.gte.${dayStart},check_in.lte.${dayEnd}),and(check_in.is.null,check_out.gte.${dayStart},check_out.lte.${dayEnd})`
+
+  // Xác định bản ghi đích: id truyền vào, hoặc bản ghi cùng ngày đã tồn tại (upsert thật để tránh tạo trùng)
+  let targetId = input.id
+  if (!targetId) {
+    const { data: existing } = await supabase
+      .from("attendance_logs")
+      .select("id")
+      .eq("employee_id", input.employee_id)
+      .or(sameDayFilter)
+      .order("check_in", { ascending: true, nullsFirst: false })
+    if (existing && existing.length > 0) {
+      targetId = existing[0].id
+    }
+  }
+
+  if (targetId) {
     const { error } = await supabase
       .from("attendance_logs")
       .update({ check_in, check_out, note: input.note ?? null, source: "manual" })
-      .eq("id", input.id)
+      .eq("id", targetId)
     if (error) {
       console.error("Error updating attendance log:", error)
       return { success: false, error: error.message }
     }
   } else {
-    const { error } = await supabase.from("attendance_logs").insert({
-      employee_id: input.employee_id,
-      check_in,
-      check_out,
-      note: input.note ?? null,
-      source: "manual",
-    })
+    const { data: inserted, error } = await supabase
+      .from("attendance_logs")
+      .insert({
+        employee_id: input.employee_id,
+        check_in,
+        check_out,
+        note: input.note ?? null,
+        source: "manual",
+      })
+      .select("id")
+      .single()
     if (error) {
       console.error("Error creating attendance log:", error)
       return { success: false, error: error.message }
     }
+    targetId = inserted?.id
+  }
+
+  // Dọn các bản ghi trùng ngày còn lại (nếu có) - giữ lại bản vừa lưu
+  if (targetId) {
+    await supabase
+      .from("attendance_logs")
+      .delete()
+      .eq("employee_id", input.employee_id)
+      .neq("id", targetId)
+      .or(sameDayFilter)
   }
 
   revalidatePath("/dashboard/attendance-management")
@@ -160,7 +194,8 @@ export async function getMyApprovedLeaveRequests(from?: string, to?: string) {
         code,
         affects_attendance,
         affects_payroll
-      )
+      ),
+      time_slots:request_time_slots(from_time, to_time, slot_order)
     `)
     .eq("employee_id", employee.id)
     .eq("status", "approved")
@@ -205,7 +240,8 @@ export async function getAllApprovedLeaveRequests(from?: string, to?: string, em
         id,
         employee_code,
         full_name
-      )
+      ),
+      time_slots:request_time_slots(from_time, to_time, slot_order)
     `)
     .eq("status", "approved")
     .or("from_date.not.is.null,request_date.not.is.null")
