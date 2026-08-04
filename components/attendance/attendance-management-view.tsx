@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useMemo } from "react"
+import { useState, useRef, useMemo, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,6 +30,7 @@ import {
   importAttendanceFromExcel,
   generateAttendanceTemplate,
 } from "@/lib/actions/attendance-import-actions"
+import { listAttendance, getAllApprovedLeaveRequests } from "@/lib/actions/attendance-actions"
 import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, Employee } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
 import type { SpecialWorkDayWithEmployees } from "@/lib/types/database"
@@ -150,13 +151,48 @@ export function AttendanceManagementView({
     return employees.find((e) => e.id === selectedEmployeeId)
   }, [employees, selectedEmployeeId])
 
-  const filteredAttendanceLogs = useMemo(() => {
+  // Dữ liệu ban đầu (lọc từ props global) - dùng làm fallback cho lần render đầu tiên.
+  // Lưu ý: props global bị giới hạn số dòng mặc định của PostgREST nên có thể thiếu.
+  const initialAttendanceLogs = useMemo(() => {
     return attendanceLogs.filter((log) => log.employee_id === selectedEmployeeId)
   }, [attendanceLogs, selectedEmployeeId])
 
-  const filteredLeaveRequests = useMemo(() => {
+  const initialLeaveRequests = useMemo(() => {
     return leaveRequests.filter((req) => req.employee_id === selectedEmployeeId)
   }, [leaveRequests, selectedEmployeeId])
+
+  // Dữ liệu đầy đủ được nạp theo đúng nhân viên đang chọn (không dính giới hạn số dòng).
+  const [scopedAttendanceLogs, setScopedAttendanceLogs] = useState<AttendanceLog[] | null>(null)
+  const [scopedLeaveRequests, setScopedLeaveRequests] = useState<EmployeeRequestWithRelations[] | null>(null)
+  const [loadingData, setLoadingData] = useState(false)
+
+  useEffect(() => {
+    if (!selectedEmployeeId) return
+    let cancelled = false
+    setLoadingData(true)
+    setScopedAttendanceLogs(null)
+    setScopedLeaveRequests(null)
+    Promise.all([
+      listAttendance({ employee_id: selectedEmployeeId }),
+      getAllApprovedLeaveRequests(undefined, undefined, selectedEmployeeId),
+    ])
+      .then(([logs, requests]) => {
+        if (cancelled) return
+        setScopedAttendanceLogs(logs as AttendanceLog[])
+        setScopedLeaveRequests(requests as EmployeeRequestWithRelations[])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingData(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // Phụ thuộc thêm attendanceLogs/leaveRequests để refetch lại khi server refresh
+    // (VD sau khi HR chỉnh sửa chấm công -> router.refresh() cập nhật props mới)
+  }, [selectedEmployeeId, attendanceLogs, leaveRequests])
+
+  const filteredAttendanceLogs = scopedAttendanceLogs ?? initialAttendanceLogs
+  const filteredLeaveRequests = scopedLeaveRequests ?? initialLeaveRequests
 
   const filteredSaturdaySchedules = useMemo(() => {
     return saturdaySchedules.filter((sch) => sch.employee_id === selectedEmployeeId)
@@ -406,6 +442,12 @@ export function AttendanceManagementView({
       </Card>
 
       {/* Attendance Panel - giống hệt /dashboard/attendance */}
+      {selectedEmployee && loadingData && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Đang tải dữ liệu chấm công của nhân viên...
+        </div>
+      )}
       {selectedEmployee && (
         <AttendancePanel
           attendanceLogs={filteredAttendanceLogs}

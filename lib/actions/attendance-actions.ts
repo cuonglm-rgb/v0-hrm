@@ -185,7 +185,8 @@ export async function getMyApprovedLeaveRequests(from?: string, to?: string) {
 }
 
 // Lấy tất cả phiếu nghỉ / làm bù được duyệt (cho HR/Admin, bao gồm phiếu có request_date như late_early_makeup)
-export async function getAllApprovedLeaveRequests(from?: string, to?: string) {
+// Truyền employeeId để chỉ lấy phiếu của 1 nhân viên (tránh giới hạn số dòng mặc định của PostgREST khi lấy toàn bộ)
+export async function getAllApprovedLeaveRequests(from?: string, to?: string, employeeId?: string) {
   const supabase = await createClient()
 
   let query = supabase
@@ -208,6 +209,10 @@ export async function getAllApprovedLeaveRequests(from?: string, to?: string) {
     `)
     .eq("status", "approved")
     .or("from_date.not.is.null,request_date.not.is.null")
+
+  if (employeeId) {
+    query = query.eq("employee_id", employeeId)
+  }
 
   if (from && to) {
     query = query.or(`and(from_date.lte.${to},to_date.gte.${from}),and(request_date.gte.${from},request_date.lte.${to})`)
@@ -347,7 +352,7 @@ export async function listAttendance(filters?: {
 
   // Order by check_in or check_out (for logs with null check_in)
   // Use coalesce to handle null check_in
-  query = query.order("check_in", { ascending: false, nullsLast: true })
+  query = query.order("check_in", { ascending: false, nullsFirst: false })
 
   const { data, error } = await query
 
