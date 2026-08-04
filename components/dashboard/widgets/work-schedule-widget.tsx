@@ -75,14 +75,12 @@ export function WorkScheduleWidget({
   return (
     <Card className="h-full">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <CalendarCheck className="h-4 w-4 text-orange-500" />
-          Lịch làm việc
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalendarCheck className="h-4 w-4 text-orange-500" />
+            Lịch làm việc
+          </CardTitle>
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             {presets.map((p) => (
               <Button
                 key={p.key}
@@ -95,27 +93,23 @@ export function WorkScheduleWidget({
                 {p.label}
               </Button>
             ))}
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="flex items-center gap-1.5">
-              <Input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="h-8 w-[9.5rem]"
-              />
-              <span className="text-muted-foreground">-</span>
-              <Input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="h-8 w-[9.5rem]"
-              />
-            </div>
+            <Input
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-7 w-[9.5rem]"
+            />
+            <span className="text-muted-foreground">-</span>
+            <Input
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="h-7 w-[9.5rem]"
+            />
             <Button
               size="sm"
               variant={active === "custom" ? "default" : "outline"}
-              className="h-8"
+              className="h-7"
               onClick={applyRange}
               disabled={isPending}
             >
@@ -123,8 +117,9 @@ export function WorkScheduleWidget({
             </Button>
           </div>
         </div>
-
-        <div className={cn("mt-4 space-y-4", isPending && "opacity-60")}>
+      </CardHeader>
+      <CardContent>
+        <div className={cn("space-y-4", isPending && "opacity-60")}>
           <p className="text-xs text-muted-foreground">{label}</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatTile label="Có mặt" value={summary.present} tone="green" />

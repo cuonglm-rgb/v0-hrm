@@ -57,12 +57,6 @@ export function DashboardHome({
         )}
       </div>
 
-      <EventsCalendarWidget
-        initialYear={calendar.year}
-        initialMonth={calendar.month}
-        initialEvents={calendar.events}
-      />
-
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BirthdaysWidget items={birthdays} />
         <SeniorityWidget data={seniority} />
@@ -72,6 +66,12 @@ export function DashboardHome({
         <MyLeaveWidget initial={leave} />
         <MyRequestsWidget requests={requests.list} initialYear={requests.year} initialMonth={requests.month} />
       </div>
+
+      <EventsCalendarWidget
+        initialYear={calendar.year}
+        initialMonth={calendar.month}
+        initialEvents={calendar.events}
+      />
     </div>
   )
 }

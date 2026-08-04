@@ -52,8 +52,15 @@ export function MyRequestsWidget({
     }
   }, [requests, fromDate, toDate])
 
-  const stepMonth = (delta: number) => {
+  const selectMonth = (y: number, m: number) => {
     setMode("month")
+    setYear(y)
+    setMonth(m)
+    setFrom(`${y}-${String(m).padStart(2, "0")}-01`)
+    setTo(getLastDayOfMonthVN(y, m))
+  }
+
+  const stepMonth = (delta: number) => {
     let m = month + delta
     let y = year
     if (m < 1) {
@@ -63,47 +70,30 @@ export function MyRequestsWidget({
       m = 1
       y += 1
     }
-    setMonth(m)
-    setYear(y)
+    selectMonth(y, m)
   }
 
   return (
-    <Card className="h-full">
+    <Card className="flex h-full flex-col">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-base">
             <FileText className="h-4 w-4 text-orange-500" />
             Đơn từ của tôi
           </CardTitle>
-          <Link
-            href="/dashboard/leave"
-            className="flex items-center text-xs text-muted-foreground hover:text-foreground"
-          >
-            Chi tiết <ChevronRight className="h-3 w-3" />
-          </Link>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => stepMonth(-1)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <MonthYearPicker
               year={year}
               month={month}
-              onChange={(y, m) => {
-                setMode("month")
-                setYear(y)
-                setMonth(m)
-              }}
+              onChange={(y, m) => selectMonth(y, m)}
               className={cn(mode === "month" && "border-orange-300")}
             />
             <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => stepMonth(1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
             <Input
               type="date"
               value={from}
@@ -123,15 +113,24 @@ export function MyRequestsWidget({
               }}
               className={cn("h-7 w-[9.5rem]", mode === "range" && "border-orange-300")}
             />
+            <Link
+              href="/dashboard/leave"
+              className="ml-1 flex items-center text-xs text-muted-foreground hover:text-foreground"
+            >
+              Chi tiết <ChevronRight className="h-3 w-3" />
+            </Link>
           </div>
         </div>
-
-        <p className="my-3 text-xs text-muted-foreground">Thống kê đơn theo ngày áp dụng · {label}</p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatTile label="Tổng đơn" value={counts.total} tone="violet" />
-          <StatTile label="Đã duyệt" value={counts.approved} tone="green" />
-          <StatTile label="Cần duyệt" value={counts.pending} tone="amber" />
-          <StatTile label="Đã hủy" value={counts.cancelled} tone="red" />
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col">
+        <div className="mt-auto">
+          <p className="my-3 text-xs text-muted-foreground">Thống kê đơn theo ngày áp dụng · {label}</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatTile label="Tổng đơn" value={counts.total} tone="violet" />
+            <StatTile label="Đã duyệt" value={counts.approved} tone="green" />
+            <StatTile label="Cần duyệt" value={counts.pending} tone="amber" />
+            <StatTile label="Đã hủy" value={counts.cancelled} tone="red" />
+          </div>
         </div>
       </CardContent>
     </Card>

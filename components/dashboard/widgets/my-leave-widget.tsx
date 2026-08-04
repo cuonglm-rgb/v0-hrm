@@ -19,7 +19,7 @@ export function MyLeaveWidget({ initial }: { initial: MyLeaveBalance }) {
   }
 
   return (
-    <Card className="h-full">
+    <Card className="flex h-full flex-col">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -43,13 +43,15 @@ export function MyLeaveWidget({ initial }: { initial: MyLeaveBalance }) {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <p className="mb-3 text-xs text-muted-foreground">Số phép năm {data.year}</p>
-        <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-4", isPending && "opacity-60")}>
-          <StatTile label="Tổng phép" value={data.total} tone="violet" />
-          <StatTile label="Còn lại" value={data.remaining} tone="green" />
-          <StatTile label="Đã dùng" value={data.used} tone="amber" />
-          <StatTile label="Hết hạn" value={data.expired} tone="red" />
+      <CardContent className="flex flex-1 flex-col">
+        <div className="mt-auto">
+          <p className="mb-3 text-xs text-muted-foreground">Số phép năm {data.year}</p>
+          <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-4", isPending && "opacity-60")}>
+            <StatTile label="Tổng phép" value={data.total} tone="violet" />
+            <StatTile label="Còn lại" value={data.remaining} tone="green" />
+            <StatTile label="Đã dùng" value={data.used} tone="amber" />
+            <StatTile label="Hết hạn" value={data.expired} tone="red" />
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -43,7 +43,7 @@ export function SeniorityWidget({ data }: { data: SeniorityData }) {
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{item.full_name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{item.departmentName || "—"}</p>
+                  <p className="truncate text-xs text-muted-foreground">{item.positionName || "—"}</p>
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-sm font-semibold text-amber-600">{item.years} năm</p>

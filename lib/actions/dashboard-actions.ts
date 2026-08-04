@@ -296,6 +296,7 @@ export interface BirthdayItem {
   full_name: string
   avatar_url: string | null
   departmentName: string | null
+  positionName: string | null
   date: string // MM-DD hiển thị
   daysUntil: number
 }
@@ -306,7 +307,7 @@ export async function getUpcomingBirthdays(days = 30): Promise<BirthdayItem[]> {
 
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, full_name, avatar_url, dob, status, department:departments(name)")
+    .select("id, full_name, avatar_url, dob, status, department:departments(name), position:positions!position_id(name)")
     .neq("status", "resigned")
     .not("dob", "is", null)
 
@@ -322,6 +323,7 @@ export async function getUpcomingBirthdays(days = 30): Promise<BirthdayItem[]> {
       full_name: emp.full_name,
       avatar_url: emp.avatar_url,
       departmentName: (emp as any).department?.name || null,
+      positionName: (emp as any).position?.name || null,
       date: `${String(dd).padStart(2, "0")}/${String(mm).padStart(2, "0")}`,
       daysUntil,
     })
@@ -335,6 +337,7 @@ export interface AnniversaryItem {
   full_name: string
   avatar_url: string | null
   departmentName: string | null
+  positionName: string | null
   years: number
   date: string // dd/MM hiển thị
   daysUntil: number
@@ -346,7 +349,7 @@ export async function getUpcomingAnniversaries(days = 30): Promise<AnniversaryIt
 
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, full_name, avatar_url, official_date, join_date, status, department:departments(name)")
+    .select("id, full_name, avatar_url, official_date, join_date, status, department:departments(name), position:positions!position_id(name)")
     .neq("status", "resigned")
 
   const items: AnniversaryItem[] = []
@@ -364,6 +367,7 @@ export async function getUpcomingAnniversaries(days = 30): Promise<AnniversaryIt
       full_name: emp.full_name,
       avatar_url: emp.avatar_url,
       departmentName: (emp as any).department?.name || null,
+      positionName: (emp as any).position?.name || null,
       years,
       date: `${String(sd).padStart(2, "0")}/${String(sm).padStart(2, "0")}`,
       daysUntil,
@@ -396,7 +400,7 @@ export async function getSeniorityData(windowDays = 30, rankingLimit = 8): Promi
 
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, full_name, avatar_url, official_date, join_date, status, department:departments(name)")
+    .select("id, full_name, avatar_url, official_date, join_date, status, department:departments(name), position:positions!position_id(name)")
     .neq("status", "resigned")
 
   const rows: { item: AnniversaryItem; startUTC: number }[] = []
@@ -419,6 +423,7 @@ export async function getSeniorityData(windowDays = 30, rankingLimit = 8): Promi
         full_name: emp.full_name,
         avatar_url: emp.avatar_url,
         departmentName: (emp as any).department?.name || null,
+        positionName: (emp as any).position?.name || null,
         years: Math.max(0, years),
         date: `${String(sd).padStart(2, "0")}/${String(sm).padStart(2, "0")}/${sy}`,
         daysUntil: 0,
