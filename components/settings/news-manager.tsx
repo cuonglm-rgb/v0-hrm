@@ -164,11 +164,11 @@ export function NewsManager({ news }: { news: CompanyNewsWithRelations[] }) {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
+        <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>{form.id ? "Sửa tin tức" : "Thêm tin tức"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="-mx-6 min-h-0 flex-1 space-y-4 overflow-y-auto px-6">
             <div className="space-y-1.5">
               <Label htmlFor="news-title">Tiêu đề *</Label>
               <Input
@@ -185,7 +185,8 @@ export function NewsManager({ news }: { news: CompanyNewsWithRelations[] }) {
                 value={form.content}
                 onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
                 placeholder="Nội dung tin tức"
-                rows={5}
+                rows={12}
+                className="max-h-[45vh]"
               />
             </div>
             <div className="space-y-1.5">
