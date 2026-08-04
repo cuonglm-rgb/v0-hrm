@@ -388,7 +388,7 @@ export interface SeniorityData {
  * - Ưu tiên các kỷ niệm ngày vào làm trong `windowDays` ngày tới (ai sắp tròn 1,2,3... năm).
  * - Nếu không có ai → hiển thị bảng xếp hạng nhân viên thâm niên cao nhất.
  */
-export async function getSeniorityData(windowDays = 30, rankingLimit = 8): Promise<SeniorityData> {
+export async function getSeniorityData(windowDays = 30, minYears = 3): Promise<SeniorityData> {
   const upcoming = await getUpcomingAnniversaries(windowDays)
   if (upcoming.length > 0) return { mode: "upcoming", items: upcoming }
 
@@ -432,7 +432,8 @@ export async function getSeniorityData(windowDays = 30, rankingLimit = 8): Promi
   }
 
   rows.sort((a, b) => a.startUTC - b.startUTC) // vào làm sớm nhất = thâm niên cao nhất
-  return { mode: "ranking", items: rows.slice(0, rankingLimit).map((r) => r.item) }
+  // Chỉ hiển thị nhân viên đã đủ `minYears` năm thâm niên trở lên
+  return { mode: "ranking", items: rows.filter((r) => r.item.years >= minYears).map((r) => r.item) }
 }
 
 /**
