@@ -393,6 +393,8 @@ export function SaturdaySchedulePanel({
               <Input
                 id="work_date"
                 type="date"
+                min="2020-01-01"
+                max="2100-12-31"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
               />

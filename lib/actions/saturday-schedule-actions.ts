@@ -27,6 +27,39 @@ export interface SaturdayScheduleWithEmployee extends SaturdaySchedule {
 }
 
 // =============================================
+// VALIDATE WORK DATE
+// =============================================
+
+// Trả về lỗi nếu work_date không phải dạng YYYY-MM-DD của một ngày thứ 7 hợp lệ.
+// Dùng getUTCDay() vì "YYYY-MM-DD" được parse theo UTC - getDay() sẽ lệch 1 ngày
+// nếu server chạy ở timezone âm.
+function validateSaturdayDate(workDate: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    return "Ngày không hợp lệ"
+  }
+
+  const [year, month, day] = workDate.split("-").map(Number)
+  if (year < 2020 || year > 2100) {
+    return "Năm không hợp lệ"
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return "Ngày không hợp lệ"
+  }
+
+  if (date.getUTCDay() !== 6) {
+    return "Ngày phải là thứ 7"
+  }
+
+  return null
+}
+
+// =============================================
 // CHECK PERMISSION
 // =============================================
 
@@ -145,9 +178,9 @@ export async function setSaturdaySchedule(data: {
   const supabase = await createClient()
 
   // Validate: work_date phải là thứ 7
-  const date = new Date(data.work_date)
-  if (date.getDay() !== 6) {
-    return { success: false, error: "Ngày phải là thứ 7" }
+  const dateError = validateSaturdayDate(data.work_date)
+  if (dateError) {
+    return { success: false, error: dateError }
   }
 
   // Get current employee
@@ -197,9 +230,9 @@ export async function bulkSetSaturdaySchedule(data: {
   const supabase = await createClient()
 
   // Validate: work_date phải là thứ 7
-  const date = new Date(data.work_date)
-  if (date.getDay() !== 6) {
-    return { success: false, error: "Ngày phải là thứ 7" }
+  const dateError = validateSaturdayDate(data.work_date)
+  if (dateError) {
+    return { success: false, error: dateError }
   }
 
   // Get current employee
