@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { Newspaper } from "lucide-react"
 import { formatDateVN } from "@/lib/utils/date-utils"
+import { RichText, stripRichText } from "@/lib/utils/rich-text"
 import type { CompanyNewsWithRelations } from "@/lib/types/database"
 
 export function NewsWidget({ news }: { news: CompanyNewsWithRelations[] }) {
@@ -54,7 +55,9 @@ export function NewsWidget({ news }: { news: CompanyNewsWithRelations[] }) {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{item.title}</p>
                       {item.content && (
-                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.content}</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                          {stripRichText(item.content)}
+                        </p>
                       )}
                       <p className="mt-1 text-xs text-muted-foreground">{formatDateVN(item.published_at)}</p>
                     </div>
@@ -84,9 +87,10 @@ export function NewsWidget({ news }: { news: CompanyNewsWithRelations[] }) {
                   />
                 )}
                 {selected.content && (
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                    {selected.content}
-                  </p>
+                  <RichText
+                    text={selected.content}
+                    className="text-sm leading-relaxed text-foreground"
+                  />
                 )}
               </div>
             </>

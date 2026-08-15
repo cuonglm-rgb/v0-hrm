@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { RichTextEditor } from "@/components/ui/rich-text-editor"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
@@ -180,13 +180,11 @@ export function NewsManager({ news }: { news: CompanyNewsWithRelations[] }) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="news-content">Nội dung</Label>
-              <Textarea
+              <RichTextEditor
                 id="news-content"
                 value={form.content}
-                onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+                onChange={(content) => setForm((f) => ({ ...f, content }))}
                 placeholder="Nội dung tin tức"
-                rows={12}
-                className="max-h-[45vh]"
               />
             </div>
             <div className="space-y-1.5">
