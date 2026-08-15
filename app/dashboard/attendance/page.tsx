@@ -31,7 +31,9 @@ export default async function AttendancePage() {
     getHolidays(currentYear),
     getHolidays(currentYear - 1),
     listSpecialWorkDays(),
-    employee ? listSaturdaySchedules({ employeeId: employee.id }) : Promise.resolve([]),
+    employee
+      ? listSaturdaySchedules({ employeeId: employee.id }).then((r) => r.data)
+      : Promise.resolve([]),
     checkSaturdaySchedulePermission(),
   ])
   

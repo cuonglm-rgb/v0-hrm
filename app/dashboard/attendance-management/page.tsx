@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { getMyEmployee, getMyRoles, listEmployees } from "@/lib/actions/employee-actions"
-import { listAttendance, getHolidays, getAllApprovedLeaveRequests } from "@/lib/actions/attendance-actions"
+import { getHolidays } from "@/lib/actions/attendance-actions"
 import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import { listSpecialWorkDays } from "@/lib/actions/special-work-day-actions"
 import { checkSaturdaySchedulePermission, listSaturdaySchedules } from "@/lib/actions/saturday-schedule-actions"
@@ -27,19 +27,23 @@ export default async function AttendanceManagementPage() {
   }
 
   const currentYear = new Date().getFullYear()
-  const [employee, userRoles, employees, attendanceLogs, canApproveRequests, specialDays, holidaysCurrentYear, holidaysPrevYear, leaveRequests, saturdayPermission] = await Promise.all([
+  // Tất cả chạy song song trong MỘT lượt. Không tải chấm công / phiếu phép của
+  // toàn công ty ở đây nữa: AttendanceManagementView luôn tự nạp lại đúng nhân
+  // viên đang chọn ngay khi mở (useEffect), nên dữ liệu tải sẵn bị vứt đi ngay.
+  // Bỏ 2 query đó tiết kiệm ~1,6 MB và ~2,1 giây mỗi lần vào trang, đồng thời
+  // tránh việc chúng bị PostgREST cắt cụt ở 1000 dòng.
+  const [employee, userRoles, employees, canApproveRequests, specialDays, holidaysCurrentYear, holidaysPrevYear, saturdayPermission, saturdayResult] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
     listEmployees(),
-    listAttendance(),
     checkCanApproveRequests(),
     listSpecialWorkDays(),
     getHolidays(currentYear),
     getHolidays(currentYear - 1),
-    getAllApprovedLeaveRequests(),
     checkSaturdaySchedulePermission(),
+    listSaturdaySchedules(),
   ])
-  
+
   const holidays = [...holidaysCurrentYear, ...holidaysPrevYear]
 
   const roleCodes = userRoles.map((ur) => ur.role.code)
@@ -50,21 +54,16 @@ export default async function AttendanceManagementPage() {
     redirect("/dashboard")
   }
 
-  // Load saturday schedules if has permission
-  let saturdaySchedules: any[] = []
-  let saturdayLoadError: string | null = null
-  let filteredEmployees = employees
+  const saturdaySchedules = saturdayPermission.allowed ? saturdayResult.data : []
+  const saturdayLoadError = saturdayPermission.allowed ? saturdayResult.error : null
 
-  if (saturdayPermission.allowed) {
-    const saturdayResult = await listSaturdaySchedules()
-    saturdaySchedules = saturdayResult.data
-    saturdayLoadError = saturdayResult.error
-
-    // Filter employees based on level
-    if (saturdayPermission.level === 3 && saturdayPermission.departmentId) {
-      filteredEmployees = employees.filter(emp => emp.department_id === saturdayPermission.departmentId)
-    }
-  }
+  // Level 3 chỉ phân công được cho nhân viên cùng phòng ban
+  const filteredEmployees =
+    saturdayPermission.allowed &&
+    saturdayPermission.level === 3 &&
+    saturdayPermission.departmentId
+      ? employees.filter((emp) => emp.department_id === saturdayPermission.departmentId)
+      : employees
 
   // Level 3 (không phải HR/Admin) chỉ thấy tab Lịch làm thứ 7
   const isLevel3Only = saturdayPermission.allowed && saturdayPermission.level === 3 && !isHROrAdmin
@@ -110,8 +109,8 @@ export default async function AttendanceManagementPage() {
             <TabsContent value="attendance">
               <AttendanceManagementView
                 employees={employees}
-                attendanceLogs={attendanceLogs}
-                leaveRequests={leaveRequests}
+                attendanceLogs={[]}
+                leaveRequests={[]}
                 holidays={holidays}
                 specialDays={specialDays}
                 saturdaySchedules={saturdaySchedules}

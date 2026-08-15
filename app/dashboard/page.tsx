@@ -61,6 +61,8 @@ export default async function DashboardPage() {
     calendarEvents,
     birthdays,
     seniority,
+    leaveBalance,
+    myRequests,
   ] = await Promise.all([
     getMyEmployee(),
     getMyRoles(),
@@ -71,6 +73,11 @@ export default async function DashboardPage() {
     getCalendarEvents(monthFrom, monthTo),
     getUpcomingBirthdays(30),
     getSeniorityData(30),
+    // 2 hàm này tự lấy user và tự trả về giá trị rỗng nếu chưa có hồ sơ nhân
+    // viên, nên gọi thẳng ở đây được - không cần chờ getMyEmployee() xong.
+    // Trước đây chúng chạy ở lượt thứ hai, tốn thêm một vòng đi-về tới DB.
+    getMyLeaveBalanceForYear(ty),
+    getMyEmployeeRequests(),
   ])
 
   // Phân quyền hiển thị widget "Lịch làm việc": HR/Admin (all), leader (phòng ban), nhân viên (ẩn)
@@ -88,20 +95,11 @@ export default async function DashboardPage() {
   const showWorkSchedule = scheduleScope.mode !== "none"
 
   // Phép của tôi (năm hiện tại) & danh sách đơn của tôi (client tự lọc theo tháng/khoảng)
-  let leave: MyLeaveBalance = { year: ty, total: 0, remaining: 0, used: 0, expired: 0 }
-  let requestList: RequestLite[] = []
-
-  if (employee) {
-    const [leaveBalance, myRequests] = await Promise.all([
-      getMyLeaveBalanceForYear(ty),
-      getMyEmployeeRequests(),
-    ])
-    leave = leaveBalance
-    requestList = myRequests.map((r) => ({
-      status: r.status,
-      applyDate: r.from_date || r.request_date,
-    }))
-  }
+  const leave: MyLeaveBalance = leaveBalance
+  const requestList: RequestLite[] = myRequests.map((r) => ({
+    status: r.status,
+    applyDate: r.from_date || r.request_date,
+  }))
 
   return (
     <DashboardLayout
