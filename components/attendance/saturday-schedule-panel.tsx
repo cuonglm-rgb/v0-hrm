@@ -38,7 +38,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Calendar as CalendarIcon, Plus, Edit, Trash2, Filter, Check, ChevronsUpDown, Users } from "lucide-react"
+import { Calendar as CalendarIcon, Plus, Edit, Trash2, Filter, Check, ChevronsUpDown, Users, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import type { Employee } from "@/lib/types/database"
 import {
@@ -61,12 +61,16 @@ interface SaturdaySchedulePanelProps {
   employees: EmployeeWithDepartment[]
   schedules: SaturdayScheduleWithEmployee[]
   canManageAll: boolean // level > 3
+  /** Lỗi khi tải dữ liệu - phải hiện rõ, nếu không màn hình trông hệt như
+   *  "chưa có ai được phân công" trong khi thực tế là hỏng. */
+  loadError?: string | null
 }
 
 export function SaturdaySchedulePanel({
   employees,
   schedules,
   canManageAll,
+  loadError,
 }: SaturdaySchedulePanelProps) {
   const router = useRouter()
   const [showDialog, setShowDialog] = useState(false)
@@ -198,6 +202,16 @@ export function SaturdaySchedulePanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {loadError && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">Không tải được dữ liệu</p>
+                <p className="text-red-700">{loadError}</p>
+              </div>
+            </div>
+          )}
+
           {/* Bộ lọc */}
           <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
             <Filter className="h-4 w-4 text-muted-foreground" />

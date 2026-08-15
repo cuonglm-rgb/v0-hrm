@@ -52,11 +52,14 @@ export default async function AttendanceManagementPage() {
 
   // Load saturday schedules if has permission
   let saturdaySchedules: any[] = []
+  let saturdayLoadError: string | null = null
   let filteredEmployees = employees
-  
+
   if (saturdayPermission.allowed) {
-    saturdaySchedules = await listSaturdaySchedules()
-    
+    const saturdayResult = await listSaturdaySchedules()
+    saturdaySchedules = saturdayResult.data
+    saturdayLoadError = saturdayResult.error
+
     // Filter employees based on level
     if (saturdayPermission.level === 3 && saturdayPermission.departmentId) {
       filteredEmployees = employees.filter(emp => emp.department_id === saturdayPermission.departmentId)
@@ -82,6 +85,7 @@ export default async function AttendanceManagementPage() {
             employees={filteredEmployees}
             schedules={saturdaySchedules}
             canManageAll={false}
+            loadError={saturdayLoadError}
           />
         ) : (
           // HR/Admin thấy tất cả tabs
@@ -125,6 +129,7 @@ export default async function AttendanceManagementPage() {
                   employees={filteredEmployees}
                   schedules={saturdaySchedules}
                   canManageAll={saturdayPermission.level !== null && saturdayPermission.level > 3}
+                  loadError={saturdayLoadError}
                 />
               </TabsContent>
             )}

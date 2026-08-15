@@ -101,11 +101,18 @@ export async function checkSaturdaySchedulePermission(): Promise<{
 // LIST SCHEDULES
 // =============================================
 
+export interface SaturdayScheduleListResult {
+  data: SaturdayScheduleWithEmployee[]
+  /** Có lỗi thì phải báo lên UI, KHÔNG được im lặng trả mảng rỗng - nhìn y hệt
+   *  "chưa có dữ liệu" nên rất khó phát hiện. */
+  error: string | null
+}
+
 export async function listSaturdaySchedules(params?: {
   year?: number
   month?: number
   employeeId?: string
-}): Promise<SaturdayScheduleWithEmployee[]> {
+}): Promise<SaturdayScheduleListResult> {
   const supabase = await createClient()
 
   let query = supabase
@@ -137,10 +144,14 @@ export async function listSaturdaySchedules(params?: {
 
   if (error) {
     console.error("Error listing saturday schedules:", error)
-    return []
+    const message =
+      error.code === "57014"
+        ? "Truy vấn lịch thứ 7 bị quá thời gian cho phép của database. Vui lòng thử lại; nếu vẫn lỗi hãy báo bộ phận kỹ thuật."
+        : `Không tải được lịch thứ 7: ${error.message}`
+    return { data: [], error: message }
   }
 
-  return (data || []) as SaturdayScheduleWithEmployee[]
+  return { data: (data || []) as SaturdayScheduleWithEmployee[], error: null }
 }
 
 // =============================================
