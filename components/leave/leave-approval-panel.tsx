@@ -9,7 +9,12 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { approveEmployeeRequest, rejectEmployeeRequest, cancelApprovedRequest } from "@/lib/actions/request-type-actions"
+import {
+  approveEmployeeRequest,
+  rejectEmployeeRequest,
+  cancelApprovedRequest,
+  listEmployeeRequestsWithMyApprovalStatus,
+} from "@/lib/actions/request-type-actions"
 import type { EmployeeRequestWithRelations } from "@/lib/types/database"
 import { formatDateVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { getTimeSlotsWithFallback, formatTimeSlots } from "@/lib/utils/time-slot-utils"
@@ -40,6 +45,12 @@ interface ApproverInfo {
 interface LeaveApprovalPanelProps {
   employeeRequests: (EmployeeRequestWithRelations & { my_approval_status?: string; can_approve_now?: boolean })[]
   approverInfo?: ApproverInfo | null
+  /**
+   * Mốc ngày mà server đã tải sẵn lịch sử từ đó tới nay (YYYY-MM-DD).
+   * Phiếu chờ duyệt thì luôn có đủ, không phụ thuộc mốc này.
+   * Khi người dùng lọc từ ngày cũ hơn mốc này, panel tự tải thêm.
+   */
+  historyFrom?: string
 }
 
 // Unified request type for combined list
@@ -62,7 +73,11 @@ interface UnifiedApprovalRequest {
   originalData: EmployeeRequestWithRelations & { my_approval_status?: string; can_approve_now?: boolean }
 }
 
-export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveApprovalPanelProps) {
+export function LeaveApprovalPanel({
+  employeeRequests,
+  approverInfo,
+  historyFrom,
+}: LeaveApprovalPanelProps) {
   const router = useRouter()
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -88,9 +103,42 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
   const [filterToDate, setFilterToDate] = useState<string>("")
   const [searchText, setSearchText] = useState<string>("")
 
+  // Phiếu cũ hơn mốc server đã tải sẵn - chỉ nạp khi người dùng thực sự lọc tới đó
+  const [olderRequests, setOlderRequests] = useState<
+    (EmployeeRequestWithRelations & { my_approval_status?: string; can_approve_now?: boolean })[]
+  >([])
+  const [loadedFrom, setLoadedFrom] = useState<string | undefined>(historyFrom)
+  const [loadingOlder, setLoadingOlder] = useState(false)
+
+  useEffect(() => {
+    if (!filterFromDate || !loadedFrom || filterFromDate >= loadedFrom) return
+    let cancelled = false
+    setLoadingOlder(true)
+    listEmployeeRequestsWithMyApprovalStatus({ historyFrom: filterFromDate })
+      .then((rows) => {
+        if (cancelled) return
+        setOlderRequests(rows)
+        setLoadedFrom(filterFromDate)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingOlder(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [filterFromDate, loadedFrom])
+
+  // Gộp phiếu tải sẵn với phiếu cũ vừa nạp thêm, bỏ trùng theo id
+  const mergedRequests = useMemo(() => {
+    if (olderRequests.length === 0) return employeeRequests
+    const byId = new Map(employeeRequests.map((r) => [r.id, r]))
+    for (const r of olderRequests) if (!byId.has(r.id)) byId.set(r.id, r)
+    return Array.from(byId.values())
+  }, [employeeRequests, olderRequests])
+
   // Combine and normalize all requests
   const allRequests = useMemo<UnifiedApprovalRequest[]>(() => {
-    return employeeRequests.map((r) => ({
+    return mergedRequests.map((r) => ({
       id: r.id,
       typeName: r.request_type?.name || "N/A",
       typeCode: r.request_type?.code || "",
@@ -113,7 +161,7 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
     })).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
-  }, [employeeRequests])
+  }, [mergedRequests])
 
   // Get unique type options for filter
   const typeOptions = useMemo(() => {
@@ -570,7 +618,15 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs">Từ ngày</Label>
+              <Label className="text-xs flex items-center gap-1.5">
+                Từ ngày
+                {loadingOlder && (
+                  <span className="flex items-center gap-1 font-normal text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    đang tải phiếu cũ hơn...
+                  </span>
+                )}
+              </Label>
               <Input type="date" value={filterFromDate} onChange={(e) => setFilterFromDate(e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -587,6 +643,14 @@ export function LeaveApprovalPanel({ employeeRequests, approverInfo }: LeaveAppr
               )}
             </div>
           </div>
+
+          {loadedFrom && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Đang hiển thị <strong>toàn bộ phiếu chờ duyệt</strong> và lịch sử từ{" "}
+              <strong>{formatDateVN(loadedFrom)}</strong>. Cần xem cũ hơn thì chọn &quot;Từ
+              ngày&quot; sớm hơn, hệ thống sẽ tải thêm.
+            </p>
+          )}
         </CardContent>
       </Card>
 

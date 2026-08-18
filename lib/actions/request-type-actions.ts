@@ -6,6 +6,7 @@ import type { RequestType, EmployeeRequestWithRelations, EligibleApprover, Custo
 import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { validateTimeSlot, validateNoOverlap } from "@/lib/utils/time-slot-utils"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
+import { warnIfTruncated } from "@/lib/utils/postgrest-limit"
 import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, LINKED_DEFICIT_LINKS_KEY, getMakeupDeficitLinks, type MakeupDeficitLink } from "@/lib/utils/makeup-utils"
 import { getEmployeeViolations } from "./payroll/violations"
 import type { ShiftInfo } from "./payroll/types"
@@ -325,6 +326,8 @@ export async function listEmployeeRequests(filters?: {
     return []
   }
 
+  warnIfTruncated("listEmployeeRequests", data)
+
   return (data || []) as EmployeeRequestWithRelations[]
 }
 
@@ -334,6 +337,14 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
   status?: string
   request_type_id?: string
   employee_id?: string
+  /**
+   * Chỉ lấy lịch sử từ ngày này trở đi (YYYY-MM-DD). Phiếu đang chờ duyệt
+   * (pending) luôn được lấy hết dù cũ đến đâu - không được để sót phiếu cần xử lý.
+   *
+   * Không truyền = lấy tất cả. Nhưng cẩn thận: PostgREST cắt kết quả ở 1000 dòng
+   * và KHÔNG báo lỗi, nên lấy tất cả sẽ âm thầm mất phiếu cũ khi bảng vượt 1000.
+   */
+  historyFrom?: string
 }): Promise<(EmployeeRequestWithRelations & { my_approval_status?: string })[]> {
   const supabase = await createClient()
 
@@ -381,6 +392,10 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
     if (filters?.status) query = query.eq("status", filters.status)
     if (filters?.request_type_id) query = query.eq("request_type_id", filters.request_type_id)
     if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id)
+    // Giới hạn lịch sử nhưng luôn giữ lại phiếu đang chờ duyệt
+    if (filters?.historyFrom) {
+      query = query.or(`status.eq.pending,created_at.gte.${filters.historyFrom}`)
+    }
 
     const { data, error } = await query
 
@@ -388,6 +403,8 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
       console.error("Error listing employee requests:", error)
       return []
     }
+
+    warnIfTruncated("listEmployeeRequestsWithMyApprovalStatus (HR/Admin)", data)
 
     // Lấy trạng thái duyệt của user hiện tại cho các phiếu
     const requestIds = data?.map(r => r.id) || []
@@ -482,6 +499,10 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
   if (filters?.status) query = query.eq("status", filters.status)
   if (filters?.request_type_id) query = query.eq("request_type_id", filters.request_type_id)
   if (filters?.employee_id) query = query.eq("employee_id", filters.employee_id)
+  // Giới hạn lịch sử nhưng luôn giữ lại phiếu đang chờ duyệt
+  if (filters?.historyFrom) {
+    query = query.or(`status.eq.pending,created_at.gte.${filters.historyFrom}`)
+  }
 
   const { data, error } = await query
 
@@ -489,6 +510,8 @@ export async function listEmployeeRequestsWithMyApprovalStatus(filters?: {
     console.error("Error listing employee requests:", error)
     return []
   }
+
+  warnIfTruncated("listEmployeeRequestsWithMyApprovalStatus", data)
 
   return (data || []).map(r => {
     const myStatus = approvalMap.get(r.id)

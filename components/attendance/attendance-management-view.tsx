@@ -27,9 +27,10 @@ import {
 } from "@/components/ui/dialog"
 import { AttendancePanel } from "@/components/attendance/attendance-panel"
 import {
-  importAttendanceFromExcel,
+  importAttendanceGroups,
   generateAttendanceTemplate,
 } from "@/lib/actions/attendance-import-actions"
+import { parseAttendanceSheet } from "@/lib/utils/attendance-excel-parse"
 import { listAttendance, getAllApprovedLeaveRequests } from "@/lib/actions/attendance-actions"
 import type { AttendanceLog, WorkShift, EmployeeRequestWithRelations, Employee } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
@@ -77,7 +78,12 @@ export function AttendanceManagementView({
     errors: string[]
   } | null>(null)
   const [showResultDialog, setShowResultDialog] = useState(false)
+  const [importProgress, setImportProgress] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Số nhóm (nhân viên + ngày) gửi lên server mỗi request.
+  // Giữ payload nhỏ hơn nhiều so với giới hạn 4.5MB body của Vercel.
+  const IMPORT_CHUNK_SIZE = 1000
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -97,21 +103,62 @@ export function AttendanceManagementView({
     }
 
     setImporting(true)
-    const formData = new FormData()
-    formData.append("file", file)
+    setImportProgress("Đang đọc file...")
 
     try {
-      const result = await importAttendanceFromExcel(formData)
-      setImportResult(result)
+      // Parse Excel ngay trên trình duyệt: chỉ gửi lên server dữ liệu đã gộp,
+      // tránh upload cả file (Vercel trả 413 khi request body > 4.5MB).
+      const XLSX = await import("xlsx")
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: "array" })
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+      const parsed = parseAttendanceSheet(rawData)
+
+      if (!parsed.success) {
+        setImportResult({
+          success: false, total: 0, imported: 0, skipped: 0,
+          errors: parsed.errors,
+        })
+        setShowResultDialog(true)
+        return
+      }
+
+      const { groups } = parsed
+      let imported = 0
+      let skipped = parsed.skipped
+      const errors: string[] = [...parsed.errors]
+      let failed = false
+
+      const totalChunks = Math.max(1, Math.ceil(groups.length / IMPORT_CHUNK_SIZE))
+      for (let i = 0; i < groups.length; i += IMPORT_CHUNK_SIZE) {
+        const chunkIndex = Math.floor(i / IMPORT_CHUNK_SIZE) + 1
+        setImportProgress(`Đang import phần ${chunkIndex}/${totalChunks}...`)
+
+        const result = await importAttendanceGroups(groups.slice(i, i + IMPORT_CHUNK_SIZE))
+        imported += result.imported
+        skipped += result.skipped
+        errors.push(...result.errors)
+        if (!result.success) failed = true
+      }
+
+      setImportResult({
+        success: !failed,
+        total: parsed.total,
+        imported,
+        skipped,
+        errors: errors.slice(0, 10),
+      })
       setShowResultDialog(true)
-    } catch {
+    } catch (error) {
       setImportResult({
         success: false, total: 0, imported: 0, skipped: 0,
-        errors: ["Lỗi không xác định khi import"],
+        errors: [`Lỗi khi import: ${error instanceof Error ? error.message : "Lỗi không xác định"}`],
       })
       setShowResultDialog(true)
     } finally {
       setImporting(false)
+      setImportProgress("")
       if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
@@ -225,7 +272,7 @@ export function AttendanceManagementView({
               {importing && (
                 <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Đang import...
+                  {importProgress || "Đang import..."}
                 </div>
               )}
               <p className="text-sm text-muted-foreground mt-2">

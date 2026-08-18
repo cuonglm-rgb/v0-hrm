@@ -29,9 +29,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-  importAttendanceFromExcel,
+  importAttendanceGroups,
   generateAttendanceTemplate,
 } from "@/lib/actions/attendance-import-actions"
+import { parseAttendanceSheet } from "@/lib/utils/attendance-excel-parse"
 import type { AttendanceLogWithRelations, WorkShift, SpecialWorkDay, EmployeeRequestWithRelations } from "@/lib/types/database"
 import type { Holiday } from "@/lib/actions/attendance-actions"
 import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
@@ -304,6 +305,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
   const [importResult, setImportResult] = useState<ImportResult | null>(null)
   const [showResultDialog, setShowResultDialog] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [importProgress, setImportProgress] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Bộ lọc dữ liệu chấm công
@@ -485,14 +487,62 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
     }
   }
 
+  // Số nhóm (nhân viên + ngày) gửi lên server mỗi request.
+  // Giữ payload nhỏ hơn nhiều so với giới hạn 4.5MB body của Vercel.
+  const IMPORT_CHUNK_SIZE = 1000
+
   const handleImportFile = async (file: File) => {
     setImporting(true)
-    const formData = new FormData()
-    formData.append("file", file)
+    setImportProgress("Đang đọc file...")
 
     try {
-      const result = await importAttendanceFromExcel(formData)
-      setImportResult(result)
+      // Parse Excel ngay trên trình duyệt: chỉ gửi lên server dữ liệu đã gộp,
+      // tránh upload cả file (Vercel trả 413 khi body > 4.5MB).
+      // Load xlsx động để không nhét thư viện này vào bundle ban đầu
+      const XLSX = await import("xlsx")
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: "array" })
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+      const parsed = parseAttendanceSheet(rawData)
+
+      if (!parsed.success) {
+        setImportResult({
+          success: false,
+          total: 0,
+          imported: 0,
+          skipped: 0,
+          errors: parsed.errors,
+        })
+        setShowResultDialog(true)
+        return
+      }
+
+      const { groups } = parsed
+      let imported = 0
+      let skipped = parsed.skipped
+      const errors: string[] = [...parsed.errors]
+      let failed = false
+
+      const totalChunks = Math.max(1, Math.ceil(groups.length / IMPORT_CHUNK_SIZE))
+      for (let i = 0; i < groups.length; i += IMPORT_CHUNK_SIZE) {
+        const chunkIndex = Math.floor(i / IMPORT_CHUNK_SIZE) + 1
+        setImportProgress(`Đang import phần ${chunkIndex}/${totalChunks}...`)
+
+        const result = await importAttendanceGroups(groups.slice(i, i + IMPORT_CHUNK_SIZE))
+        imported += result.imported
+        skipped += result.skipped
+        errors.push(...result.errors)
+        if (!result.success) failed = true
+      }
+
+      setImportResult({
+        success: !failed,
+        total: parsed.total,
+        imported,
+        skipped,
+        errors: errors.slice(0, 10),
+      })
       setShowResultDialog(true)
     } catch (error) {
       setImportResult({
@@ -500,11 +550,14 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
         total: 0,
         imported: 0,
         skipped: 0,
-        errors: ["Lỗi không xác định khi import"],
+        errors: [
+          `Lỗi khi import: ${error instanceof Error ? error.message : "Lỗi không xác định"}`,
+        ],
       })
       setShowResultDialog(true)
     } finally {
       setImporting(false)
+      setImportProgress("")
       setSelectedFile(null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
@@ -954,7 +1007,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
             <div className="text-center space-y-1">
               <p className="text-sm font-medium">Đang xử lý file: {selectedFile?.name}</p>
               <p className="text-xs text-muted-foreground">
-                Hệ thống đang đọc và import dữ liệu chấm công
+                {importProgress || "Hệ thống đang đọc và import dữ liệu chấm công"}
               </p>
             </div>
           </div>

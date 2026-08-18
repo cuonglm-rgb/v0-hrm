@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import type { AttendanceLog, AttendanceLogWithRelations } from "@/lib/types/database"
 import { getTodayVN, getNowVN, createVNTimestamp } from "@/lib/utils/date-utils"
+import { warnIfTruncated } from "@/lib/utils/postgrest-limit"
 
 // Kiểm tra user hiện tại có phải HR/Admin không (cho các thao tác chỉnh chấm công thủ công)
 async function requireHrOrAdmin(): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -396,6 +397,8 @@ export async function listAttendance(filters?: {
     console.error("Error listing attendance:", error)
     return []
   }
+
+  warnIfTruncated("listAttendance", data)
 
   return (data || []) as AttendanceLogWithRelations[]
 }

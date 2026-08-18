@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import * as XLSX from "xlsx"
 import { createVNTimestamp } from "@/lib/utils/date-utils"
+import {
+  parseAttendanceSheet,
+  type AttendanceGroup,
+  type ParseResult,
+} from "@/lib/utils/attendance-excel-parse"
 
 interface ImportResult {
   success: boolean
@@ -19,95 +24,23 @@ interface ShiftInfo {
 }
 
 /**
- * Import chấm công từ file Excel
- * Format file mới:
- * Dòng 1: CHI TIẾT CHẤM CÔNG (header title)
- * Dòng 2: Từ ngày ... đến ngày ... (date range)
- * Dòng 3: Mã N.Viên | Tên nhân viên | Phòng ban | Chức vụ | Ngày | Thứ | Vào | Ra | ...
- * Dòng 4+: Data rows
- * 
- * Chỉ quan tâm: Mã N.Viên, Tên nhân viên, Ngày (dd/mm/yyyy), Thứ, Vào, Ra
+ * Import chấm công từ dữ liệu đã parse sẵn.
+ *
+ * Client parse file Excel bằng `parseAttendanceSheet` rồi gửi lên theo từng chunk nhỏ.
+ * Lý do: Vercel chặn cứng request body > 4.5MB (413 Content Too Large) trước khi
+ * Next.js xử lý, nên không thể upload thẳng file Excel lớn qua server action.
  */
-export async function importAttendanceFromExcel(
-  formData: FormData
-): Promise<ImportResult> {
+export async function importAttendanceGroups(groups: AttendanceGroup[]): Promise<ImportResult> {
   const supabase = await createClient()
 
-  const file = formData.get("file") as File
-
-  if (!file) {
-    return { success: false, total: 0, imported: 0, skipped: 0, errors: ["Không có file"] }
-  }
+  const errors: string[] = []
+  let imported = 0
+  let skipped = 0
 
   try {
-    // Đọc file Excel
-    const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: "array" })
-    const sheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[sheetName]
-
-    // Chuyển đổi sang JSON
-    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
-
-    if (rawData.length < 4) {
-      return { success: false, total: 0, imported: 0, skipped: 0, errors: ["File rỗng hoặc không có dữ liệu"] }
+    if (!groups || groups.length === 0) {
+      return { success: true, total: 0, imported: 0, skipped: 0, errors: [] }
     }
-
-    // Tìm dòng header (dòng có "Mã N.Viên")
-    let headerRowIndex = -1
-    for (let i = 0; i < Math.min(rawData.length, 10); i++) {
-      const row = rawData[i]
-      if (row && row.some((cell) => String(cell || "").includes("Mã N.Viên"))) {
-        headerRowIndex = i
-        break
-      }
-    }
-
-    if (headerRowIndex === -1) {
-      return { success: false, total: 0, imported: 0, skipped: 0, errors: ["Không tìm thấy header 'Mã N.Viên' trong file"] }
-    }
-
-    // Lấy header để xác định vị trí các cột
-    const headerRow = rawData[headerRowIndex]
-    const colIndex = {
-      employeeCode: -1,
-      date: -1,
-      checkIn: -1,
-      checkOut: -1,
-    }
-
-    for (let i = 0; i < headerRow.length; i++) {
-      const colName = String(headerRow[i] || "").trim().toLowerCase()
-      if (colName.includes("mã n.viên") || colName.includes("mã nv") || colName === "mã n.viên") {
-        colIndex.employeeCode = i
-      } else if (colName === "ngày") {
-        colIndex.date = i
-      } else if (colName === "vào") {
-        colIndex.checkIn = i
-      } else if (colName === "ra") {
-        colIndex.checkOut = i
-      }
-    }
-
-    // Validate required columns
-    if (colIndex.employeeCode === -1) {
-      return { success: false, total: 0, imported: 0, skipped: 0, errors: ["Không tìm thấy cột 'Mã N.Viên'"] }
-    }
-    if (colIndex.date === -1) {
-      return { success: false, total: 0, imported: 0, skipped: 0, errors: ["Không tìm thấy cột 'Ngày'"] }
-    }
-    if (colIndex.checkIn === -1) {
-      return { success: false, total: 0, imported: 0, skipped: 0, errors: ["Không tìm thấy cột 'Vào'"] }
-    }
-    if (colIndex.checkOut === -1) {
-      return { success: false, total: 0, imported: 0, skipped: 0, errors: ["Không tìm thấy cột 'Ra'"] }
-    }
-
-    // Bỏ các dòng header, lấy data rows
-    const dataRows = rawData.slice(headerRowIndex + 1)
-    const errors: string[] = []
-    let imported = 0
-    let skipped = 0
 
     // Lấy danh sách employee để map employee_code -> id và shift_id
     const { data: employees } = await supabase
@@ -117,103 +50,28 @@ export async function importAttendanceFromExcel(
     const employeeMap = new Map(
       employees?.map((e) => [String(e.employee_code || "").toLowerCase().trim(), e.id]) || []
     )
-    
+
     // Map employee_id -> shift_id
     const employeeShiftMap = new Map(
       employees?.map((e) => [e.id, e.shift_id]) || []
     )
-    
+
     // Lấy danh sách ca làm việc
     const { data: shifts } = await supabase
       .from("work_shifts")
       .select("id, start_time, end_time")
-    
+
     const shiftMap = new Map<string, ShiftInfo>(
       shifts?.map((s) => [
-        s.id, 
-        { 
-          startTime: s.start_time?.slice(0, 5) || "08:00", 
-          endTime: s.end_time?.slice(0, 5) || "17:00" 
-        }
+        s.id,
+        {
+          startTime: s.start_time?.slice(0, 5) || "08:00",
+          endTime: s.end_time?.slice(0, 5) || "17:00",
+        },
       ]) || []
     )
 
-    // Thu thập và gộp dữ liệu theo employee + date
-    // Key: "employeeId_dateStr" -> { checkInTimes: string[], checkOutTimes: string[] }
-    const groupedData = new Map<string, {
-      employeeId: string
-      dateStr: string
-      checkInTimes: string[]  // Tất cả giờ vào
-      checkOutTimes: string[] // Tất cả giờ ra
-    }>()
-
-    // Phase 1: Parse và gộp tất cả rows theo employee + date
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = dataRows[i]
-      const rowNum = i + headerRowIndex + 2
-
-      if (!row || row.length === 0) {
-        skipped++
-        continue
-      }
-
-      const employeeCodeRaw = row[colIndex.employeeCode]
-      const dateValue = row[colIndex.date]
-      const checkInValue = row[colIndex.checkIn]
-      const checkOutValue = row[colIndex.checkOut]
-
-      const employeeCode = String(employeeCodeRaw || "").trim().toLowerCase()
-
-      if (!employeeCode) {
-        skipped++
-        continue
-      }
-
-      const employeeId = employeeMap.get(employeeCode)
-      if (!employeeId) {
-        errors.push(`Dòng ${rowNum}: Không tìm thấy nhân viên "${employeeCodeRaw}"`)
-        skipped++
-        continue
-      }
-
-      const dateStr = parseDateValue(dateValue)
-      if (!dateStr) {
-        errors.push(`Dòng ${rowNum}: Ngày không hợp lệ "${dateValue}"`)
-        skipped++
-        continue
-      }
-
-      const checkInTime = parseTimeValue(checkInValue)
-      const checkOutTime = parseTimeValue(checkOutValue)
-
-      // Nếu không có cả giờ vào và giờ ra thì bỏ qua
-      if (!checkInTime && !checkOutTime) {
-        skipped++
-        continue
-      }
-
-      // Gộp vào group
-      const key = `${employeeId}_${dateStr}`
-      let group = groupedData.get(key)
-      if (!group) {
-        group = {
-          employeeId,
-          dateStr,
-          checkInTimes: [],
-          checkOutTimes: [],
-        }
-        groupedData.set(key, group)
-      }
-
-      if (checkInTime) {
-        group.checkInTimes.push(checkInTime)
-      }
-      if (checkOutTime) {
-        group.checkOutTimes.push(checkOutTime)
-      }
-    }
-
-    // Phase 2: Tạo validRows từ grouped data (lấy giờ vào sớm nhất, giờ ra muộn nhất)
+    // Phase 1: Map group -> employee id, áp dụng luật giờ vào/ra theo ca làm việc
     // Xử lý đặc biệt: nếu chỉ có 1 lần chấm công và giờ >= giờ tan ca → đó là check-out
     const allDates = new Set<string>()
     const validRows: Array<{
@@ -223,95 +81,89 @@ export async function importAttendanceFromExcel(
       checkOutTimestamp: string | null
     }> = []
 
-    for (const group of groupedData.values()) {
+    const missingCodes = new Set<string>()
+
+    for (const group of groups) {
+      const employeeId = employeeMap.get(group.code)
+      if (!employeeId) {
+        missingCodes.add(group.codeRaw || group.code)
+        skipped++
+        continue
+      }
+
       // Lấy thông tin ca làm việc của nhân viên
-      const shiftId = employeeShiftMap.get(group.employeeId)
+      const shiftId = employeeShiftMap.get(employeeId)
       const shiftInfo = shiftId ? shiftMap.get(shiftId) : null
       const shiftEndTime = shiftInfo?.endTime || "17:00"
-      
-      // Sắp xếp và lấy giờ vào sớm nhất
-      const sortedCheckIns = group.checkInTimes.sort()
-      const earliestCheckIn = sortedCheckIns[0]
 
-      // Sắp xếp và lấy giờ ra muộn nhất
-      const sortedCheckOuts = group.checkOutTimes.sort()
-      const latestCheckOut = sortedCheckOuts[sortedCheckOuts.length - 1]
+      const earliestCheckIn = group.checkIn
+      const latestCheckOut = group.checkOut
 
-      // Trường hợp đặc biệt: chỉ có 1 lần chấm công (chỉ có giờ vào HOẶC chỉ có giờ ra)
-      // Nếu giờ chấm công >= giờ tan ca → đó là check-out, check-in thiếu
-      if (earliestCheckIn && !latestCheckOut && group.checkInTimes.length === 1) {
-        // Chỉ có 1 giờ vào, không có giờ ra
-        // So sánh với giờ tan ca
+      // Trường hợp đặc biệt: chỉ có 1 lần chấm công (chỉ có giờ vào, không có giờ ra)
+      // Nếu giờ chấm công >= giờ tan ca → đây là check-out, check-in thiếu
+      if (earliestCheckIn && !latestCheckOut && group.checkInCount === 1) {
         if (earliestCheckIn >= shiftEndTime) {
-          // Giờ chấm công >= giờ tan ca → đây là check-out, check-in thiếu
-          const checkOutTimestamp = createVNTimestamp(group.dateStr, earliestCheckIn)
-          allDates.add(group.dateStr)
+          allDates.add(group.date)
           validRows.push({
-            employeeId: group.employeeId,
-            dateStr: group.dateStr,
+            employeeId,
+            dateStr: group.date,
             checkInTimestamp: null, // Check-in thiếu
-            checkOutTimestamp,
+            checkOutTimestamp: createVNTimestamp(group.date, earliestCheckIn),
           })
           continue
         }
       }
-      
-      // Trường hợp chỉ có giờ ra (từ cột "Ra" trong Excel)
+
+      // Trường hợp chỉ có giờ ra (từ cột "Ra" trong Excel) → check-in thiếu
       if (!earliestCheckIn && latestCheckOut) {
-        // Chỉ có giờ ra → check-in thiếu
-        const checkOutTimestamp = createVNTimestamp(group.dateStr, latestCheckOut)
-        allDates.add(group.dateStr)
+        allDates.add(group.date)
         validRows.push({
-          employeeId: group.employeeId,
-          dateStr: group.dateStr,
-          checkInTimestamp: null, // Check-in thiếu
-          checkOutTimestamp,
+          employeeId,
+          dateStr: group.date,
+          checkInTimestamp: null,
+          checkOutTimestamp: createVNTimestamp(group.date, latestCheckOut),
         })
         continue
       }
 
-      // Trường hợp bình thường: có cả giờ vào và giờ ra, hoặc chỉ có giờ vào (trước giờ tan ca)
       if (!earliestCheckIn && !latestCheckOut) {
         skipped++
         continue
       }
 
-      const checkInTimestamp = earliestCheckIn ? createVNTimestamp(group.dateStr, earliestCheckIn) : null
-      const checkOutTimestamp = latestCheckOut ? createVNTimestamp(group.dateStr, latestCheckOut) : null
-
-      allDates.add(group.dateStr)
+      allDates.add(group.date)
       validRows.push({
-        employeeId: group.employeeId,
-        dateStr: group.dateStr,
-        checkInTimestamp,
-        checkOutTimestamp,
+        employeeId,
+        dateStr: group.date,
+        checkInTimestamp: earliestCheckIn ? createVNTimestamp(group.date, earliestCheckIn) : null,
+        checkOutTimestamp: latestCheckOut ? createVNTimestamp(group.date, latestCheckOut) : null,
       })
     }
+
+    missingCodes.forEach((code) => errors.push(`Không tìm thấy nhân viên "${code}"`))
 
     if (validRows.length === 0) {
       return {
         success: true,
-        total: dataRows.length,
+        total: groups.length,
         imported: 0,
         skipped,
         errors: errors.slice(0, 10),
       }
     }
 
-    // Phase 3: Query existing records một lần
-    // Query theo employee_id và date range
-    const dateArray = Array.from(allDates)
-    const minDate = dateArray.sort()[0]
-    const maxDate = dateArray.sort()[dateArray.length - 1]
+    // Phase 2: Query existing records một lần theo date range
+    const dateArray = Array.from(allDates).sort()
+    const minDate = dateArray[0]
+    const maxDate = dateArray[dateArray.length - 1]
 
-    // Query attendance logs trong khoảng thời gian, filter theo date range
     // Tạo timestamp range cho VN timezone (UTC+7)
     const minTimestamp = `${minDate}T00:00:00+07:00`
     const maxTimestamp = `${maxDate}T23:59:59+07:00`
-    
+
     // Lấy tất cả employee IDs liên quan
-    const employeeIds = [...new Set(validRows.map(r => r.employeeId))]
-    
+    const employeeIds = [...new Set(validRows.map((r) => r.employeeId))]
+
     // Query theo từng batch employee để tránh bị giới hạn 1000 rows
     const allExistingLogs: Array<{ id: string; employee_id: string; check_in: string | null; check_out: string | null }> = []
     const EMP_BATCH = 50
@@ -325,7 +177,7 @@ export async function importAttendanceFromExcel(
         .lte("check_in", maxTimestamp)
         .limit(5000)
       if (batchLogs) allExistingLogs.push(...batchLogs)
-      
+
       // Cũng query records chỉ có check_out (check_in null)
       const { data: checkOutOnlyLogs } = await supabase
         .from("attendance_logs")
@@ -351,14 +203,14 @@ export async function importAttendanceFromExcel(
         const vnDate = new Date(d.getTime() + 7 * 60 * 60 * 1000)
         logDate = vnDate.toISOString().split("T")[0]
       }
-      
+
       if (logDate && logDate >= minDate && logDate <= maxDate) {
         const key = `${log.employee_id}_${logDate}`
         existingMap.set(key, log.id)
       }
     })
 
-    // Phase 4: Phân loại insert vs update
+    // Phase 3: Phân loại insert vs update
     const toInsert: Array<{
       employee_id: string
       check_in: string | null
@@ -467,7 +319,7 @@ export async function importAttendanceFromExcel(
             .eq("id", item.id)
         )
       )
-      results.forEach((result, idx) => {
+      results.forEach((result) => {
         if (result.error) {
           errors.push(`Lỗi update: ${result.error.message}`)
         } else {
@@ -481,7 +333,7 @@ export async function importAttendanceFromExcel(
 
     return {
       success: true,
-      total: dataRows.length,
+      total: groups.length,
       imported,
       skipped,
       errors: errors.slice(0, 10),
@@ -490,86 +342,60 @@ export async function importAttendanceFromExcel(
     console.error("Error importing attendance:", error)
     return {
       success: false,
+      total: groups?.length || 0,
+      imported,
+      skipped,
+      errors: [`Lỗi import: ${error instanceof Error ? error.message : "Unknown error"}`],
+    }
+  }
+}
+
+/**
+ * Import chấm công từ file Excel (upload thẳng file lên server).
+ *
+ * CHÚ Ý: chỉ dùng cho file nhỏ. Trên Vercel, request body > 4.5MB bị chặn bằng 413
+ * trước khi tới server action. Luồng chính ở UI parse file bằng `parseAttendanceSheet`
+ * ngay trên trình duyệt rồi gọi `importAttendanceGroups` theo từng chunk.
+ */
+export async function importAttendanceFromExcel(
+  formData: FormData
+): Promise<ImportResult> {
+  const file = formData.get("file") as File
+
+  if (!file) {
+    return { success: false, total: 0, imported: 0, skipped: 0, errors: ["Không có file"] }
+  }
+
+  let parsed: ParseResult
+  try {
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: "array" })
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+    parsed = parseAttendanceSheet(rawData)
+  } catch (error) {
+    console.error("Error reading attendance file:", error)
+    return {
+      success: false,
       total: 0,
       imported: 0,
       skipped: 0,
       errors: [`Lỗi đọc file: ${error instanceof Error ? error.message : "Unknown error"}`],
     }
   }
-}
 
-/**
- * Parse giá trị ngày từ Excel
- * Hỗ trợ: "01/01/2026" (dd/mm/yyyy), Excel date serial number
- * Returns: "2026-01-01" (yyyy-mm-dd) hoặc null
- */
-function parseDateValue(value: unknown): string | null {
-  if (value === null || value === undefined || value === "") {
-    return null
+  if (!parsed.success) {
+    return { success: false, total: 0, imported: 0, skipped: 0, errors: parsed.errors }
   }
 
-  if (typeof value === "number") {
-    // Excel date serial number (days since 1900-01-01)
-    // Excel có bug: coi 1900 là năm nhuận nên cần trừ 1 nếu > 60
-    const excelEpoch = new Date(1899, 11, 30) // 1899-12-30
-    const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000)
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
-    return `${year}-${month}-${day}`
+  const result = await importAttendanceGroups(parsed.groups)
+
+  return {
+    ...result,
+    total: parsed.total,
+    skipped: parsed.skipped + result.skipped,
+    errors: [...parsed.errors, ...result.errors].slice(0, 10),
   }
-
-  const dateStr = String(value).trim()
-
-  // Match dd/mm/yyyy format
-  const match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (match) {
-    const day = parseInt(match[1], 10)
-    const month = parseInt(match[2], 10)
-    const year = parseInt(match[3], 10)
-
-    // Validate date
-    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 2000 && year <= 2100) {
-      const testDate = new Date(year, month - 1, day)
-      if (testDate.getDate() === day && testDate.getMonth() === month - 1) {
-        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-      }
-    }
-  }
-
-  return null
-}
-
-/**
- * Parse giá trị thời gian từ Excel
- * Hỗ trợ: "08:30", "8:30", 0.354166... (Excel time fraction)
- */
-function parseTimeValue(value: unknown): string | null {
-  if (value === null || value === undefined || value === "") {
-    return null
-  }
-
-  if (typeof value === "number") {
-    // Excel time fraction (0.0 = 00:00, 0.5 = 12:00, 1.0 = 24:00)
-    const totalMinutes = Math.round(value * 24 * 60)
-    const hours = Math.floor(totalMinutes / 60) % 24
-    const minutes = totalMinutes % 60
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
-  }
-
-  const timeStr = String(value).trim()
-  
-  // Match HH:mm or H:mm format
-  const match = timeStr.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
-  if (match) {
-    const hours = parseInt(match[1], 10)
-    const minutes = parseInt(match[2], 10)
-    if (hours >= 0 && hours < 24 && minutes >= 0 && minutes < 60) {
-      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
-    }
-  }
-
-  return null
 }
 
 /**
