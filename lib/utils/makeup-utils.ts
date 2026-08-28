@@ -21,6 +21,36 @@ export function isMakeupRequestType(code: string): code is MakeupCode {
   return MAKEUP_CODES.includes(code as MakeupCode)
 }
 
+export interface MakeupRequestLike {
+  employee_id: string
+  status: string
+  request_date: string | null
+  custom_data?: Record<string, unknown> | null
+  request_type?: { code?: string | null; name?: string | null } | null
+}
+
+/**
+ * Tìm phiếu làm bù (đi muộn/về sớm) đã duyệt bù cho NGÀY THIẾU CÔNG `date`.
+ * request_date của phiếu là ngày ĐI LÀM BÙ, còn ngày thiếu công gốc nằm trong
+ * custom_data — cùng cách hiểu với deficitDateToMakeupDate ở generate-payroll.ts.
+ */
+export function findLateEarlyMakeupForDeficitDate<T extends MakeupRequestLike>(
+  date: string,
+  employeeId: string | undefined,
+  requests: T[]
+): T | null {
+  if (!employeeId) return null
+  const req = requests.find(
+    (r) =>
+      r.employee_id === employeeId &&
+      r.status === "approved" &&
+      r.request_type?.code === "late_early_makeup" &&
+      r.request_date !== date &&
+      getMakeupDeficitLinks(r.custom_data).some((link) => link.deficit_date === date)
+  )
+  return req || null
+}
+
 export function isEmployeeOffDay(
   date: Date | string,
   saturdaySchedules: { employee_id: string; work_date: string; is_working: boolean }[],

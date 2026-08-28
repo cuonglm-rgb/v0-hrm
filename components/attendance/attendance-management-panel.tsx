@@ -34,6 +34,7 @@ import {
 } from "@/lib/actions/attendance-import-actions"
 import { parseAttendanceSheet } from "@/lib/utils/attendance-excel-parse"
 import type { AttendanceLogWithRelations, WorkShift, SpecialWorkDay, EmployeeRequestWithRelations } from "@/lib/types/database"
+import { findLateEarlyMakeupForDeficitDate } from "@/lib/utils/makeup-utils"
 import type { Holiday } from "@/lib/actions/attendance-actions"
 import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
 import { formatDateVN, formatTimeVN, formatSourceVN } from "@/lib/utils/date-utils"
@@ -353,8 +354,12 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
         const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
         const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
         const makeup = logDateOnly && log.employee_id ? getLateEarlyMakeupForDate(logDateOnly, log.employee_id, leaveRequests) : null
+        const deficitMakeup = logDateOnly && log.employee_id ? findLateEarlyMakeupForDeficitDate(logDateOnly, log.employee_id, leaveRequests) : null
         const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo, makeup)
-        const hasViolation = violations.length > 0
+        // Ngày thiếu công gốc đã có phiếu làm bù -> không còn là vi phạm
+        const deficitMadeUp = !!deficitMakeup && violations.length > 0 &&
+          violations.every((v) => v.type === "late" || v.type === "early_leave")
+        const hasViolation = violations.length > 0 && !deficitMadeUp
 
         if (filterStatus === "violation" && !hasViolation) return false
         if (filterStatus === "complete" && (hasViolation || !log.check_out)) return false
@@ -778,6 +783,8 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
                     const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
                     const makeup = logDateOnly && log.employee_id ? getLateEarlyMakeupForDate(logDateOnly, log.employee_id, leaveRequests) : null
+                    // Ngày thiếu công gốc được bù bằng phiếu làm bù nộp ở ngày khác
+                    const deficitMakeup = logDateOnly && log.employee_id ? findLateEarlyMakeupForDeficitDate(logDateOnly, log.employee_id, leaveRequests) : null
                     const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo, makeup)
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
@@ -786,6 +793,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     const noCheckOut = violations.some((v) => v.type === "no_checkout")
 
                     const hasOnlyTimeViolation = (isLate || isEarlyLeave) && !noCheckIn && !noCheckOut
+                    const deficitMadeUp = !!deficitMakeup && hasOnlyTimeViolation
                     let madeUp = false
                     let madeUpTooltip = ""
                     if (makeup && log.check_out && hasOnlyTimeViolation) {
@@ -818,7 +826,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                       <TableRow key={log.id} className={
                         isLeaveOnly ? "bg-blue-50" :
                         halfDayInfo.isHalfDayWork ? "bg-yellow-50" :
-                        madeUp ? "" :
+                        madeUp || deficitMadeUp ? "" :
                         hasViolation ? "bg-red-50" :
                         specialDay ? "bg-blue-50" : ""
                       }>
@@ -946,6 +954,18 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                                 </Badge>
                               </TooltipTrigger>
                               <TooltipContent>{madeUpTooltip}</TooltipContent>
+                            </Tooltip>
+                          ) : deficitMadeUp ? (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge className="bg-blue-100 text-blue-800 gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {deficitMakeup?.request_type?.name || "Làm bù"}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {`Đã có phiếu làm bù ngày ${formatDateVN(deficitMakeup!.request_date)}`}
+                              </TooltipContent>
                             </Tooltip>
                           ) : hasViolation ? (
                             <Tooltip>

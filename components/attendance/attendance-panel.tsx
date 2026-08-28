@@ -43,7 +43,7 @@ import {
   calculateLeaveDays,
 } from "@/lib/utils/date-utils"
 import { calculateLeaveEntitlement } from "@/lib/utils/leave-utils"
-import { getMakeupDeficitLinks } from "@/lib/utils/makeup-utils"
+import { getMakeupDeficitLinks, findLateEarlyMakeupForDeficitDate } from "@/lib/utils/makeup-utils"
 import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter, Calendar, Pencil, Trash2 } from "lucide-react"
 import { usePagination } from "@/hooks/use-pagination"
 import { DataPagination } from "@/components/shared/data-pagination"
@@ -406,6 +406,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
         const dateStr = dateSource.split("T")[0]
         const sd = getSpecialDayForDate(dateStr, specialDays, employeeId)
         const makeup = employeeId ? getLateEarlyMakeupForDate(dateStr, employeeId, leaveRequests) : null
+        const deficitMakeup = employeeId ? findLateEarlyMakeupForDeficitDate(dateStr, employeeId, leaveRequests) : null
         const violations = checkViolations(log.check_in, log.check_out, shift, undefined, sd, makeup)
         const hasViolation = violations.length > 0
         const isLate = violations.some((v) => v.type === "late")
@@ -422,7 +423,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
           const outMinutes = outDate.getHours() * 60 + outDate.getMinutes()
           madeUp = outMinutes >= toMinutes
         }
-        const effectiveViolation = hasViolation && !madeUp
+        const deficitMadeUp = !!deficitMakeup && hasOnlyTimeViolation
+        const effectiveViolation = hasViolation && !madeUp && !deficitMadeUp
 
         if (filterStatus === "violation" && !effectiveViolation) return false
         if (filterStatus === "complete" && (effectiveViolation || !log.check_out)) return false
@@ -589,7 +591,12 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
 
       if (filterStatus === "violation") {
         const makeup = employeeId ? getLateEarlyMakeupForDate(date, employeeId, leaveRequests) : null
+        const deficitMakeup = employeeId ? findLateEarlyMakeupForDeficitDate(date, employeeId, leaveRequests) : null
         const violations = log ? checkViolations(log.check_in, log.check_out, shift, undefined, specialDay, makeup) : []
+        // Ngày thiếu công gốc đã có phiếu làm bù -> không còn là vi phạm
+        if (deficitMakeup && violations.length > 0 && violations.every((v) => v.type === "late" || v.type === "early_leave")) {
+          return false
+        }
         return violations.length > 0
       }
 
@@ -905,6 +912,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                     }
 
                     const makeup = employeeId ? getLateEarlyMakeupForDate(date, employeeId, leaveRequests) : null
+                    // Ngày thiếu công gốc được bù bằng phiếu làm bù nộp ở ngày khác
+                    const deficitMakeup = employeeId ? findLateEarlyMakeupForDeficitDate(date, employeeId, leaveRequests) : null
                     const violations = log ? checkViolations(log.check_in, log.check_out, shift, { isAfternoonOnly, isMorningOnly }, specialDay, makeup) : []
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
@@ -1014,9 +1023,11 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                       }
                     }
 
+                    const deficitMadeUp = !!deficitMakeup && hasOnlyTimeViolation
+
                     // Kiểm tra xem có phiếu đi muộn/về sớm/quên chấm công được duyệt không
-                    const hasApprovedLateRequest = isLate && (lateArrivalRequest || makeup)
-                    const hasApprovedEarlyRequest = isEarlyLeave && (earlyLeaveRequest || makeup)
+                    const hasApprovedLateRequest = isLate && (lateArrivalRequest || makeup || deficitMadeUp)
+                    const hasApprovedEarlyRequest = isEarlyLeave && (earlyLeaveRequest || makeup || deficitMadeUp)
                     const hasApprovedForgotCheckinRequest = noCheckIn && forgotCheckinRequest
                     const hasApprovedForgotCheckoutRequest = noCheckOut && forgotCheckoutRequest
                     const hasApprovedTimeRequest = hasApprovedLateRequest || hasApprovedEarlyRequest || hasApprovedForgotCheckinRequest || hasApprovedForgotCheckoutRequest
@@ -1043,7 +1054,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                         className={
                           isHalfDayWork
                             ? "bg-yellow-50"
-                            : (hasViolation && !madeUp) || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay && !isHolidayDay && !isFutureDate)
+                            : (hasViolation && !madeUp && !deficitMadeUp) || (hasNoAttendance && !hasApprovedLeave && !isWeekendDay && !isHolidayDay && !isFutureDate)
                               ? "bg-red-50"
                               : ""
                         }
@@ -1202,6 +1213,7 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                                lateArrivalRequest?.request_type?.name || 
                                earlyLeaveRequest?.request_type?.name || 
                                makeup?.request_type?.name || 
+                               deficitMakeup?.request_type?.name || 
                                "Có phiếu"}
                             </Badge>
                           ) : madeUp ? (

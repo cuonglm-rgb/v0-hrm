@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, getMakeupDeficitLinks } from "../makeup-utils"
+import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, getMakeupDeficitLinks, findLateEarlyMakeupForDeficitDate } from "../makeup-utils"
 
 describe("isMakeupRequestType", () => {
   it("returns true for late_early_makeup", () => {
@@ -122,5 +122,67 @@ describe("getMakeupDeficitLinks", () => {
   it("falls back to linked_deficit_date when linked_deficit_links is empty array", () => {
     const customData = { linked_deficit_links: [], linked_deficit_date: "2026-03-15" }
     expect(getMakeupDeficitLinks(customData)).toEqual([{ deficit_date: "2026-03-15", amount: 1 }])
+  })
+})
+
+
+describe("findLateEarlyMakeupForDeficitDate", () => {
+  const EMP = "emp-1"
+  // Case thật: phiếu nộp cho ngày đi làm bù 21/08, bù cho ngày thiếu công gốc 20/08
+  const makeupOnOtherDay = {
+    employee_id: EMP,
+    status: "approved",
+    request_date: "2026-08-21",
+    custom_data: { linked_deficit_date: "2026-08-20" },
+    request_type: { code: "late_early_makeup", name: "Làm bù (đi muộn/ về sớm)" },
+  }
+
+  it("finds the makeup request by deficit date, not by request_date", () => {
+    const found = findLateEarlyMakeupForDeficitDate("2026-08-20", EMP, [makeupOnOtherDay])
+    expect(found?.request_type.name).toBe("Làm bù (đi muộn/ về sớm)")
+  })
+
+  it("returns null for the day the makeup work was actually done", () => {
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-21", EMP, [makeupOnOtherDay])).toBeNull()
+  })
+
+  it("returns null for an unrelated date", () => {
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-19", EMP, [makeupOnOtherDay])).toBeNull()
+  })
+
+  it("ignores requests of another employee", () => {
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-20", "emp-2", [makeupOnOtherDay])).toBeNull()
+  })
+
+  it("ignores requests that are not approved", () => {
+    const pending = { ...makeupOnOtherDay, status: "pending" }
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-20", EMP, [pending])).toBeNull()
+  })
+
+  it("ignores full_day_makeup requests", () => {
+    const fullDay = {
+      ...makeupOnOtherDay,
+      request_type: { code: "full_day_makeup", name: "Làm bù cả ngày" },
+    }
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-20", EMP, [fullDay])).toBeNull()
+  })
+
+  it("supports multiple deficit links in one request", () => {
+    const multi = {
+      ...makeupOnOtherDay,
+      custom_data: {
+        linked_deficit_links: [
+          { deficit_date: "2026-08-18", amount: 0.5 },
+          { deficit_date: "2026-08-20", amount: 0.5 },
+        ],
+      },
+    }
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-18", EMP, [multi])).toBe(multi)
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-20", EMP, [multi])).toBe(multi)
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-19", EMP, [multi])).toBeNull()
+  })
+
+  it("returns null when employeeId is undefined", () => {
+    expect(findLateEarlyMakeupForDeficitDate("2026-08-20", undefined, [makeupOnOtherDay])).toBeNull()
   })
 })
