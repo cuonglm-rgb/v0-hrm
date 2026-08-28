@@ -103,51 +103,74 @@ export async function createAdjustmentType(input: {
 
   if (!newType) return { success: true }
 
-  await syncScopeAssignments(supabase, newType.id, finalScopeType, {
+  const scopeResult = await syncScopeAssignments(supabase, newType.id, finalScopeType, {
     employee_ids,
     department_ids,
     position_ids,
   })
 
   revalidatePath("/dashboard/allowances")
+  if (!scopeResult.success) return scopeResult
   return { success: true }
 }
 
 // Đồng bộ các bảng junction theo scope_type. Luôn xóa hết trước khi insert mới
 // để đảm bảo dữ liệu cũ ở scope_type khác không còn dây dưa.
+// Trả về lỗi nếu ghi thất bại (VD: RLS chặn) — không được nuốt lỗi, vì khi đó
+// phạm vi đã bị xóa sạch mà UI vẫn báo lưu thành công => quy tắc không áp cho ai.
 async function syncScopeAssignments(
   supabase: any,
   adjustmentTypeId: string,
   scopeType: AdjustmentScopeType,
   ids: { employee_ids?: string[]; department_ids?: string[]; position_ids?: string[] }
-) {
-  await Promise.all([
+): Promise<{ success: boolean; error?: string }> {
+  const deletes = await Promise.all([
     supabase.from("adjustment_type_employees").delete().eq("adjustment_type_id", adjustmentTypeId),
     supabase.from("adjustment_type_departments").delete().eq("adjustment_type_id", adjustmentTypeId),
     supabase.from("adjustment_type_positions").delete().eq("adjustment_type_id", adjustmentTypeId),
   ])
+  const deleteError = deletes.find((r: any) => r?.error)?.error
+  if (deleteError) {
+    console.error("Error clearing adjustment scope:", deleteError)
+    return { success: false, error: `Không thể cập nhật phạm vi áp dụng: ${deleteError.message}` }
+  }
+
+  const inserts: { table: string; rows: any[] }[] = []
 
   if (scopeType === "specific_employees" || scopeType === "all_except") {
     const empIds = ids.employee_ids || []
     if (empIds.length > 0) {
-      await supabase.from("adjustment_type_employees").insert(
-        empIds.map((employee_id) => ({ adjustment_type_id: adjustmentTypeId, employee_id }))
-      )
+      inserts.push({
+        table: "adjustment_type_employees",
+        rows: empIds.map((employee_id) => ({ adjustment_type_id: adjustmentTypeId, employee_id })),
+      })
     }
   } else if (scopeType === "by_department_position") {
     const deptIds = ids.department_ids || []
     const posIds = ids.position_ids || []
     if (deptIds.length > 0) {
-      await supabase.from("adjustment_type_departments").insert(
-        deptIds.map((department_id) => ({ adjustment_type_id: adjustmentTypeId, department_id }))
-      )
+      inserts.push({
+        table: "adjustment_type_departments",
+        rows: deptIds.map((department_id) => ({ adjustment_type_id: adjustmentTypeId, department_id })),
+      })
     }
     if (posIds.length > 0) {
-      await supabase.from("adjustment_type_positions").insert(
-        posIds.map((position_id) => ({ adjustment_type_id: adjustmentTypeId, position_id }))
-      )
+      inserts.push({
+        table: "adjustment_type_positions",
+        rows: posIds.map((position_id) => ({ adjustment_type_id: adjustmentTypeId, position_id })),
+      })
     }
   }
+
+  for (const { table, rows } of inserts) {
+    const { error } = await supabase.from(table).insert(rows)
+    if (error) {
+      console.error(`Error saving adjustment scope into ${table}:`, error)
+      return { success: false, error: `Không thể lưu phạm vi áp dụng: ${error.message}` }
+    }
+  }
+
+  return { success: true }
 }
 
 export async function updateAdjustmentType(
@@ -188,8 +211,9 @@ export async function updateAdjustmentType(
   }
 
   // Chỉ sync junction khi caller có gửi scope_type — nếu không thì giữ nguyên
+  let scopeResult: { success: boolean; error?: string } = { success: true }
   if (scope_type !== undefined) {
-    await syncScopeAssignments(supabase, id, scope_type, {
+    scopeResult = await syncScopeAssignments(supabase, id, scope_type, {
       employee_ids,
       department_ids,
       position_ids,
@@ -197,6 +221,7 @@ export async function updateAdjustmentType(
   }
 
   revalidatePath("/dashboard/allowances")
+  if (!scopeResult.success) return scopeResult
   return { success: true }
 }
 

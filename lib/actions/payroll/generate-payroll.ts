@@ -17,6 +17,7 @@ import { PayrollLogger } from "@/lib/utils/payroll-logger"
 import { buildDayByDayLog, type AllowanceAudit, type PenaltyExempt, type RequestEntry } from "./day-by-day-log"
 import { calculateProbationSplit } from "./probation-salary"
 import { getProbationSalaryRate } from "../payroll-settings-actions"
+import { isEmployeeInScope, resolveScopeType } from "@/lib/utils/adjustment-scope"
 
 // Helper: Lấy salary base để tính % cho 1 adjustment type
 // Nếu type config calculate_from = "insurance_salary" thì lấy insurance_salary, ngược lại base_salary
@@ -1420,20 +1421,14 @@ async function isEmployeeInAdjustmentScope(
   scopeType: string,
   emp: { id: string; department_id?: string | null; position_id?: string | null }
 ): Promise<boolean> {
-  if (scopeType === "specific_employees") {
+  if (scopeType === "specific_employees" || scopeType === "all_except") {
     const { data } = await supabase
       .from("adjustment_type_employees")
       .select("employee_id")
       .eq("adjustment_type_id", adjustmentTypeId)
-    return (data || []).some((r: any) => r.employee_id === emp.id)
-  }
-
-  if (scopeType === "all_except") {
-    const { data } = await supabase
-      .from("adjustment_type_employees")
-      .select("employee_id")
-      .eq("adjustment_type_id", adjustmentTypeId)
-    return !(data || []).some((r: any) => r.employee_id === emp.id)
+    return isEmployeeInScope(scopeType, {
+      employee_ids: (data || []).map((r: any) => r.employee_id),
+    }, emp)
   }
 
   if (scopeType === "by_department_position") {
@@ -1447,13 +1442,10 @@ async function isEmployeeInAdjustmentScope(
         .select("position_id")
         .eq("adjustment_type_id", adjustmentTypeId),
     ])
-    const deptIds = (depts || []).map((r: any) => r.department_id)
-    const posIds = (poses || []).map((r: any) => r.position_id)
-    // OR logic: thuộc phòng ban được chọn HOẶC chức vụ được chọn
-    if (deptIds.length === 0 && posIds.length === 0) return false
-    if (emp.department_id && deptIds.includes(emp.department_id)) return true
-    if (emp.position_id && posIds.includes(emp.position_id)) return true
-    return false
+    return isEmployeeInScope(scopeType, {
+      department_ids: (depts || []).map((r: any) => r.department_id),
+      position_ids: (poses || []).map((r: any) => r.position_id),
+    }, emp)
   }
 
   return true
@@ -1509,8 +1501,10 @@ export async function processAdjustments(
 
       // Kiểm tra phạm vi áp dụng theo scope_type
       // Fallback: nếu DB cũ chưa có scope_type, suy từ junction (rỗng = all_company, có = specific_employees)
-      const scopeType: string = (adjType as any).scope_type
-        || ((adjType as any).assigned_employees?.length > 0 ? "specific_employees" : "all_company")
+      const scopeType = resolveScopeType(
+        (adjType as any).scope_type,
+        ((adjType as any).assigned_employees || []).map((ae: any) => ae.employee_id)
+      )
 
       if (scopeType !== "all_company") {
         const inScope = await isEmployeeInAdjustmentScope(supabase, adjType.id, scopeType, emp)
