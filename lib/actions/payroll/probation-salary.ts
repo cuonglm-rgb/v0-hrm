@@ -1,8 +1,12 @@
-import { isSaturdayOff } from "./working-days-utils"
+import { isSaturdayOff, type SaturdayDefaultConfig } from "./working-days-utils"
 
 // Đếm ngày làm việc theo lịch (trừ CN, T7 nghỉ — KHÔNG trừ ngày lễ/nghỉ công ty)
 // Quy tắc giống calculateStandardWorkingDays để mẫu số khớp.
-function countCalendarWorkingDays(startDate: string, endDate: string): number {
+function countCalendarWorkingDays(
+  startDate: string,
+  endDate: string,
+  saturdayConfig?: SaturdayDefaultConfig
+): number {
   if (startDate > endDate) return 0
   const [sy, sm, sd] = startDate.split("-").map(Number)
   const [ey, em, ed] = endDate.split("-").map(Number)
@@ -12,7 +16,7 @@ function countCalendarWorkingDays(startDate: string, endDate: string): number {
   const cur = new Date(start)
   while (cur <= end) {
     const dow = cur.getUTCDay()
-    if (dow !== 0 && !(dow === 6 && isSaturdayOff(cur))) {
+    if (dow !== 0 && !(dow === 6 && isSaturdayOff(cur, saturdayConfig))) {
       count++
     }
     cur.setUTCDate(cur.getUTCDate() + 1)
@@ -54,8 +58,9 @@ export function calculateProbationSplit(args: {
   totalPaidDays: number
   dailySalary: number
   probationRate: number
+  saturdayConfig?: SaturdayDefaultConfig
 }): ProbationSplit {
-  const { effectiveStartDate, effectiveEndDate, officialDate, totalPaidDays, dailySalary, probationRate } = args
+  const { effectiveStartDate, effectiveEndDate, officialDate, totalPaidDays, dailySalary, probationRate, saturdayConfig } = args
 
   let probationRatio: number
   let probationCalendarDays = 0
@@ -63,14 +68,14 @@ export function calculateProbationSplit(args: {
 
   if (!officialDate || officialDate > effectiveEndDate) {
     probationRatio = 1
-    probationCalendarDays = countCalendarWorkingDays(effectiveStartDate, effectiveEndDate)
+    probationCalendarDays = countCalendarWorkingDays(effectiveStartDate, effectiveEndDate, saturdayConfig)
   } else if (officialDate <= effectiveStartDate) {
     probationRatio = 0
-    officialCalendarDays = countCalendarWorkingDays(effectiveStartDate, effectiveEndDate)
+    officialCalendarDays = countCalendarWorkingDays(effectiveStartDate, effectiveEndDate, saturdayConfig)
   } else {
     const dayBeforeOfficial = addDays(officialDate, -1)
-    probationCalendarDays = countCalendarWorkingDays(effectiveStartDate, dayBeforeOfficial)
-    officialCalendarDays = countCalendarWorkingDays(officialDate, effectiveEndDate)
+    probationCalendarDays = countCalendarWorkingDays(effectiveStartDate, dayBeforeOfficial, saturdayConfig)
+    officialCalendarDays = countCalendarWorkingDays(officialDate, effectiveEndDate, saturdayConfig)
     const total = probationCalendarDays + officialCalendarDays
     probationRatio = total > 0 ? probationCalendarDays / total : 0
   }

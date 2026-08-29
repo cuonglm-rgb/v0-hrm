@@ -1,4 +1,4 @@
-import { isSaturdayOffByDefault } from "./saturday-utils"
+import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffByDefault, type SaturdayDefaultConfig } from "./saturday-utils"
 
 export const MAKEUP_CODES = ["late_early_makeup", "full_day_makeup"] as const
 export type MakeupCode = typeof MAKEUP_CODES[number]
@@ -55,7 +55,8 @@ export function isEmployeeOffDay(
   date: Date | string,
   saturdaySchedules: { employee_id: string; work_date: string; is_working: boolean }[],
   employeeId: string,
-  holidays: { holiday_date: string }[] = []
+  holidays: { holiday_date: string }[] = [],
+  config: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG
 ): boolean {
   const d = typeof date === "string" ? new Date(date + "T00:00:00Z") : date
   const day = d.getUTCDay()
@@ -72,10 +73,12 @@ export function isEmployeeOffDay(
     const empSchedules = saturdaySchedules.filter(s => s.employee_id === employeeId)
     const schedule = empSchedules.find(s => s.work_date === dateStr)
 
+    // Phân công riêng cho đúng ngày này luôn được ưu tiên cao nhất
     if (schedule) return !schedule.is_working
-    if (empSchedules.length > 0) return true
+    // Nhân viên đã có lịch riêng nhưng ngày này chưa phân công: tuỳ cấu hình công ty
+    if (empSchedules.length > 0 && config.unassigned_saturday_is_off) return true
 
-    return isSaturdayOffByDefault(d)
+    return isSaturdayOffByDefault(dateStr, config)
   }
 
   return false

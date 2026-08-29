@@ -19,10 +19,14 @@ Cho phép leader (level >= 3) phân công lịch làm thứ 7 tùy chỉnh cho n
 
 ## Cách hoạt động
 
-### Lịch mặc định (Xen kẽ)
-- Công ty có lịch thứ 7 xen kẽ: Tuần 1 nghỉ, Tuần 2 làm, Tuần 3 nghỉ...
-- Tham chiếu: Tuần có ngày 6/1/2026 là tuần nghỉ
-- Logic: `isSaturdayOff(date)` trong `attendance-panel.tsx`
+### Lịch mặc định (cấu hình ở Settings)
+- HR/Admin cấu hình tại **Dashboard > Settings > Lịch làm việc** (`/dashboard/settings/work-schedule`)
+- 3 chế độ: **Xen kẽ** (1 tuần làm / 1 tuần nghỉ), **Làm tất cả T7**, **Nghỉ tất cả T7**
+- Chế độ xen kẽ dùng 1 ngày thứ 7 làm **mốc** + trạng thái của mốc đó (làm/nghỉ); các thứ 7
+  khác suy ra theo số tuần chênh lệch so với mốc (không dùng số tuần ISO — năm 53 tuần sẽ
+  làm vỡ nhịp xen kẽ ở ranh giới năm)
+- Lưu trong `payroll_settings` key `saturday_default_schedule`
+- Logic dùng chung: `isSaturdayOffByDefault(date, config)` trong `lib/utils/saturday-utils.ts`
 
 ### Lịch tùy chỉnh (Override)
 - Leader phân công cụ thể: Nhân viên X làm/nghỉ vào thứ 7 ngày Y
@@ -30,8 +34,10 @@ Cho phép leader (level >= 3) phân công lịch làm thứ 7 tùy chỉnh cho n
 - Ưu tiên cao hơn lịch mặc định
 
 ### Ưu tiên
-1. **Lịch tùy chỉnh** (nếu có) → Theo phân công của leader
-2. **Lịch mặc định** (nếu không có lịch tùy chỉnh) → Theo quy luật xen kẽ
+1. **Lịch tùy chỉnh cho đúng ngày đó** (nếu có) → Theo phân công của leader
+2. Nhân viên đã có lịch riêng nhưng ngày đó **chưa được phân công** → tuỳ tuỳ chọn
+   *"Nhân viên có lịch thứ 7 riêng"* trong Settings: bật = nghỉ, tắt (mặc định) = theo lịch mặc định
+3. **Lịch mặc định của công ty**
 
 ## Cấu trúc Database
 

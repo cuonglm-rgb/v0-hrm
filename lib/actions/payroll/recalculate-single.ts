@@ -10,7 +10,8 @@ import { calculateStandardWorkingDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import { processAdjustments } from "./generate-payroll"
 import type { ShiftInfo } from "./types"
-import { isSaturdayOff } from "./working-days-utils"
+import { isSaturdayOff, type SaturdayDefaultConfig } from "./working-days-utils"
+import { getSaturdayDefaultConfig } from "../work-schedule-settings-actions"
 import { MAKEUP_CODES, getMakeupDeficitLinks, isMakeupRequestType } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
 import { buildDayByDayLog, type RequestEntry } from "./day-by-day-log"
@@ -18,10 +19,10 @@ import { calculateProbationSplit } from "./probation-salary"
 import { getProbationSalaryRate } from "../payroll-settings-actions"
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
-function isWorkingDay(date: Date): boolean {
+function isWorkingDay(date: Date, saturdayConfig?: SaturdayDefaultConfig): boolean {
   const dayOfWeek = date.getUTCDay()
   if (dayOfWeek === 0) return false // Chủ nhật
-  if (dayOfWeek === 6 && isSaturdayOff(date)) return false // Thứ 7 nghỉ
+  if (dayOfWeek === 6 && isSaturdayOff(date, saturdayConfig)) return false // Thứ 7 nghỉ
   return true
 }
 
@@ -179,11 +180,13 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     (saturdaySchedules || []).map((s: any) => [s.work_date, s.is_working as boolean])
   )
 
+  const saturdayConfig = await getSaturdayDefaultConfig()
+
   // Trả về true nếu thứ 7 đó là ngày LÀM VIỆC của nhân viên
   const isEmployeeWorkingSaturday = (dateStr: string): boolean => {
     if (saturdayScheduleMap.has(dateStr)) return saturdayScheduleMap.get(dateStr)!
     const [y, m, d] = dateStr.split('-').map(Number)
-    return !isSaturdayOff(new Date(Date.UTC(y, m - 1, d)))
+    return !isSaturdayOff(new Date(Date.UTC(y, m - 1, d)), saturdayConfig)
   }
 
   // Ngày nghỉ theo lịch (CN hoặc T7 nghỉ)
@@ -737,7 +740,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
     
     // Chỉ xét ngày làm việc theo lịch (không phải CN, T7 nghỉ)
-    if (isWorkingDay(current)) {
+    if (isWorkingDay(current, saturdayConfig)) {
       const isHoliday = holidayDates.has(dateStr)
       const isCompanyHoliday = companyHolidayDates.has(dateStr)
       
@@ -905,6 +908,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     totalPaidDays,
     dailySalary,
     probationRate,
+    saturdayConfig,
   })
   const salaryByWorking = dailySalary * totalPaidDays - probationSplit.probationDiscount
 

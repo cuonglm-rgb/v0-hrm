@@ -8,6 +8,7 @@ import { validateTimeSlot, validateNoOverlap } from "@/lib/utils/time-slot-utils
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
 import { warnIfTruncated } from "@/lib/utils/postgrest-limit"
 import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, LINKED_DEFICIT_LINKS_KEY, getMakeupDeficitLinks, type MakeupDeficitLink } from "@/lib/utils/makeup-utils"
+import { getSaturdayDefaultConfig } from "@/lib/actions/work-schedule-settings-actions"
 import { getEmployeeViolations } from "./payroll/violations"
 import type { ShiftInfo } from "./payroll/types"
 import { differenceInDays, parseISO, startOfDay } from "date-fns"
@@ -756,8 +757,12 @@ export async function createEmployeeRequest(input: {
         .eq("employee_id", employee.id)
 
       const { data: holidays } = await supabase
-        .from("company_holidays")
+        .from("holidays")
         .select("holiday_date")
+        .gte("holiday_date", input.from_date)
+        .lte("holiday_date", input.to_date)
+
+      const saturdayConfig = await getSaturdayDefaultConfig()
 
       // Kiểm tra từng ngày trong khoảng from_date -> to_date
       const startDate = new Date(input.from_date + "T00:00:00Z")
@@ -766,7 +771,7 @@ export async function createEmployeeRequest(input: {
 
       for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
         const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [])) {
+        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [], saturdayConfig)) {
           offDays.push(dateStr)
         }
       }
@@ -843,7 +848,9 @@ export async function createEmployeeRequest(input: {
         .select("holiday_date")
         .eq("holiday_date", input.request_date)
 
-      if (!isEmployeeOffDay(input.request_date, satSchedules || [], employee.id, holidays || [])) {
+      const makeupSaturdayConfig = await getSaturdayDefaultConfig()
+
+      if (!isEmployeeOffDay(input.request_date, satSchedules || [], employee.id, holidays || [], makeupSaturdayConfig)) {
         return { success: false, error: "Ngày làm bù phải là ngày nghỉ của nhân viên (Chủ nhật, Thứ 7 nghỉ theo lịch, hoặc ngày lễ)" }
       }
 
@@ -913,7 +920,7 @@ export async function createEmployeeRequest(input: {
       // → nhân viên vắng cả ngày (không chấm công) → deficit = 1
       for (const dd of deficitDates) {
         if (deficitAmountByDate[dd] === undefined) {
-          const isOff = isEmployeeOffDay(dd, deficitSatSchedules || [], employee.id, deficitHolidays || [])
+          const isOff = isEmployeeOffDay(dd, deficitSatSchedules || [], employee.id, deficitHolidays || [], makeupSaturdayConfig)
           if (!isOff) {
             deficitAmountByDate[dd] = 1
           }
@@ -2017,8 +2024,12 @@ export async function updateEmployeeRequest(
         .eq("employee_id", employee.id)
 
       const { data: holidays } = await supabase
-        .from("company_holidays")
+        .from("holidays")
         .select("holiday_date")
+        .gte("holiday_date", input.from_date)
+        .lte("holiday_date", input.to_date)
+
+      const saturdayConfig = await getSaturdayDefaultConfig()
 
       // Kiểm tra từng ngày trong khoảng from_date -> to_date
       const startDate = new Date(input.from_date + "T00:00:00Z")
@@ -2027,7 +2038,7 @@ export async function updateEmployeeRequest(
 
       for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
         const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [])) {
+        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [], saturdayConfig)) {
           offDays.push(dateStr)
         }
       }

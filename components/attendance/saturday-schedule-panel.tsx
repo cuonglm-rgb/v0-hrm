@@ -48,6 +48,7 @@ import {
   type SaturdayScheduleWithEmployee,
 } from "@/lib/actions/saturday-schedule-actions"
 import { getSaturdaysInMonth, isSaturdayOffByDefault } from "@/lib/utils/saturday-utils"
+import { useSaturdayConfig } from "@/hooks/use-saturday-config"
 import { cn } from "@/lib/utils"
 
 interface EmployeeWithDepartment extends Employee {
@@ -73,6 +74,7 @@ export function SaturdaySchedulePanel({
   loadError,
 }: SaturdaySchedulePanelProps) {
   const router = useRouter()
+  const saturdayConfig = useSaturdayConfig()
   const [showDialog, setShowDialog] = useState(false)
   const [saving, setSaving] = useState(false)
   const [filterMonth, setFilterMonth] = useState<string>(String(new Date().getMonth() + 1))
@@ -178,7 +180,7 @@ export function SaturdaySchedulePanel({
 
   // Check if default schedule (xen kẽ)
   const getDefaultSchedule = (dateStr: string): boolean => {
-    return isSaturdayOffByDefault(dateStr)
+    return isSaturdayOffByDefault(dateStr, saturdayConfig)
   }
 
   return (

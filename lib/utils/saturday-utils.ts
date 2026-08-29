@@ -3,6 +3,73 @@
 // =============================================
 // Helper functions for Saturday work schedule
 
+/** Chế độ thứ 7 mặc định của công ty */
+export type SaturdayMode = "alternating" | "all_working" | "all_off"
+
+export interface SaturdayDefaultConfig {
+  /** alternating = xen kẽ 1 tuần làm / 1 tuần nghỉ; all_working = làm tất cả T7; all_off = nghỉ tất cả T7 */
+  mode: SaturdayMode
+  /** Một ngày thứ 7 bất kỳ dùng làm mốc (YYYY-MM-DD) */
+  anchor_date: string
+  /** Thứ 7 mốc là ngày LÀM VIỆC (true) hay NGHỈ (false) */
+  anchor_is_working: boolean
+  /**
+   * Với nhân viên đã có lịch T7 riêng: các thứ 7 KHÔNG được phân công sẽ
+   * là ngày nghỉ (true) hay vẫn theo lịch mặc định của công ty (false).
+   */
+  unassigned_saturday_is_off: boolean
+}
+
+/**
+ * Mặc định giữ nguyên quy luật cũ: tuần chứa 6/1/2026 nghỉ thứ 7,
+ * tức thứ 7 ngày 10/1/2026 là ngày NGHỈ.
+ */
+export const DEFAULT_SATURDAY_CONFIG: SaturdayDefaultConfig = {
+  mode: "alternating",
+  anchor_date: "2026-01-10",
+  anchor_is_working: false,
+  unassigned_saturday_is_off: false,
+}
+
+const MS_PER_DAY = 86400000
+
+/**
+ * Đưa một ngày về mốc UTC 00:00 theo đúng ngày lịch mà caller đang hiểu.
+ * Với Date thì dùng getter local (giống toàn bộ code cũ), với string thì parse YYYY-MM-DD.
+ */
+function toCalendarUTC(date: Date | string): Date {
+  if (typeof date === "string") {
+    const [y, m, d] = date.slice(0, 10).split("-").map(Number)
+    return new Date(Date.UTC(y, (m || 1) - 1, d || 1))
+  }
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+}
+
+/** Chuẩn hóa config đọc từ DB (jsonb), thiếu/sai field nào thì lấy giá trị mặc định */
+export function normalizeSaturdayConfig(raw: unknown): SaturdayDefaultConfig {
+  if (!raw || typeof raw !== "object") return DEFAULT_SATURDAY_CONFIG
+  const v = raw as Record<string, unknown>
+
+  const mode: SaturdayMode =
+    v.mode === "all_working" || v.mode === "all_off" || v.mode === "alternating"
+      ? v.mode
+      : DEFAULT_SATURDAY_CONFIG.mode
+
+  const anchorRaw = typeof v.anchor_date === "string" ? v.anchor_date.slice(0, 10) : ""
+  const anchorValid = /^\d{4}-\d{2}-\d{2}$/.test(anchorRaw) && !Number.isNaN(toCalendarUTC(anchorRaw).getTime())
+
+  return {
+    mode,
+    anchor_date: anchorValid ? anchorRaw : DEFAULT_SATURDAY_CONFIG.anchor_date,
+    anchor_is_working:
+      typeof v.anchor_is_working === "boolean" ? v.anchor_is_working : DEFAULT_SATURDAY_CONFIG.anchor_is_working,
+    unassigned_saturday_is_off:
+      typeof v.unassigned_saturday_is_off === "boolean"
+        ? v.unassigned_saturday_is_off
+        : DEFAULT_SATURDAY_CONFIG.unassigned_saturday_is_off,
+  }
+}
+
 /**
  * Get all Saturdays in a given month
  */
@@ -25,8 +92,7 @@ export function getSaturdaysInMonth(year: number, month: number): string[] {
  * Check if a date is Saturday
  */
 export function isSaturday(date: Date | string): boolean {
-  const d = typeof date === 'string' ? new Date(date) : date
-  return d.getDay() === 6
+  return toCalendarUTC(date).getUTCDay() === 6
 }
 
 /**
@@ -41,25 +107,40 @@ export function getISOWeekNumber(date: Date): number {
 }
 
 /**
- * Check if Saturday is off according to default schedule (xen kẽ)
- * Reference: Week of 2026-01-06 is OFF week
+ * Thứ 7 này có nghỉ theo lịch mặc định của công ty không.
+ *
+ * Quy luật xen kẽ tính theo số tuần chênh lệch so với ngày mốc (không dùng
+ * số tuần ISO, vì năm 53 tuần sẽ làm vỡ nhịp xen kẽ ở ranh giới năm).
  */
-export function isSaturdayOffByDefault(date: Date | string): boolean {
-  const d = typeof date === 'string' ? new Date(date) : date
-  
-  // Reference date and week
-  const REFERENCE_DATE = new Date(Date.UTC(2026, 0, 6)) // 6/1/2026
-  const REFERENCE_WEEK_IS_OFF = true // This week is OFF
+export function isSaturdayOffByDefault(
+  date: Date | string,
+  config: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG
+): boolean {
+  if (config.mode === "all_working") return false
+  if (config.mode === "all_off") return true
 
-  const refWeek = getISOWeekNumber(REFERENCE_DATE)
-  const currentWeek = getISOWeekNumber(d)
+  const anchor = toCalendarUTC(config.anchor_date)
+  const target = toCalendarUTC(date)
 
-  const refIsOdd = refWeek % 2 === 1
-  const currentIsOdd = currentWeek % 2 === 1
+  const diffDays = Math.round((target.getTime() - anchor.getTime()) / MS_PER_DAY)
+  const weeks = Math.floor(diffDays / 7)
+  const sameParityAsAnchor = ((weeks % 2) + 2) % 2 === 0
 
-  if (REFERENCE_WEEK_IS_OFF) {
-    return refIsOdd === currentIsOdd
-  } else {
-    return refIsOdd !== currentIsOdd
+  // Cùng nhịp với tuần mốc → giống tuần mốc, khác nhịp → ngược lại
+  return sameParityAsAnchor ? !config.anchor_is_working : config.anchor_is_working
+}
+
+/** Danh sách n thứ 7 kế tiếp kể từ `from` (bao gồm cả `from` nếu đó là thứ 7) */
+export function getUpcomingSaturdays(from: Date | string, count: number): string[] {
+  const cur = toCalendarUTC(from)
+  while (cur.getUTCDay() !== 6) cur.setUTCDate(cur.getUTCDate() + 1)
+
+  const result: string[] = []
+  for (let i = 0; i < count; i++) {
+    result.push(
+      `${cur.getUTCFullYear()}-${String(cur.getUTCMonth() + 1).padStart(2, "0")}-${String(cur.getUTCDate()).padStart(2, "0")}`
+    )
+    cur.setUTCDate(cur.getUTCDate() + 7)
   }
+  return result
 }

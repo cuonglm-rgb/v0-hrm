@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, getMakeupDeficitLinks, findLateEarlyMakeupForDeficitDate } from "../makeup-utils"
+import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffByDefault } from "../saturday-utils"
 
 describe("isMakeupRequestType", () => {
   it("returns true for late_early_makeup", () => {
@@ -59,12 +60,45 @@ describe("isEmployeeOffDay", () => {
     expect(isEmployeeOffDay("2026-03-14", schedules, "emp1")).toBe(false)
   })
 
-  it("Saturday with employee schedules but no match for this date uses default off", () => {
+  it("Saturday with employee schedules but no match for this date falls back to company default", () => {
     const schedules = [
       { employee_id: "emp1", work_date: "2026-03-07", is_working: true },
     ]
-    // emp1 has schedules but not for 2026-03-14 -> default to off (has any schedule means managed)
-    expect(isEmployeeOffDay("2026-03-14", schedules, "emp1")).toBe(true)
+    // 2026-03-14 chưa được phân công -> theo lịch mặc định công ty (mốc 2026-01-10 nghỉ)
+    expect(isEmployeeOffDay("2026-03-14", schedules, "emp1")).toBe(isSaturdayOffByDefault("2026-03-14"))
+  })
+
+  it("unassigned_saturday_is_off makes unassigned Saturdays off for managed employees", () => {
+    const schedules = [
+      { employee_id: "emp1", work_date: "2026-03-07", is_working: true },
+    ]
+    const config = { ...DEFAULT_SATURDAY_CONFIG, unassigned_saturday_is_off: true }
+    expect(isEmployeeOffDay("2026-03-14", schedules, "emp1", [], config)).toBe(true)
+  })
+
+  it("mode all_working makes every Saturday a working day", () => {
+    const config = { ...DEFAULT_SATURDAY_CONFIG, mode: "all_working" as const }
+    expect(isEmployeeOffDay("2026-03-14", [], "emp1", [], config)).toBe(false)
+    expect(isEmployeeOffDay("2026-03-21", [], "emp1", [], config)).toBe(false)
+  })
+
+  it("mode all_off makes every Saturday an off day", () => {
+    const config = { ...DEFAULT_SATURDAY_CONFIG, mode: "all_off" as const }
+    expect(isEmployeeOffDay("2026-03-14", [], "emp1", [], config)).toBe(true)
+    expect(isEmployeeOffDay("2026-03-21", [], "emp1", [], config)).toBe(true)
+  })
+
+  it("anchor date drives the alternating pattern", () => {
+    const config = {
+      ...DEFAULT_SATURDAY_CONFIG,
+      anchor_date: "2026-08-29",
+      anchor_is_working: true,
+    }
+    expect(isEmployeeOffDay("2026-08-29", [], "emp1", [], config)).toBe(false)
+    expect(isEmployeeOffDay("2026-09-05", [], "emp1", [], config)).toBe(true)
+    expect(isEmployeeOffDay("2026-09-12", [], "emp1", [], config)).toBe(false)
+    // cả các thứ 7 trước mốc cũng suy ra được
+    expect(isEmployeeOffDay("2026-08-22", [], "emp1", [], config)).toBe(true)
   })
 
   it("holiday date is off", () => {
