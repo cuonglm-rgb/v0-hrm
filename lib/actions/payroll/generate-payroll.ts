@@ -11,7 +11,8 @@ import { calculateLeaveDays } from "@/lib/utils/date-utils"
 import { calculateStandardWorkingDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import type { ShiftInfo } from "./types"
-import { isSaturdayOff } from "./working-days-utils"
+import { isSaturdayOff, type SaturdayDefaultConfig } from "./working-days-utils"
+import { getSaturdayDefaultConfig } from "../work-schedule-settings-actions"
 import { MAKEUP_CODES, getMakeupDeficitLinks, isMakeupRequestType } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
 import { buildDayByDayLog, type AllowanceAudit, type PenaltyExempt, type RequestEntry } from "./day-by-day-log"
@@ -49,10 +50,10 @@ async function getPercentageBaseSalary(
 }
 
 // Helper: Kiểm tra ngày có phải ngày làm việc không (không phải CN, T7 nghỉ)
-function isWorkingDay(date: Date): boolean {
+function isWorkingDay(date: Date, saturdayConfig?: SaturdayDefaultConfig): boolean {
   const dayOfWeek = date.getUTCDay()
   if (dayOfWeek === 0) return false // Chủ nhật
-  if (dayOfWeek === 6 && isSaturdayOff(date)) return false // Thứ 7 nghỉ
+  if (dayOfWeek === 6 && isSaturdayOff(date, saturdayConfig)) return false // Thứ 7 nghỉ
   return true
 }
 
@@ -134,12 +135,13 @@ export async function generatePayroll(month: number, year: number) {
   console.log(`[Payroll] Tháng ${month}/${year}: Công chuẩn: ${STANDARD_WORKING_DAYS} ngày`)
 
   const probationRate = await getProbationSalaryRate()
+  const saturdayConfig = await getSaturdayDefaultConfig()
 
   let processedCount = 0
   for (const emp of employees) {
     const result = await processEmployeePayroll(
       supabase, emp, run.id, month, year, startDate, endDate,
-      STANDARD_WORKING_DAYS, adjustmentTypes, shiftMap, probationRate
+      STANDARD_WORKING_DAYS, adjustmentTypes, shiftMap, probationRate, saturdayConfig
     )
     if (result) processedCount++
   }
@@ -189,7 +191,8 @@ async function processEmployeePayroll(
   STANDARD_WORKING_DAYS: number,
   adjustmentTypes: any,
   shiftMap: Map<string, any>,
-  probationRate: number
+  probationRate: number,
+  saturdayConfig: SaturdayDefaultConfig
 ): Promise<boolean> {
   const logger = new PayrollLogger()
   const originalConsoleLog = console.log
@@ -298,7 +301,7 @@ async function processEmployeePayroll(
   const isEmployeeWorkingSaturday = (dateStr: string): boolean => {
     if (saturdayScheduleMap.has(dateStr)) return saturdayScheduleMap.get(dateStr)!
     const [y, m, d] = dateStr.split('-').map(Number)
-    return !isSaturdayOff(new Date(Date.UTC(y, m - 1, d)))
+    return !isSaturdayOff(new Date(Date.UTC(y, m - 1, d)), saturdayConfig)
   }
 
   // Ngày nghỉ theo lịch (CN hoặc T7 nghỉ)
@@ -699,7 +702,7 @@ async function processEmployeePayroll(
     const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`
     
     // Chỉ xét ngày làm việc theo lịch (không phải CN, T7 nghỉ)
-    if (isWorkingDay(current)) {
+    if (isWorkingDay(current, saturdayConfig)) {
       const isHoliday = holidayDates.has(dateStr)
       const isCompanyHoliday = companyHolidayDates.has(dateStr)
       
@@ -971,6 +974,7 @@ async function processEmployeePayroll(
     totalPaidDays,
     dailySalary,
     probationRate,
+    saturdayConfig,
   })
   const salaryByWorking = dailySalary * totalPaidDays - probationSplit.probationDiscount
 

@@ -2,6 +2,7 @@
 
 import { listHolidays } from "../overtime-actions"
 import { isSaturdayOff } from "./working-days-utils"
+import { getSaturdayDefaultConfig } from "../work-schedule-settings-actions"
 
 // =============================================
 // TÍNH CÔNG CHUẨN ĐỘNG THEO THÁNG
@@ -18,6 +19,7 @@ export async function calculateStandardWorkingDays(month: number, year: number):
 }> {
   const holidays = await listHolidays(year)
   const holidayDates = new Set(holidays.map(h => h.holiday_date))
+  const saturdayConfig = await getSaturdayDefaultConfig()
 
   // Lấy danh sách ngày nghỉ công ty
   const { createClient } = await import("@/lib/supabase/server")
@@ -48,7 +50,7 @@ export async function calculateStandardWorkingDays(month: number, year: number):
       continue
     }
 
-    if (dayOfWeek === 6 && isSaturdayOff(date)) {
+    if (dayOfWeek === 6 && isSaturdayOff(date, saturdayConfig)) {
       saturdaysOff++
       continue
     }

@@ -6,7 +6,7 @@ import { checkCanApproveRequests } from "@/lib/actions/request-type-actions"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Database, Shield, Building2, Wallet } from "lucide-react"
+import { Settings, Database, Shield, Building2, Wallet, CalendarDays } from "lucide-react"
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -104,6 +104,26 @@ export default async function SettingsPage() {
               <CardContent>
                 <Badge variant="outline">Payroll</Badge>
                 <p className="text-sm text-muted-foreground mt-2">Cấu hình các tham số dùng khi tính bảng lương</p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/dashboard/settings/work-schedule" className="block">
+            <Card className="hover:bg-accent/50 transition-colors cursor-pointer h-full">
+              <CardHeader className="flex flex-row items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-100">
+                  <CalendarDays className="h-6 w-6 text-indigo-600" />
+                </div>
+                <div>
+                  <CardTitle>Lịch làm việc</CardTitle>
+                  <CardDescription>Thứ 7 mặc định của công ty</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Badge variant="outline">Chấm công</Badge>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Xen kẽ / làm tất cả / nghỉ tất cả các thứ 7, dùng cho chấm công và tính lương
+                </p>
               </CardContent>
             </Card>
           </Link>

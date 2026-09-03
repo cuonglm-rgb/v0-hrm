@@ -40,6 +40,8 @@ import type { SaturdaySchedule } from "@/lib/actions/saturday-schedule-actions"
 import { formatDateVN, formatTimeVN, formatSourceVN } from "@/lib/utils/date-utils"
 import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, AlertTriangle, Clock, Filter, Search, Loader2, Calendar } from "lucide-react"
 import { usePagination } from "@/hooks/use-pagination"
+import { useSaturdayConfig } from "@/hooks/use-saturday-config"
+import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffByDefault, type SaturdayDefaultConfig } from "@/lib/utils/saturday-utils"
 import { DataPagination } from "@/components/shared/data-pagination"
 
 interface AttendanceManagementPanelProps {
@@ -213,58 +215,46 @@ function detectHalfDayWork(
 }
 
 // Hàm kiểm tra xem có phải ngày cuối tuần không
-const REFERENCE_DATE = new Date(Date.UTC(2026, 0, 6)) // 6/1/2026
-const REFERENCE_WEEK_IS_OFF = true // Tuần này nghỉ thứ 7
-
-function getISOWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
-  const dayNum = d.getUTCDay() || 7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-}
-
-function isSaturdayOff(date: Date, employeeId: string, saturdaySchedules: SaturdaySchedule[] = []): boolean {
+// Chủ nhật luôn nghỉ, Thứ 7 theo lịch mặc định công ty (cấu hình ở Settings) hoặc lịch riêng
+function isSaturdayOff(
+  date: Date,
+  employeeId: string,
+  saturdaySchedules: SaturdaySchedule[] = [],
+  saturdayConfig: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG
+): boolean {
   // Format date để so sánh
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-  
+
   // Lọc các schedule của nhân viên này
   const employeeSchedules = saturdaySchedules.filter(s => s.employee_id === employeeId)
-  
-  // Kiểm tra xem có schedule cho ngày này không
+
+  // Phân công riêng cho đúng ngày này luôn được ưu tiên cao nhất
   const schedule = employeeSchedules.find(s => s.work_date === dateStr)
-  
   if (schedule) {
-    // Nếu có schedule: is_working = true -> làm việc, is_working = false -> nghỉ
+    // is_working = true -> làm việc, is_working = false -> nghỉ
     return !schedule.is_working
   }
-  
-  // Nếu không có schedule cho ngày này, kiểm tra xem nhân viên có được setup không
-  // Nếu có bất kỳ record nào trong employeeSchedules -> nhân viên được setup -> các thứ 7 khác là nghỉ
-  if (employeeSchedules.length > 0) {
-    return true // Nghỉ (vì không có trong danh sách được setup)
-  }
-  
-  // Không có schedule nào -> theo logic xen kẽ mặc định
-  const refWeek = getISOWeekNumber(REFERENCE_DATE)
-  const currentWeek = getISOWeekNumber(date)
 
-  const refIsOdd = refWeek % 2 === 1
-  const currentIsOdd = currentWeek % 2 === 1
-
-  if (REFERENCE_WEEK_IS_OFF) {
-    return refIsOdd === currentIsOdd
-  } else {
-    return refIsOdd !== currentIsOdd
+  // Nhân viên đã có lịch riêng nhưng ngày này chưa phân công: tuỳ cấu hình công ty
+  if (employeeSchedules.length > 0 && saturdayConfig.unassigned_saturday_is_off) {
+    return true
   }
+
+  // Theo lịch thứ 7 mặc định của công ty
+  return isSaturdayOffByDefault(date, saturdayConfig)
 }
 
-function isWeekend(date: Date, employeeId: string, saturdaySchedules: SaturdaySchedule[] = []): boolean {
+function isWeekend(
+  date: Date,
+  employeeId: string,
+  saturdaySchedules: SaturdaySchedule[] = [],
+  saturdayConfig: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG
+): boolean {
   const day = date.getDay()
   // Chủ nhật luôn nghỉ
   if (day === 0) return true
-  // Thứ 7 xen kẽ hoặc theo lịch tùy chỉnh
-  if (day === 6) return isSaturdayOff(date, employeeId, saturdaySchedules)
+  // Thứ 7 theo lịch mặc định hoặc lịch tùy chỉnh
+  if (day === 6) return isSaturdayOff(date, employeeId, saturdaySchedules, saturdayConfig)
   return false
 }
 
@@ -309,6 +299,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [importProgress, setImportProgress] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const saturdayConfig = useSaturdayConfig()
 
   // Bộ lọc dữ liệu chấm công
   const [filterMonth, setFilterMonth] = useState<string>((currentDate.getMonth() + 1).toString())
@@ -813,7 +804,7 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     const isHolidayDay = !!holiday
                     const holidayName = holiday?.name || "Nghỉ lễ"
                     const dateObj = logDateOnly ? new Date(logDateOnly) : new Date()
-                    const isWeekendDay = isWeekend(dateObj, log.employee_id || '', saturdaySchedules)
+                    const isWeekendDay = isWeekend(dateObj, log.employee_id || '', saturdaySchedules, saturdayConfig)
 
                     // Kiểm tra phiếu nghỉ
                     const leaveRequest = logDateOnly && log.employee_id ? getLeaveRequestForDate(logDateOnly, log.employee_id, leaveRequests) : null
