@@ -140,8 +140,9 @@ export function WorkScheduleSettingsForm({ initialConfig, today }: Props) {
             <div className="space-y-1">
               <Label htmlFor="unassigned-off">Nhân viên có lịch thứ 7 riêng</Label>
               <p className="text-xs text-muted-foreground">
-                Bật: các thứ 7 chưa được phân công cho nhân viên đó sẽ tính là NGHỈ (chỉ đi làm đúng những
-                thứ 7 được phân công). Tắt: những thứ 7 chưa phân công vẫn theo lịch mặc định ở trên.
+                Bật: trong THÁNG mà nhân viên đó có phân công, các thứ 7 chưa được phân công sẽ tính là
+                NGHỈ (chỉ đi làm đúng những thứ 7 được phân công). Tháng không có phân công nào vẫn theo
+                lịch mặc định ở trên. Tắt: mọi thứ 7 chưa phân công đều theo lịch mặc định ở trên.
               </p>
             </div>
             <Switch

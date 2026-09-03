@@ -12,6 +12,7 @@ import { calculateStandardWorkingDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff, type SaturdayDefaultConfig } from "./working-days-utils"
+import { isSaturdayOffForEmployee } from "@/lib/utils/saturday-utils"
 import { getSaturdayDefaultConfig } from "../work-schedule-settings-actions"
 import { MAKEUP_CODES, getMakeupDeficitLinks, isMakeupRequestType } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
@@ -294,15 +295,19 @@ async function processEmployeePayroll(
     .gte("work_date", startDate)
     .lte("work_date", endDate)
 
-  const saturdayScheduleMap = new Map<string, boolean>(
-    (saturdaySchedules || []).map((s: any) => [s.work_date, s.is_working as boolean])
+  const employeeSaturdaySchedules: { work_date: string; is_working: boolean }[] = (saturdaySchedules || []).map(
+    (s: any) => ({ work_date: s.work_date as string, is_working: s.is_working as boolean })
   )
 
-  const isEmployeeWorkingSaturday = (dateStr: string): boolean => {
-    if (saturdayScheduleMap.has(dateStr)) return saturdayScheduleMap.get(dateStr)!
-    const [y, m, d] = dateStr.split('-').map(Number)
-    return !isSaturdayOff(new Date(Date.UTC(y, m - 1, d)), saturdayConfig)
-  }
+  const saturdayScheduleMap = new Map<string, boolean>(
+    employeeSaturdaySchedules.map((s) => [s.work_date, s.is_working] as [string, boolean])
+  )
+
+  // Thứ 7 của nhân viên: phân công đúng ngày > cấu hình "thứ 7 chưa phân công là ngày nghỉ"
+  // (chỉ áp dụng trong tháng có phân công) > lịch mặc định công ty.
+  // Dùng chung hàm với màn hình chấm công để payroll và chấm công không lệch nhau.
+  const isEmployeeWorkingSaturday = (dateStr: string): boolean =>
+    !isSaturdayOffForEmployee(dateStr, employeeSaturdaySchedules, saturdayConfig)
 
   // Ngày nghỉ theo lịch (CN hoặc T7 nghỉ)
   const isOffScheduleDay = (dateStr: string): boolean => {

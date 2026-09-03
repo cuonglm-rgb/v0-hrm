@@ -47,7 +47,7 @@ import { getMakeupDeficitLinks, findLateEarlyMakeupForDeficitDate } from "@/lib/
 import { Clock, LogIn, LogOut, CheckCircle2, XCircle, Timer, AlertTriangle, Filter, Calendar, Pencil, Trash2 } from "lucide-react"
 import { usePagination } from "@/hooks/use-pagination"
 import { useSaturdayConfig } from "@/hooks/use-saturday-config"
-import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffByDefault, type SaturdayDefaultConfig } from "@/lib/utils/saturday-utils"
+import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffForEmployee, type SaturdayDefaultConfig } from "@/lib/utils/saturday-utils"
 import { DataPagination } from "@/components/shared/data-pagination"
 
 interface AttendanceViolation {
@@ -165,20 +165,7 @@ function isSaturdayOff(
   // Format date để so sánh
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
-  // Phân công riêng cho đúng ngày này luôn được ưu tiên cao nhất
-  const schedule = saturdaySchedules.find(s => s.work_date === dateStr)
-  if (schedule) {
-    // is_working = true -> làm việc, is_working = false -> nghỉ
-    return !schedule.is_working
-  }
-
-  // Nhân viên đã có lịch riêng nhưng ngày này chưa phân công: tuỳ cấu hình công ty
-  if (saturdaySchedules.length > 0 && saturdayConfig.unassigned_saturday_is_off) {
-    return true
-  }
-
-  // Theo lịch thứ 7 mặc định của công ty
-  return isSaturdayOffByDefault(date, saturdayConfig)
+  return isSaturdayOffForEmployee(dateStr, saturdaySchedules, saturdayConfig)
 }
 
 function isWeekend(

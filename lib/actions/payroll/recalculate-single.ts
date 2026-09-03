@@ -11,6 +11,7 @@ import { getEmployeeViolations } from "./violations"
 import { processAdjustments } from "./generate-payroll"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff, type SaturdayDefaultConfig } from "./working-days-utils"
+import { isSaturdayOffForEmployee } from "@/lib/utils/saturday-utils"
 import { getSaturdayDefaultConfig } from "../work-schedule-settings-actions"
 import { MAKEUP_CODES, getMakeupDeficitLinks, isMakeupRequestType } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
@@ -176,18 +177,21 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     .gte("work_date", startDate)
     .lte("work_date", endDate)
 
+  const employeeSaturdaySchedules: { work_date: string; is_working: boolean }[] = (saturdaySchedules || []).map(
+    (s: any) => ({ work_date: s.work_date as string, is_working: s.is_working as boolean })
+  )
+
   const saturdayScheduleMap = new Map<string, boolean>(
-    (saturdaySchedules || []).map((s: any) => [s.work_date, s.is_working as boolean])
+    employeeSaturdaySchedules.map((s) => [s.work_date, s.is_working] as [string, boolean])
   )
 
   const saturdayConfig = await getSaturdayDefaultConfig()
 
-  // Trả về true nếu thứ 7 đó là ngày LÀM VIỆC của nhân viên
-  const isEmployeeWorkingSaturday = (dateStr: string): boolean => {
-    if (saturdayScheduleMap.has(dateStr)) return saturdayScheduleMap.get(dateStr)!
-    const [y, m, d] = dateStr.split('-').map(Number)
-    return !isSaturdayOff(new Date(Date.UTC(y, m - 1, d)), saturdayConfig)
-  }
+  // Trả về true nếu thứ 7 đó là ngày LÀM VIỆC của nhân viên.
+  // Phân công đúng ngày > cấu hình "thứ 7 chưa phân công là ngày nghỉ" (chỉ áp dụng trong
+  // tháng có phân công) > lịch mặc định công ty — dùng chung hàm với màn hình chấm công.
+  const isEmployeeWorkingSaturday = (dateStr: string): boolean =>
+    !isSaturdayOffForEmployee(dateStr, employeeSaturdaySchedules, saturdayConfig)
 
   // Ngày nghỉ theo lịch (CN hoặc T7 nghỉ)
   const isOffScheduleDay = (dateStr: string): boolean => {

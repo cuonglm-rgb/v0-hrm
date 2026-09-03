@@ -130,6 +130,34 @@ export function isSaturdayOffByDefault(
   return sameParityAsAnchor ? !config.anchor_is_working : config.anchor_is_working
 }
 
+/**
+ * Thứ 7 `dateStr` có phải ngày nghỉ của nhân viên không (đã biết chắc là thứ 7).
+ *
+ * Thứ tự ưu tiên:
+ *  1. Phân công riêng đúng ngày đó → theo `is_working`.
+ *  2. `unassigned_saturday_is_off`: các thứ 7 chưa phân công là ngày nghỉ — nhưng CHỈ
+ *     áp dụng trong tháng mà nhân viên thực sự có phân công. Phân công tháng 9 không
+ *     được kéo theo tháng 8 thành ngày nghỉ.
+ *  3. Lịch thứ 7 mặc định của công ty.
+ *
+ * `employeeSchedules` phải đã lọc theo đúng nhân viên đang xét.
+ */
+export function isSaturdayOffForEmployee(
+  dateStr: string,
+  employeeSchedules: { work_date: string; is_working: boolean }[],
+  config: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG
+): boolean {
+  const schedule = employeeSchedules.find((s) => s.work_date === dateStr)
+  if (schedule) return !schedule.is_working
+
+  if (config.unassigned_saturday_is_off) {
+    const month = dateStr.slice(0, 7)
+    if (employeeSchedules.some((s) => s.work_date.slice(0, 7) === month)) return true
+  }
+
+  return isSaturdayOffByDefault(dateStr, config)
+}
+
 /** Danh sách n thứ 7 kế tiếp kể từ `from` (bao gồm cả `from` nếu đó là thứ 7) */
 export function getUpcomingSaturdays(from: Date | string, count: number): string[] {
   const cur = toCalendarUTC(from)

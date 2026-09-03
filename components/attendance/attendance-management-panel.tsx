@@ -41,7 +41,7 @@ import { formatDateVN, formatTimeVN, formatSourceVN } from "@/lib/utils/date-uti
 import { Upload, Download, FileSpreadsheet, CheckCircle, XCircle, AlertCircle, AlertTriangle, Clock, Filter, Search, Loader2, Calendar } from "lucide-react"
 import { usePagination } from "@/hooks/use-pagination"
 import { useSaturdayConfig } from "@/hooks/use-saturday-config"
-import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffByDefault, type SaturdayDefaultConfig } from "@/lib/utils/saturday-utils"
+import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffForEmployee, type SaturdayDefaultConfig } from "@/lib/utils/saturday-utils"
 import { DataPagination } from "@/components/shared/data-pagination"
 
 interface AttendanceManagementPanelProps {
@@ -228,20 +228,7 @@ function isSaturdayOff(
   // Lọc các schedule của nhân viên này
   const employeeSchedules = saturdaySchedules.filter(s => s.employee_id === employeeId)
 
-  // Phân công riêng cho đúng ngày này luôn được ưu tiên cao nhất
-  const schedule = employeeSchedules.find(s => s.work_date === dateStr)
-  if (schedule) {
-    // is_working = true -> làm việc, is_working = false -> nghỉ
-    return !schedule.is_working
-  }
-
-  // Nhân viên đã có lịch riêng nhưng ngày này chưa phân công: tuỳ cấu hình công ty
-  if (employeeSchedules.length > 0 && saturdayConfig.unassigned_saturday_is_off) {
-    return true
-  }
-
-  // Theo lịch thứ 7 mặc định của công ty
-  return isSaturdayOffByDefault(date, saturdayConfig)
+  return isSaturdayOffForEmployee(dateStr, employeeSchedules, saturdayConfig)
 }
 
 function isWeekend(

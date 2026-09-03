@@ -76,6 +76,21 @@ describe("isEmployeeOffDay", () => {
     expect(isEmployeeOffDay("2026-03-14", schedules, "emp1", [], config)).toBe(true)
   })
 
+  it("phân công tháng 9 không làm thứ 7 tháng 8 thành ngày nghỉ", () => {
+    // Mốc 29/08/2026 là thứ 7 LÀM VIỆC; nhân viên chỉ được phân công đi làm 05/09
+    const config = {
+      ...DEFAULT_SATURDAY_CONFIG,
+      anchor_date: "2026-08-29",
+      anchor_is_working: true,
+      unassigned_saturday_is_off: true,
+    }
+    const schedules = [{ employee_id: "emp1", work_date: "2026-09-05", is_working: true }]
+    // 29/08 khác tháng với phân công -> vẫn là ngày làm theo lịch mặc định
+    expect(isEmployeeOffDay("2026-08-29", schedules, "emp1", [], config)).toBe(false)
+    // 12/09 cùng tháng nhưng chưa phân công -> nghỉ theo cấu hình
+    expect(isEmployeeOffDay("2026-09-12", schedules, "emp1", [], config)).toBe(true)
+  })
+
   it("mode all_working makes every Saturday a working day", () => {
     const config = { ...DEFAULT_SATURDAY_CONFIG, mode: "all_working" as const }
     expect(isEmployeeOffDay("2026-03-14", [], "emp1", [], config)).toBe(false)
