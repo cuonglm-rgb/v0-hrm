@@ -805,6 +805,7 @@ export async function recalculateSingleEmployee(payroll_item_id: string) {
     endTime: shiftEnd,
     breakStart: breakStart || null,
     breakEnd: breakEnd || null,
+    singleCheckPerDay: empShift?.single_check_per_day === true,
   }
   
   const violations = await getEmployeeViolations(supabase, emp.id, startDate, effectiveEndDate, shiftInfo)

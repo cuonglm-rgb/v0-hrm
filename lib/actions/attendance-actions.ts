@@ -373,7 +373,7 @@ export async function listAttendance(filters?: {
         id,
         full_name,
         employee_code,
-        shift:work_shifts(id, name, start_time, end_time, break_start, break_end, break_minutes)
+        shift:work_shifts(id, name, start_time, end_time, break_start, break_end, break_minutes, single_check_per_day)
       )
     `)
 

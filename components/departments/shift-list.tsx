@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { TimeInput } from "@/components/ui/time-input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   Dialog,
@@ -28,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Clock, Plus, Pencil, Trash2, Coffee } from "lucide-react"
+import { Clock, Plus, Pencil, Trash2, Coffee, Fingerprint } from "lucide-react"
 import { toast } from "sonner"
 import { createWorkShift, updateWorkShift, deleteWorkShift } from "@/lib/actions/shift-actions"
 import type { WorkShift } from "@/lib/types/database"
@@ -51,6 +52,7 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
     end_time: "17:00",
     break_start: "12:00",
     break_end: "13:30",
+    single_check_per_day: false,
   })
 
   const handleOpenCreate = () => {
@@ -61,6 +63,7 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
       end_time: "17:00",
       break_start: "12:00",
       break_end: "13:30",
+      single_check_per_day: false,
     })
     setOpen(true)
   }
@@ -73,6 +76,7 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
       end_time: shift.end_time?.slice(0, 5) || "17:00",
       break_start: shift.break_start?.slice(0, 5) || "12:00",
       break_end: shift.break_end?.slice(0, 5) || "13:30",
+      single_check_per_day: shift.single_check_per_day === true,
     })
     setOpen(true)
   }
@@ -101,6 +105,7 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
           break_start: formData.break_start,
           break_end: formData.break_end,
           break_minutes: breakMinutes,
+          single_check_per_day: formData.single_check_per_day,
         })
         if (result.success) {
           toast.success("Đã cập nhật ca làm")
@@ -117,6 +122,7 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
           break_start: formData.break_start,
           break_end: formData.break_end,
           break_minutes: breakMinutes,
+          single_check_per_day: formData.single_check_per_day,
         })
         if (result.success) {
           toast.success("Đã tạo ca làm mới")
@@ -220,6 +226,28 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
                     </div>
                   </div>
                 </div>
+
+                <div className="flex items-start justify-between gap-4 p-3 bg-muted/50 rounded-lg border">
+                  <div className="flex gap-2">
+                    <Fingerprint className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <Label htmlFor="single_check" className="text-sm">
+                        Chỉ chấm công 1 lần/ngày
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Không bắt buộc chấm công ra. Ngày chỉ có giờ vào vẫn tính đủ công, không
+                        tính vi phạm quên check-out nên không mất phụ cấp và không bị phạt.
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="single_check"
+                    checked={formData.single_check_per_day}
+                    onCheckedChange={(v: boolean) =>
+                      setFormData({ ...formData, single_check_per_day: v })
+                    }
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>
@@ -243,13 +271,14 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
                 <TableHead className="text-center">Giờ làm việc</TableHead>
                 <TableHead className="text-center">Giờ nghỉ trưa</TableHead>
                 <TableHead className="text-center">Thời gian nghỉ</TableHead>
+                <TableHead className="text-center">Chấm công</TableHead>
                 {isHROrAdmin && <TableHead className="text-right">Thao tác</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {shifts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={isHROrAdmin ? 5 : 4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={isHROrAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
                     Chưa có ca làm nào
                   </TableCell>
                 </TableRow>
@@ -284,6 +313,16 @@ export function ShiftList({ shifts, isHROrAdmin }: ShiftListProps) {
                         <span>{shift.break_minutes} phút</span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {shift.single_check_per_day ? (
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                          <Fingerprint className="h-3 w-3 mr-1" />
+                          1 lần/ngày
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">Vào &amp; ra</span>
                       )}
                     </TableCell>
                     {isHROrAdmin && (

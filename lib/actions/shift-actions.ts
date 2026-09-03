@@ -49,6 +49,7 @@ export async function createWorkShift(input: {
   break_start?: string
   break_end?: string
   break_minutes?: number
+  single_check_per_day?: boolean
 }) {
   const supabase = await createClient()
 
@@ -59,6 +60,7 @@ export async function createWorkShift(input: {
     break_start: input.break_start || null,
     break_end: input.break_end || null,
     break_minutes: input.break_minutes || 0,
+    single_check_per_day: input.single_check_per_day === true,
   })
 
   if (error) {
@@ -79,6 +81,7 @@ export async function updateWorkShift(
     break_start?: string | null
     break_end?: string | null
     break_minutes?: number
+    single_check_per_day?: boolean
   }
 ) {
   const supabase = await createClient()

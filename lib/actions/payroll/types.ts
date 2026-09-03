@@ -22,6 +22,8 @@ export interface ShiftInfo {
   endTime: string
   breakStart: string | null
   breakEnd: string | null
+  // Ca chỉ chấm công 1 lần/ngày -> không tính vi phạm quên check-out
+  singleCheckPerDay?: boolean
 }
 
 export interface ApprovedRequest {

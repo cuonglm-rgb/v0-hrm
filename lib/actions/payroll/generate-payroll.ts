@@ -763,6 +763,7 @@ async function processEmployeePayroll(
     endTime: shiftEnd,
     breakStart: breakStart || null,
     breakEnd: breakEnd || null,
+    singleCheckPerDay: empShift?.single_check_per_day === true,
   }
   const violations = await getEmployeeViolations(supabase, emp.id, startDate, effectiveEndDate, shiftInfo)
   // Ngày làm bù (full_day_makeup) không tính vi phạm đi muộn/về sớm: nhân viên tự nguyện

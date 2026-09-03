@@ -231,7 +231,7 @@ export async function getEmployeeViolations(
         lateMinutes = 0
         earlyMinutes = 0
         isHalfDay = false
-      } else if (hasForgotCheckoutRequest) {
+      } else if (hasForgotCheckoutRequest && !shift.singleCheckPerDay) {
         forgotCheckOut = true
         console.log(`[Violations] Ngày ${dateStr}: Có phiếu quên chấm công về - TÍNH LÀ VI PHẠM`)
         
@@ -255,10 +255,21 @@ export async function getEmployeeViolations(
         isHalfDay = false
       } 
       else if (!log.check_out) {
-        forgotCheckOut = true
-        lateMinutes = 0
-        earlyMinutes = 0
-        isHalfDay = false
+        if (shift.singleCheckPerDay) {
+          // Ca chỉ chấm công 1 lần/ngày: không có check-out là bình thường.
+          // Coi như ngày làm đầy đủ để không mất phụ cấp / không bị phạt quên chấm công.
+          hasCheckOut = true
+          forgotCheckOut = false
+          lateMinutes = Math.max(0, checkInMinutes - shiftStartMinutes)
+          earlyMinutes = 0
+          isHalfDay = false
+          console.log(`[Violations] Ngày ${dateStr}: Ca chỉ chấm công 1 lần/ngày - bỏ qua vi phạm quên check-out`)
+        } else {
+          forgotCheckOut = true
+          lateMinutes = 0
+          earlyMinutes = 0
+          isHalfDay = false
+        }
       } else {
         // Có đủ check_in và check_out - tính vi phạm đơn giản
         

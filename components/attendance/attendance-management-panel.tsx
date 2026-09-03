@@ -147,8 +147,9 @@ function checkViolations(
           : `Về sớm ${earlyMinutes} phút (ra lúc ${checkOutHHMM}, ca kết thúc ${compareTime})`,
       })
     }
-  } else if (!checkOut && checkIn) {
+  } else if (!checkOut && checkIn && !shift.single_check_per_day) {
     // Có check in nhưng không có check out
+    // (ca chỉ chấm công 1 lần/ngày thì không bắt buộc check-out)
     violations.push({
       type: "no_checkout",
       message: "Quên chấm công ra",

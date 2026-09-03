@@ -83,6 +83,8 @@ export interface WorkShift {
   break_start: string | null
   break_end: string | null
   break_minutes: number
+  // Ca chỉ cần chấm công 1 lần/ngày: không bắt buộc check-out
+  single_check_per_day?: boolean
   created_at: string
 }
 
