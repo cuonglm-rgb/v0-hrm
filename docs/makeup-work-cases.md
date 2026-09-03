@@ -26,11 +26,12 @@
 | 1.2.5 | Ngày làm bù là **Thứ 7** có override **nghỉ** | `saturday_work_schedule`: nhân viên đó, ngày đó, `is_working = false` | Cho phép |
 | 1.2.6 | Ngày làm bù là **Thứ 7** có override **làm** | `saturday_work_schedule`: `is_working = true` cho ngày đó | Từ chối: "Ngày làm bù phải là ngày nghỉ của nhân viên..." |
 | 1.2.7 | Ngày làm bù là **ngày lễ** (holidays) | `request_date` nằm trong bảng `holidays` | Cho phép |
+| 1.2.7b | Ngày làm bù là **ngày nghỉ công ty** | `special_work_days.is_company_holiday = true` cho ngày đó, và nhân viên thuộc phạm vi áp dụng (không có `special_work_day_employees` = toàn công ty) | Cho phép (VD: 31/08 nghỉ bù 2/9, làm bù cho 15/08) |
 | 1.2.8 | Ngày làm bù là **ngày thường** (Thứ 2–6, không phải lễ) | VD: Thứ 3 bất kỳ | Từ chối: "Ngày làm bù phải là ngày nghỉ của nhân viên..." |
 | 1.2.9 | Làm bù **cùng tháng** với ngày thiếu công | Deficit 10/3, makeup 21/3 (T7) | Cho phép; ghi nhận công tháng 3 |
 | 1.2.10 | Làm bù **tháng sau** so với ngày thiếu công | Deficit 28/3, makeup 5/4 (CN) | Cho phép; ghi nhận công **tháng 4**, không hồi tố tháng 3 |
 | 1.2.11 | Trùng khung giờ với phiếu OT đã duyệt cùng ngày | Có OT approved cùng ngày, khung giờ giao với from_time–to_time | Từ chối (overlap OT) |
-| 1.2.12 | Ngày làm việc đặc biệt (special_work_days) | Bão, sự kiện, được về sớm… | **Không** dùng để mở rộng quyền chọn ngày làm bù; chỉ xét CN / T7 override / holidays |
+| 1.2.12 | Ngày làm việc đặc biệt (special_work_days) **không phải** nghỉ công ty | Bão, sự kiện, được về sớm… (`is_company_holiday = false`) | **Không** dùng để mở rộng quyền chọn ngày làm bù |
 | 1.2.13 | **1 makeup consume nhiều deficit** | `linked_deficit_links`: [{ deficit_date: "2026-03-06", amount: 0.5 }, { deficit_date: "2026-03-13", amount: 0.5 }], tổng = 1 | Cho phép; 1 ngày làm bù (VD 07/03) bù 2 nửa ngày 06/03 và 13/03 |
 | 1.2.14 | Tổng amount > 1 | linked_deficit_links tổng > 1 | Từ chối: "Tổng số ngày bù không được vượt quá 1 ngày" |
 | 1.2.15 | Over-consume một ngày | Đã có phiếu bù 06/03 0.5, tạo phiếu mới cũng link 06/03 0.5 | Từ chối (remaining 06/03 = 0) |
@@ -132,7 +133,7 @@
 |---|------|--------|---------|
 | 5.1 | Form tạo phiếu – chọn loại làm bù | Chọn late_early_makeup hoặc full_day_makeup | Hiện field **Ngày thiếu công gốc** bắt buộc; label "Ngày làm bù" cho request_date |
 | 5.2 | Form – late_early_makeup | Đã chọn loại | Cảnh báo: "Phải cùng tháng... Checkout trước giờ phiếu là vi phạm" |
-| 5.3 | Form – full_day_makeup | Đã chọn loại | Cảnh báo: "Ngày làm bù phải là ngày nghỉ (Chủ nhật hoặc Thứ 7 theo lịch)" |
+| 5.3 | Form – full_day_makeup | Đã chọn loại | Cảnh báo: "Ngày làm bù phải là ngày nghỉ (Chủ nhật, Thứ 7 theo lịch, ngày lễ hoặc ngày nghỉ công ty)" |
 | 5.4 | Chi tiết phiếu (nhân viên / duyệt) | Xem phiếu làm bù | Hiển thị **Ngày thiếu công gốc** (từ custom_data) |
 
 ---
@@ -155,13 +156,14 @@
 | 7.2 | Nhiều phiếu full_day_makeup cùng ngày | Cùng 1 ngày 2 phiếu làm bù cả ngày (khác deficit) | Về logic có thể 2 phiếu; attendance 1 ngày vẫn tính 1 ngày công; cần tránh double count note |
 | 7.3 | Nhân viên không có override Thứ 7 | full_day_makeup chọn T7 | Dùng rule mặc định T7 (xen kẽ) để xác định nghỉ hay làm |
 | 7.4 | Ngày lễ nhưng nhân viên đi làm (không OT) | Theo logic payroll hiện tại | Đi làm ngày lễ không OT có thể bị trừ working day; makeup không thay đổi rule ngày lễ |
-| 7.5 | Special work day | Bão, sự kiện, về sớm hợp lệ | **Không** dùng để mở rộng danh sách ngày được chọn làm bù; chỉ CN / T7 override / holidays |
+| 7.5 | Special work day (không phải nghỉ công ty) | Bão, sự kiện, về sớm hợp lệ | **Không** dùng để mở rộng danh sách ngày được chọn làm bù |
+| 7.6 | Ngày nghỉ công ty chỉ áp dụng cho một nhóm nhân viên | `special_work_day_employees` có danh sách, nhân viên **không** nằm trong đó | Ngày đó **không** phải ngày nghỉ của nhân viên này → không được chọn làm ngày làm bù |
 
 ---
 
 ## Tóm tắt nhóm case
 
-- **Tạo/cập nhật:** Bắt buộc linked_deficit_date, cùng tháng (late_early), ngày nghỉ (full_day), giờ, không overlap OT.
+- **Tạo/cập nhật:** Bắt buộc linked_deficit_date, cùng tháng (late_early), ngày nghỉ (full_day: CN / T7 nghỉ / ngày lễ / ngày nghỉ công ty), giờ, không overlap OT.
 - **Vi phạm:** effectiveShiftEnd = max(shiftEnd, makeup to_time); checkout trước = vi phạm; đi sớm bù về sớm.
 - **Payroll:** Makeup không tính leave; full_day ghi nhận tháng thực tế; không double penalty; note làm bù/bù kỳ trước.
 - **OT:** 1 phút chỉ thuộc 1 loại; validate overlap khi tạo; khi tính OT trừ interval làm bù.

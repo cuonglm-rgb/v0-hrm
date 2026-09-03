@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, getMakeupDeficitLinks, findLateEarlyMakeupForDeficitDate } from "../makeup-utils"
+import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, getMakeupDeficitLinks, findLateEarlyMakeupForDeficitDate, getCompanyHolidayDatesForEmployee } from "../makeup-utils"
 import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffByDefault } from "../saturday-utils"
 
 describe("isMakeupRequestType", () => {
@@ -106,12 +106,41 @@ describe("isEmployeeOffDay", () => {
     expect(isEmployeeOffDay("2026-03-16", [], "emp1", holidays)).toBe(true)
   })
 
+  it("company holiday on a weekday is off", () => {
+    // 2026-08-31 là Thứ 2, nghỉ bù 2/9 do công ty quy định
+    expect(isEmployeeOffDay("2026-08-31", [], "emp1")).toBe(false)
+    expect(isEmployeeOffDay("2026-08-31", [], "emp1", [], DEFAULT_SATURDAY_CONFIG, ["2026-08-31"])).toBe(true)
+  })
+
+  it("company holiday of another date does not make the day off", () => {
+    expect(isEmployeeOffDay("2026-08-31", [], "emp1", [], DEFAULT_SATURDAY_CONFIG, ["2026-09-02"])).toBe(false)
+  })
+
   it("does not treat other employee's schedule as own", () => {
     const schedules = [
       { employee_id: "emp2", work_date: "2026-03-14", is_working: false },
     ]
     // emp1 has no schedules, so fallback to default Saturday rule
     expect(isEmployeeOffDay("2026-03-14", schedules, "emp1")).toBeDefined()
+  })
+})
+
+describe("getCompanyHolidayDatesForEmployee", () => {
+  it("returns [] for null/undefined", () => {
+    expect(getCompanyHolidayDatesForEmployee(null, "emp1")).toEqual([])
+    expect(getCompanyHolidayDatesForEmployee(undefined, "emp1")).toEqual([])
+  })
+
+  it("applies company-wide when there is no assigned employee", () => {
+    expect(getCompanyHolidayDatesForEmployee([{ work_date: "2026-08-31" }], "emp1")).toEqual(["2026-08-31"])
+    expect(getCompanyHolidayDatesForEmployee([{ work_date: "2026-08-31", assigned_employees: [] }], "emp1")).toEqual(["2026-08-31"])
+    expect(getCompanyHolidayDatesForEmployee([{ work_date: "2026-08-31", assigned_employees: null }], "emp1")).toEqual(["2026-08-31"])
+  })
+
+  it("only applies to assigned employees when a list exists", () => {
+    const days = [{ work_date: "2026-08-31", assigned_employees: [{ employee_id: "emp1" }] }]
+    expect(getCompanyHolidayDatesForEmployee(days, "emp1")).toEqual(["2026-08-31"])
+    expect(getCompanyHolidayDatesForEmployee(days, "emp2")).toEqual([])
   })
 })
 

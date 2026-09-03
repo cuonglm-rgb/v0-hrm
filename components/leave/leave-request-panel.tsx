@@ -864,7 +864,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Ngày làm bù phải là ngày nghỉ của bạn (Chủ nhật hoặc Thứ 7 theo lịch).
+                      Ngày làm bù phải là ngày nghỉ của bạn (Chủ nhật, Thứ 7 theo lịch, ngày lễ hoặc ngày nghỉ công ty).
                     </p>
                   </div>
                 )}

@@ -51,12 +51,38 @@ export function findLateEarlyMakeupForDeficitDate<T extends MakeupRequestLike>(
   return req || null
 }
 
+/** Ngày nghỉ công ty (special_work_days.is_company_holiday) kèm danh sách nhân viên được áp dụng. */
+export type CompanyHolidayLike = {
+  work_date: string
+  assigned_employees?: { employee_id: string }[] | null
+}
+
+/**
+ * Lọc ngày nghỉ công ty áp dụng cho 1 nhân viên.
+ * Quy tắc (giống generate-payroll.ts): không có assigned_employees -> áp dụng toàn công ty;
+ * có danh sách -> chỉ áp dụng cho nhân viên nằm trong danh sách.
+ */
+export function getCompanyHolidayDatesForEmployee(
+  specialDays: CompanyHolidayLike[] | null | undefined,
+  employeeId: string
+): string[] {
+  const dates: string[] = []
+  for (const s of specialDays || []) {
+    const assigned = s.assigned_employees || []
+    if (assigned.length === 0 || assigned.some((ae) => ae.employee_id === employeeId)) {
+      dates.push(s.work_date)
+    }
+  }
+  return dates
+}
+
 export function isEmployeeOffDay(
   date: Date | string,
   saturdaySchedules: { employee_id: string; work_date: string; is_working: boolean }[],
   employeeId: string,
   holidays: { holiday_date: string }[] = [],
-  config: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG
+  config: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG,
+  companyHolidayDates: string[] = []
 ): boolean {
   const d = typeof date === "string" ? new Date(date + "T00:00:00Z") : date
   const day = d.getUTCDay()
@@ -68,6 +94,9 @@ export function isEmployeeOffDay(
     : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 
   if (holidays.some(h => h.holiday_date === dateStr)) return true
+
+  // Ngày nghỉ công ty (special_work_days.is_company_holiday) cũng là ngày nghỉ của nhân viên
+  if (companyHolidayDates.includes(dateStr)) return true
 
   if (day === 6) {
     const empSchedules = saturdaySchedules.filter(s => s.employee_id === employeeId)

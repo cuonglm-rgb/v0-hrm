@@ -7,7 +7,7 @@ import { getNowVN, calculateLeaveDays } from "@/lib/utils/date-utils"
 import { validateTimeSlot, validateNoOverlap } from "@/lib/utils/time-slot-utils"
 import { calculateAvailableBalance } from "@/lib/utils/leave-utils"
 import { warnIfTruncated } from "@/lib/utils/postgrest-limit"
-import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, LINKED_DEFICIT_LINKS_KEY, getMakeupDeficitLinks, type MakeupDeficitLink } from "@/lib/utils/makeup-utils"
+import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, LINKED_DEFICIT_LINKS_KEY, getMakeupDeficitLinks, getCompanyHolidayDatesForEmployee, type MakeupDeficitLink } from "@/lib/utils/makeup-utils"
 import { getSaturdayDefaultConfig } from "@/lib/actions/work-schedule-settings-actions"
 import { getEmployeeViolations } from "./payroll/violations"
 import type { ShiftInfo } from "./payroll/types"
@@ -848,10 +848,20 @@ export async function createEmployeeRequest(input: {
         .select("holiday_date")
         .eq("holiday_date", input.request_date)
 
+      // Ngày nghỉ công ty (special_work_days.is_company_holiday) cũng được coi là ngày nghỉ
+      // của nhân viên -> được phép chọn làm ngày làm bù.
+      const { data: makeupSpecialDays } = await supabase
+        .from("special_work_days")
+        .select("work_date, assigned_employees:special_work_day_employees(employee_id)")
+        .eq("is_company_holiday", true)
+        .eq("work_date", input.request_date)
+
+      const makeupCompanyHolidays = getCompanyHolidayDatesForEmployee(makeupSpecialDays as any, employee.id)
+
       const makeupSaturdayConfig = await getSaturdayDefaultConfig()
 
-      if (!isEmployeeOffDay(input.request_date, satSchedules || [], employee.id, holidays || [], makeupSaturdayConfig)) {
-        return { success: false, error: "Ngày làm bù phải là ngày nghỉ của nhân viên (Chủ nhật, Thứ 7 nghỉ theo lịch, hoặc ngày lễ)" }
+      if (!isEmployeeOffDay(input.request_date, satSchedules || [], employee.id, holidays || [], makeupSaturdayConfig, makeupCompanyHolidays)) {
+        return { success: false, error: "Ngày làm bù phải là ngày nghỉ của nhân viên (Chủ nhật, Thứ 7 nghỉ theo lịch, ngày lễ hoặc ngày nghỉ công ty)" }
       }
 
       // Over-consume: deficit amount và đã consumed theo từng ngày
@@ -916,11 +926,19 @@ export async function createEmployeeRequest(input: {
         .select("holiday_date")
         .in("holiday_date", deficitDates)
 
+      const { data: deficitSpecialDays } = await supabase
+        .from("special_work_days")
+        .select("work_date, assigned_employees:special_work_day_employees(employee_id)")
+        .eq("is_company_holiday", true)
+        .in("work_date", deficitDates)
+
+      const deficitCompanyHolidays = getCompanyHolidayDatesForEmployee(deficitSpecialDays as any, employee.id)
+
       // Nếu ngày thiếu công là ngày làm việc (không phải off day) nhưng không có violation
       // → nhân viên vắng cả ngày (không chấm công) → deficit = 1
       for (const dd of deficitDates) {
         if (deficitAmountByDate[dd] === undefined) {
-          const isOff = isEmployeeOffDay(dd, deficitSatSchedules || [], employee.id, deficitHolidays || [], makeupSaturdayConfig)
+          const isOff = isEmployeeOffDay(dd, deficitSatSchedules || [], employee.id, deficitHolidays || [], makeupSaturdayConfig, deficitCompanyHolidays)
           if (!isOff) {
             deficitAmountByDate[dd] = 1
           }
