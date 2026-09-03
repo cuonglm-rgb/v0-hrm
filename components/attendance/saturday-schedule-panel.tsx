@@ -121,6 +121,24 @@ export function SaturdaySchedulePanel({
     return [currentYear - 1, currentYear, currentYear + 1]
   }, [])
 
+  // Ngày đang chọn trong dialog: ô <input type="date"> hiển thị theo locale trình duyệt
+  // (en-US là mm/dd/yyyy) nên cần hiện lại ngày đã hiểu để tránh chọn nhầm.
+  const selectedDateInfo = useMemo(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) return null
+    const [y, m, d] = selectedDate.split("-").map(Number)
+    const date = new Date(Date.UTC(y, m - 1, d))
+    return {
+      isSaturday: date.getUTCDay() === 6,
+      label: new Intl.DateTimeFormat("vi-VN", {
+        weekday: "long",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        timeZone: "UTC",
+      }).format(date),
+    }
+  }, [selectedDate])
+
   const handleOpenDialog = () => {
     setSelectedEmployees([])
     setSelectedDate("")
@@ -132,6 +150,11 @@ export function SaturdaySchedulePanel({
   const handleSave = async () => {
     if (selectedEmployees.length === 0 || !selectedDate) {
       toast.error("Vui lòng chọn nhân viên và ngày")
+      return
+    }
+
+    if (selectedDateInfo && !selectedDateInfo.isSaturday) {
+      toast.error(`Ngày phải là thứ 7 — bạn đang chọn ${selectedDateInfo.label}`)
       return
     }
 
@@ -169,14 +192,16 @@ export function SaturdaySchedulePanel({
   }
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
+    const date = new Date(dateStr + "T00:00:00Z")
     return new Intl.DateTimeFormat("vi-VN", {
       weekday: "short",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
+      timeZone: "UTC",
     }).format(date)
   }
+
 
   // Check if default schedule (xen kẽ)
   const getDefaultSchedule = (dateStr: string): boolean => {
@@ -414,6 +439,13 @@ export function SaturdaySchedulePanel({
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
               />
+              {selectedDateInfo && (
+                <p className={cn("text-xs", selectedDateInfo.isSaturday ? "text-muted-foreground" : "text-red-600")}>
+                  {selectedDateInfo.isSaturday
+                    ? `Đã chọn: ${selectedDateInfo.label}`
+                    : `${selectedDateInfo.label} — không phải thứ 7`}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">

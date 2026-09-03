@@ -30,6 +30,8 @@ export interface SaturdayScheduleWithEmployee extends SaturdaySchedule {
 // VALIDATE WORK DATE
 // =============================================
 
+const WEEKDAY_NAMES_VN = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
+
 // Trả về lỗi nếu work_date không phải dạng YYYY-MM-DD của một ngày thứ 7 hợp lệ.
 // Dùng getUTCDay() vì "YYYY-MM-DD" được parse theo UTC - getDay() sẽ lệch 1 ngày
 // nếu server chạy ở timezone âm.
@@ -53,7 +55,10 @@ function validateSaturdayDate(workDate: string): string | null {
   }
 
   if (date.getUTCDay() !== 6) {
-    return "Ngày phải là thứ 7"
+    // Nêu rõ ngày nhận được: ô chọn ngày của trình duyệt có thể hiển thị mm/dd/yyyy
+    // (locale en-US) khiến người dùng tưởng đã chọn một ngày khác.
+    const dmy = `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
+    return `Ngày phải là thứ 7 — bạn đang chọn ${dmy} (${WEEKDAY_NAMES_VN[date.getUTCDay()]})`
   }
 
   return null
