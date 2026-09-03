@@ -101,6 +101,24 @@ describe("parseDateValue", () => {
     expect(parseDateValue(45000)).toBe("2023-03-15")
   })
 
+  it("không lệch ngày ở múi giờ có offset lịch sử lẻ (Asia/Ho_Chi_Minh 1899 = +07:06:30)", () => {
+    const original = process.env.TZ
+    try {
+      process.env.TZ = "Asia/Ho_Chi_Minh"
+      expect(parseDateValue(45000)).toBe("2023-03-15")
+      // 46258 = thứ 2 24/08/2026 — trước đây bị lùi thành chủ nhật 23/08
+      expect(parseDateValue(46258)).toBe("2026-08-24")
+    } finally {
+      process.env.TZ = original
+    }
+  })
+
+  it("serial lệch epsilon dưới nửa đêm vẫn ra đúng ngày", () => {
+    expect(parseDateValue(46258 - 1e-7)).toBe("2026-08-24")
+    // Serial có phần giờ thật (18:00) thì lấy đúng ngày của nó
+    expect(parseDateValue(46258.75)).toBe("2026-08-24")
+  })
+
   it("trả về null với giá trị không hợp lệ", () => {
     expect(parseDateValue("")).toBeNull()
     expect(parseDateValue(null)).toBeNull()

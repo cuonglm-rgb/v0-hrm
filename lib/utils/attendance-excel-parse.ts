@@ -185,13 +185,25 @@ export function parseDateValue(value: unknown): string | null {
   }
 
   if (typeof value === "number") {
-    // Excel date serial number (days since 1900-01-01)
-    // Excel có bug: coi 1900 là năm nhuận nên cần trừ 1 nếu > 60
-    const excelEpoch = new Date(1899, 11, 30) // 1899-12-30
-    const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000)
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, "0")
-    const day = String(date.getDate()).padStart(2, "0")
+    // Excel date serial number: số ngày kể từ 1899-12-30
+    // (mốc này đã tính sẵn bug "1900 là năm nhuận" của Excel).
+    //
+    // BẮT BUỘC cộng theo UTC. Nếu lấy mốc bằng giờ địa phương — new Date(1899, 11, 30) —
+    // thì ở múi giờ có offset lịch sử lẻ, kết quả lệch nguyên 1 ngày:
+    // Asia/Ho_Chi_Minh năm 1899 là +07:06:30 còn nay là +07:00, nên nửa đêm 1899-12-30
+    // cộng N ngày rơi vào 23:53:30 của ngày HÔM TRƯỚC → cả file chấm công bị lùi 1 ngày
+    // (dữ liệu thứ 2 rơi vào chủ nhật).
+    if (!Number.isFinite(value) || value <= 0) return null
+
+    // Thư viện đọc Excel có thể trả về serial lệch vài phần triệu (VD 46257.9999993).
+    // Giá trị sát nửa đêm được làm tròn lên để không bị lùi ngày.
+    const fraction = value - Math.floor(value)
+    const serial = fraction > 1 - 1 / 1440 ? Math.ceil(value) : Math.floor(value)
+
+    const date = new Date(Date.UTC(1899, 11, 30) + serial * 24 * 60 * 60 * 1000)
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0")
+    const day = String(date.getUTCDate()).padStart(2, "0")
     return `${year}-${month}-${day}`
   }
 

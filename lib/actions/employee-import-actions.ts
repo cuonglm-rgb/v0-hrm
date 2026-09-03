@@ -35,9 +35,10 @@ function parseDate(dateStr: string | number | undefined): string | null {
   
   // Handle Excel serial date number
   if (typeof dateStr === "number") {
-    // Excel serial date: days since 1900-01-01 (with Excel's leap year bug)
-    const excelEpoch = new Date(1899, 11, 30) // Dec 30, 1899
-    const date = new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000)
+    // Excel serial date: số ngày kể từ 1899-12-30 (đã tính sẵn bug năm nhuận 1900).
+    // Cộng theo UTC để không lệch ngày ở múi giờ có offset lịch sử lẻ
+    // (VD Asia/Ho_Chi_Minh: 1899 là +07:06:30, nay là +07:00 → lùi 1 ngày).
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(dateStr) * 24 * 60 * 60 * 1000)
     return date.toISOString().split("T")[0]
   }
   
