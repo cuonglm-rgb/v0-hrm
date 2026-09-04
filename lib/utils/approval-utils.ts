@@ -26,3 +26,19 @@ export function isApproverAtCurrentStep(
   return approverDisplayOrder === currentStep
 }
 
+/**
+ * Quy tắc "mỗi bước chỉ cần 1 người đồng ý":
+ * trả về các display_order mà bước đó đã có ít nhất 1 người approved
+ * nhưng vẫn còn người pending — những người pending này được coi là đã duyệt.
+ */
+export function getSatisfiedStepsWithPending(approvers: SequentialAssignedApprover[]): number[] {
+  const approvedSteps = new Set<number>()
+  const pendingSteps = new Set<number>()
+  for (const a of approvers) {
+    if (a.display_order == null) continue
+    if (a.status === "approved") approvedSteps.add(a.display_order)
+    else if (a.status === "pending") pendingSteps.add(a.display_order)
+  }
+  return [...approvedSteps].filter((step) => pendingSteps.has(step)).sort((a, b) => a - b)
+}
+

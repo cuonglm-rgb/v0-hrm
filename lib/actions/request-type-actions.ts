@@ -12,7 +12,7 @@ import { getSaturdayDefaultConfig } from "@/lib/actions/work-schedule-settings-a
 import { getEmployeeViolations } from "./payroll/violations"
 import type { ShiftInfo } from "./payroll/types"
 import { differenceInDays, parseISO, startOfDay } from "date-fns"
-import { getCurrentSequentialStep, isApproverAtCurrentStep } from "@/lib/utils/approval-utils"
+import { getCurrentSequentialStep, isApproverAtCurrentStep, getSatisfiedStepsWithPending } from "@/lib/utils/approval-utils"
 
 // =============================================
 // REQUEST TYPES (Loại phiếu)
@@ -1288,8 +1288,8 @@ export async function approveEmployeeRequest(id: string) {
         return { success: false, error: "Chưa đến lượt bạn duyệt phiếu này" }
       }
 
-      // Trong luồng tuần tự: chỉ duyệt bước hiện tại (currentStep), không duyệt hết tất cả bước.
-      // HR/Admin cũng chỉ duyệt một bước mỗi lần để giữ đúng thứ tự.
+      // Trong luồng tuần tự: duyệt bước hiện tại (currentStep) + các bước sau
+      // mà người vừa duyệt cũng được gán (mỗi bước chỉ cần 1 người đồng ý).
       const now = getNowVN()
       if (isHrOrAdmin) {
         // HR/Admin: duyệt toàn bộ người ở bước hiện tại (currentStep)
@@ -1327,8 +1327,8 @@ export async function approveEmployeeRequest(id: string) {
           }
         }
       } else if (isAssigned) {
-        // Người duyệt thường: duyệt bước hiện tại
-        // 1) Cập nhật trạng thái cho bản ghi của chính họ
+        // Người duyệt thường: cập nhật trạng thái cho tất cả bản ghi của chính họ
+        // (1 lần bấm duyệt cho tất cả các bước của cùng 1 người)
         const { error: updateSelfError } = await supabase
           .from("request_assigned_approvers")
           .update({
@@ -1342,22 +1342,38 @@ export async function approveEmployeeRequest(id: string) {
           console.error("Error updating approver status:", updateSelfError)
           return { success: false, error: updateSelfError.message }
         }
+      }
 
-        // 2) Tự động coi như cả bước đã hoàn thành:
-        // tất cả bản ghi cùng display_order còn pending sẽ được auto-approved
-        const { error: autoStepError } = await supabase
+      // Quy tắc "mỗi bước chỉ cần 1 người đồng ý": bước nào đã có ít nhất 1 người
+      // approved thì các dòng pending còn lại của bước đó được tự duyệt — áp dụng
+      // cả cho bước sau, khi người vừa duyệt cũng được gán ở bước đó.
+      // Dùng service client vì RLS chỉ cho người duyệt thường sửa dòng của chính họ.
+      const { data: afterUpdateApprovers } = await serviceSupabase
+        .from("request_assigned_approvers")
+        .select("display_order, status")
+        .eq("request_id", id)
+
+      const satisfiedSteps = getSatisfiedStepsWithPending(
+        (afterUpdateApprovers || []).map((a: any) => ({
+          display_order: a.display_order as number | null,
+          status: a.status as string,
+        }))
+      )
+
+      if (satisfiedSteps.length > 0) {
+        const { error: settleStepsError } = await serviceSupabase
           .from("request_assigned_approvers")
           .update({
             status: "approved",
             approved_at: now,
           })
           .eq("request_id", id)
-          .eq("display_order", myRow?.display_order ?? currentStep)
           .eq("status", "pending")
+          .in("display_order", satisfiedSteps)
 
-        if (autoStepError) {
-          console.error("Error auto-approving step approvers:", autoStepError)
-          return { success: false, error: autoStepError.message }
+        if (settleStepsError) {
+          console.error("Error auto-approving satisfied steps:", settleStepsError)
+          return { success: false, error: settleStepsError.message }
         }
       }
 
