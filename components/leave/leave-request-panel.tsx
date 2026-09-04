@@ -83,6 +83,7 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     approver_id: string
     status: string
     display_order: number
+    auto_approved?: boolean
     approver?: { id: string; full_name: string; employee_code: string } | null
   }>>([])
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -619,10 +620,12 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     }
   }
 
-  const getApproverStatusIcon = (status: string) => {
+  const getApproverStatusIcon = (status: string, autoApproved?: boolean) => {
     switch (status) {
       case "approved":
-        return <CheckCircle className="h-4 w-4 text-green-600" />
+        return autoApproved
+          ? <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          : <CheckCircle className="h-4 w-4 text-green-600" />
       case "rejected":
         return <XCircle className="h-4 w-4 text-red-600" />
       default:
@@ -630,10 +633,10 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
     }
   }
 
-  const getApproverStatusText = (status: string) => {
+  const getApproverStatusText = (status: string, autoApproved?: boolean) => {
     switch (status) {
       case "approved":
-        return "Đã duyệt"
+        return autoApproved ? "Tự động duyệt" : "Đã duyệt"
       case "rejected":
         return "Từ chối"
       default:
@@ -1704,8 +1707,8 @@ export function LeaveRequestPanel({ requestTypes, employeeRequests }: LeaveReque
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          {getApproverStatusIcon(approver.status)}
-                          <span className="text-xs">{getApproverStatusText(approver.status)}</span>
+                          {getApproverStatusIcon(approver.status, approver.auto_approved)}
+                          <span className="text-xs">{getApproverStatusText(approver.status, approver.auto_approved)}</span>
                         </div>
                       </div>
                     ))}

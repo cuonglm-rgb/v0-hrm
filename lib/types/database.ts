@@ -431,6 +431,8 @@ export interface RequestAssignedApprover {
   status: RequestStatus
   comment: string | null
   approved_at: string | null
+  /** TRUE = hệ thống tự duyệt (bước đã có người khác đồng ý / duyệt thay), không phải người này bấm duyệt */
+  auto_approved: boolean
   created_at: string
 }
 

@@ -1222,15 +1222,30 @@ export async function approveEmployeeRequest(id: string) {
       // Chế độ "chỉ cần 1 người duyệt": 1 người đồng ý → tất cả coi như đã duyệt, phiếu approved (kể cả phiếu cũ lưu 2 bước)
       if (approvalMode === "any") {
         const now = getNowVN()
-        const { error: updateAllError } = await serviceSupabase
+        // Dòng của những người KHÔNG bấm duyệt → đánh dấu tự động duyệt
+        const { error: updateOthersError } = await serviceSupabase
           .from("request_assigned_approvers")
-          .update({ status: "approved", approved_at: now })
+          .update({ status: "approved", approved_at: now, auto_approved: true })
           .eq("request_id", id)
           .eq("status", "pending")
+          .neq("approver_id", approverEmployee.id)
 
-        if (updateAllError) {
-          console.error("Error updating all approvers (any mode):", updateAllError)
-          return { success: false, error: updateAllError.message }
+        if (updateOthersError) {
+          console.error("Error updating other approvers (any mode):", updateOthersError)
+          return { success: false, error: updateOthersError.message }
+        }
+
+        // Dòng của chính người bấm duyệt → duyệt thật
+        const { error: updateSelfAnyError } = await serviceSupabase
+          .from("request_assigned_approvers")
+          .update({ status: "approved", approved_at: now, auto_approved: false })
+          .eq("request_id", id)
+          .eq("status", "pending")
+          .eq("approver_id", approverEmployee.id)
+
+        if (updateSelfAnyError) {
+          console.error("Error updating self approver (any mode):", updateSelfAnyError)
+          return { success: false, error: updateSelfAnyError.message }
         }
 
         const { data: afterApprovers } = await serviceSupabase
@@ -1292,30 +1307,34 @@ export async function approveEmployeeRequest(id: string) {
       // mà người vừa duyệt cũng được gán (mỗi bước chỉ cần 1 người đồng ý).
       const now = getNowVN()
       if (isHrOrAdmin) {
-        // HR/Admin: duyệt toàn bộ người ở bước hiện tại (currentStep)
+        // HR/Admin: duyệt thay toàn bộ người ở bước hiện tại (currentStep)
+        // → các dòng không phải của chính họ được đánh dấu tự động duyệt
         const { error: updateStepError } = await supabase
           .from("request_assigned_approvers")
           .update({
             status: "approved",
             approved_at: now,
+            auto_approved: true,
           })
           .eq("request_id", id)
           .eq("display_order", currentStep)
           .eq("status", "pending")
+          .neq("approver_id", approverEmployee.id)
 
         if (updateStepError) {
           console.error("Error updating step approvers (HR/Admin):", updateStepError)
           return { success: false, error: updateStepError.message }
         }
 
-        // Nếu HR/Admin cũng được gán ở các bước sau → duyệt luôn các dòng của chính họ
-        // (1 lần bấm duyệt cho tất cả các bước của cùng 1 người)
+        // Nếu HR/Admin cũng được gán ở các bước → duyệt luôn các dòng của chính họ
+        // (1 lần bấm duyệt cho tất cả các bước của cùng 1 người — duyệt thật)
         if (isAssigned) {
           const { error: updateSelfRowsError } = await supabase
             .from("request_assigned_approvers")
             .update({
               status: "approved",
               approved_at: now,
+              auto_approved: false,
             })
             .eq("request_id", id)
             .eq("approver_id", approverEmployee.id)
@@ -1328,12 +1347,13 @@ export async function approveEmployeeRequest(id: string) {
         }
       } else if (isAssigned) {
         // Người duyệt thường: cập nhật trạng thái cho tất cả bản ghi của chính họ
-        // (1 lần bấm duyệt cho tất cả các bước của cùng 1 người)
+        // (1 lần bấm duyệt cho tất cả các bước của cùng 1 người — duyệt thật)
         const { error: updateSelfError } = await supabase
           .from("request_assigned_approvers")
           .update({
             status: "approved",
             approved_at: now,
+            auto_approved: false,
           })
           .eq("request_id", id)
           .eq("approver_id", approverEmployee.id)
@@ -1366,6 +1386,7 @@ export async function approveEmployeeRequest(id: string) {
           .update({
             status: "approved",
             approved_at: now,
+            auto_approved: true,
           })
           .eq("request_id", id)
           .eq("status", "pending")

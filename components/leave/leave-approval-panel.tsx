@@ -92,6 +92,7 @@ export function LeaveApprovalPanel({
     status: string
     display_order: number
     approved_at?: string | null
+    auto_approved?: boolean
     approver?: { id: string; full_name: string; employee_code: string } | null
   }>>([])
   const [loadingDetail, setLoadingDetail] = useState(false)
@@ -328,10 +329,12 @@ export function LeaveApprovalPanel({
     }
   }
 
-  const getApproverStatusIcon = (status: string) => {
+  const getApproverStatusIcon = (status: string, autoApproved?: boolean) => {
     switch (status) {
       case "approved":
-        return <CheckCircle2 className="h-4 w-4 text-green-600" />
+        return autoApproved
+          ? <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+          : <CheckCircle2 className="h-4 w-4 text-green-600" />
       case "rejected":
         return <XCircle className="h-4 w-4 text-red-600" />
       default:
@@ -339,10 +342,10 @@ export function LeaveApprovalPanel({
     }
   }
 
-  const getApproverStatusText = (status: string) => {
+  const getApproverStatusText = (status: string, autoApproved?: boolean) => {
     switch (status) {
       case "approved":
-        return "Đã duyệt"
+        return autoApproved ? "Tự động duyệt" : "Đã duyệt"
       case "rejected":
         return "Từ chối"
       default:
@@ -1288,9 +1291,9 @@ export function LeaveApprovalPanel({
                           </div>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          {getApproverStatusIcon(approver.status)}
-                          <span className={`text-xs ${approver.status === 'approved' ? 'text-green-600' : approver.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
-                            {getApproverStatusText(approver.status)}
+                          {getApproverStatusIcon(approver.status, approver.auto_approved)}
+                          <span className={`text-xs ${approver.status === 'approved' ? (approver.auto_approved ? 'text-muted-foreground' : 'text-green-600') : approver.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
+                            {getApproverStatusText(approver.status, approver.auto_approved)}
                           </span>
                         </div>
                       </div>
