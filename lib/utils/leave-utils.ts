@@ -1,4 +1,4 @@
-import { differenceInMonths, differenceInYears, endOfYear, startOfYear, isBefore, getMonth, getDate, getYear, parseISO } from "date-fns"
+import { differenceInCalendarMonths, differenceInYears, endOfYear, startOfYear, isBefore, getMonth, getDate, getYear, parseISO } from "date-fns"
 
 /**
  * Calculates the total annual leave entitlement for a specific year.
@@ -103,7 +103,8 @@ export function calculateAvailableBalance(
   // This implies that during the first 5 months, the ACCRUED leave is capped at 1 * months_passed.
   // After 5 months, the full annual entitlement becomes available (or pro-rated rest).
   
-  const monthsSinceOfficial = differenceInMonths(targetDate, officialDate)
+  // Tính theo tháng dương lịch: phép tháng mới được cộng từ mùng 1 (không chờ tròn tháng theo ngày chính thức)
+  const monthsSinceOfficial = differenceInCalendarMonths(targetDate, officialDate)
   
   let availableToUse = totalEntitlement
   let isRestricted = false

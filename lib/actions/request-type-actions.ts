@@ -745,7 +745,10 @@ export async function createEmployeeRequest(input: {
     const remaining = availableToUse - usedDays
 
     if (requestedDays > remaining) {
-      return { success: false, error: `Số dư phép không đủ. Bạn có ${remaining} ngày, yêu cầu ${requestedDays} ngày.` }
+      return {
+        success: false,
+        error: `Số dư phép không đủ. Bạn đã dùng ${usedDays}/${availableToUse} ngày phép được cộng đến tháng này, còn ${Math.max(0, remaining)} ngày, yêu cầu ${requestedDays} ngày.`,
+      }
     }
 
     // Validate ngày nghỉ phép không được trùng với ngày nghỉ của nhân viên
