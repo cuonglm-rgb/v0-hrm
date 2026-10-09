@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, getMakeupDeficitLinks, findLateEarlyMakeupForDeficitDate, getCompanyHolidayDatesForEmployee } from "../makeup-utils"
+import { isMakeupRequestType, isEmployeeOffDay, isSameMonth, LINKED_DEFICIT_DATE_KEY, getMakeupDeficitLinks, findLateEarlyMakeupForDeficitDate, getCompanyHolidayDatesForEmployee, isOffByCompanyDefault, getMakeupStandardAdjustment } from "../makeup-utils"
 import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffByDefault } from "../saturday-utils"
 
 describe("isMakeupRequestType", () => {
@@ -262,5 +262,63 @@ describe("findLateEarlyMakeupForDeficitDate", () => {
 
   it("returns null when employeeId is undefined", () => {
     expect(findLateEarlyMakeupForDeficitDate("2026-08-20", undefined, [makeupOnOtherDay])).toBeNull()
+  })
+})
+
+// Mốc: 29/08/2026 là thứ 7 LÀM VIỆC → 05/09 nghỉ, 12/09 làm, 19/09 nghỉ
+const CONFIG_ALT = { ...DEFAULT_SATURDAY_CONFIG, anchor_date: "2026-08-29", anchor_is_working: true }
+
+describe("isOffByCompanyDefault", () => {
+  it("Chủ nhật luôn là ngày nghỉ", () => {
+    expect(isOffByCompanyDefault("2026-09-06", CONFIG_ALT)).toBe(true)
+  })
+
+  it("T7 theo lịch mặc định: nghỉ / làm", () => {
+    expect(isOffByCompanyDefault("2026-09-05", CONFIG_ALT)).toBe(true)
+    expect(isOffByCompanyDefault("2026-09-12", CONFIG_ALT)).toBe(false)
+  })
+
+  it("ngày thường không phải ngày nghỉ", () => {
+    expect(isOffByCompanyDefault("2026-08-31", CONFIG_ALT)).toBe(false)
+  })
+})
+
+describe("isEmployeeOffDay với ngày làm bù của công ty", () => {
+  it("CN / T7 nghỉ là ngày làm bù → ngày làm việc", () => {
+    expect(isEmployeeOffDay("2026-09-06", [], "e1", [], CONFIG_ALT, [], ["2026-09-06"])).toBe(false)
+    expect(isEmployeeOffDay("2026-09-05", [], "e1", [], CONFIG_ALT, [], ["2026-09-05"])).toBe(false)
+  })
+
+  it("không có ngày làm bù thì vẫn là ngày nghỉ", () => {
+    expect(isEmployeeOffDay("2026-09-05", [], "e1", [], CONFIG_ALT)).toBe(true)
+  })
+})
+
+describe("getMakeupStandardAdjustment", () => {
+  const companyWide = [{ work_date: "2026-09-05", assigned_employees: [] }]
+  const scoped = [{ work_date: "2026-09-05", assigned_employees: [{ employee_id: "e1" }] }]
+
+  it("làm bù toàn công ty: đã cộng ở công chuẩn tháng, không điều chỉnh thêm", () => {
+    expect(getMakeupStandardAdjustment(companyWide, "e1", [], CONFIG_ALT)).toBe(0)
+  })
+
+  it("làm bù toàn công ty vào T7 nhân viên vốn được phân công làm → −1", () => {
+    const sat = [{ work_date: "2026-09-05", is_working: true }]
+    expect(getMakeupStandardAdjustment(companyWide, "e1", sat, CONFIG_ALT)).toBe(-1)
+  })
+
+  it("làm bù riêng: +1 với nhân viên được chọn, 0 với người khác", () => {
+    expect(getMakeupStandardAdjustment(scoped, "e1", [], CONFIG_ALT)).toBe(1)
+    expect(getMakeupStandardAdjustment(scoped, "e2", [], CONFIG_ALT)).toBe(0)
+  })
+
+  it("làm bù riêng vào T7 nhân viên vốn được phân công làm → 0", () => {
+    const sat = [{ work_date: "2026-09-05", is_working: true }]
+    expect(getMakeupStandardAdjustment(scoped, "e1", sat, CONFIG_ALT)).toBe(0)
+  })
+
+  it("bỏ qua ngày làm bù rơi vào ngày vốn đã là ngày làm (lịch đổi sau khi tạo)", () => {
+    const onWorkingSat = [{ work_date: "2026-09-12", assigned_employees: [{ employee_id: "e1" }] }]
+    expect(getMakeupStandardAdjustment(onWorkingSat, "e1", [], CONFIG_ALT)).toBe(0)
   })
 })

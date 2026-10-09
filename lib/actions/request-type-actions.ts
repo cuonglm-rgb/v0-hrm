@@ -14,6 +14,24 @@ import type { ShiftInfo } from "./payroll/types"
 import { differenceInDays, parseISO, startOfDay } from "date-fns"
 import { getCurrentSequentialStep, isApproverAtCurrentStep, getSatisfiedStepsWithPending } from "@/lib/utils/approval-utils"
 
+// Ngày làm bù của công ty (special_work_days.is_makeup_workday) áp dụng cho nhân viên trong khoảng ngày.
+// Những ngày này là ngày làm việc kể cả rơi vào CN/T7.
+async function getEmployeeMakeupWorkDates(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  employeeId: string,
+  fromDate: string,
+  toDate: string
+): Promise<string[]> {
+  const { data } = await supabase
+    .from("special_work_days")
+    .select("work_date, assigned_employees:special_work_day_employees(employee_id)")
+    .eq("is_makeup_workday", true)
+    .gte("work_date", fromDate)
+    .lte("work_date", toDate)
+
+  return getCompanyHolidayDatesForEmployee(data as any, employeeId)
+}
+
 // =============================================
 // REQUEST TYPES (Loại phiếu)
 // =============================================
@@ -766,6 +784,7 @@ export async function createEmployeeRequest(input: {
         .lte("holiday_date", input.to_date)
 
       const saturdayConfig = await getSaturdayDefaultConfig()
+      const makeupWorkDates = await getEmployeeMakeupWorkDates(supabase, employee.id, input.from_date, input.to_date)
 
       // Kiểm tra từng ngày trong khoảng from_date -> to_date
       const startDate = new Date(input.from_date + "T00:00:00Z")
@@ -774,7 +793,7 @@ export async function createEmployeeRequest(input: {
 
       for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
         const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [], saturdayConfig)) {
+        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [], saturdayConfig, [], makeupWorkDates)) {
           offDays.push(dateStr)
         }
       }
@@ -863,7 +882,10 @@ export async function createEmployeeRequest(input: {
 
       const makeupSaturdayConfig = await getSaturdayDefaultConfig()
 
-      if (!isEmployeeOffDay(input.request_date, satSchedules || [], employee.id, holidays || [], makeupSaturdayConfig, makeupCompanyHolidays)) {
+      // Ngày làm bù của công ty là ngày làm việc → không chọn làm ngày làm bù cá nhân được
+      const companyMakeupWorkDates = await getEmployeeMakeupWorkDates(supabase, employee.id, input.request_date, input.request_date)
+
+      if (!isEmployeeOffDay(input.request_date, satSchedules || [], employee.id, holidays || [], makeupSaturdayConfig, makeupCompanyHolidays, companyMakeupWorkDates)) {
         return { success: false, error: "Ngày làm bù phải là ngày nghỉ của nhân viên (Chủ nhật, Thứ 7 nghỉ theo lịch, ngày lễ hoặc ngày nghỉ công ty)" }
       }
 
@@ -936,12 +958,13 @@ export async function createEmployeeRequest(input: {
         .in("work_date", deficitDates)
 
       const deficitCompanyHolidays = getCompanyHolidayDatesForEmployee(deficitSpecialDays as any, employee.id)
+      const deficitMakeupWorkDates = await getEmployeeMakeupWorkDates(supabase, employee.id, startDate, endDate)
 
       // Nếu ngày thiếu công là ngày làm việc (không phải off day) nhưng không có violation
       // → nhân viên vắng cả ngày (không chấm công) → deficit = 1
       for (const dd of deficitDates) {
         if (deficitAmountByDate[dd] === undefined) {
-          const isOff = isEmployeeOffDay(dd, deficitSatSchedules || [], employee.id, deficitHolidays || [], makeupSaturdayConfig, deficitCompanyHolidays)
+          const isOff = isEmployeeOffDay(dd, deficitSatSchedules || [], employee.id, deficitHolidays || [], makeupSaturdayConfig, deficitCompanyHolidays, deficitMakeupWorkDates)
           if (!isOff) {
             deficitAmountByDate[dd] = 1
           }
@@ -2088,6 +2111,7 @@ export async function updateEmployeeRequest(
         .lte("holiday_date", input.to_date)
 
       const saturdayConfig = await getSaturdayDefaultConfig()
+      const makeupWorkDates = await getEmployeeMakeupWorkDates(supabase, employee.id, input.from_date, input.to_date)
 
       // Kiểm tra từng ngày trong khoảng from_date -> to_date
       const startDate = new Date(input.from_date + "T00:00:00Z")
@@ -2096,7 +2120,7 @@ export async function updateEmployeeRequest(
 
       for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
         const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [], saturdayConfig)) {
+        if (isEmployeeOffDay(dateStr, satSchedules || [], employee.id, holidays || [], saturdayConfig, [], makeupWorkDates)) {
           offDays.push(dateStr)
         }
       }

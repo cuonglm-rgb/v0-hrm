@@ -55,6 +55,8 @@ interface DayLogParams {
   }>
   attendanceDayFractions: Map<string, number>
   isEmployeeWorkingSaturday: (dateStr: string) => boolean
+  /** Ngày làm bù của công ty áp dụng cho nhân viên: là ngày làm việc kể cả CN/T7 */
+  makeupWorkDates?: Set<string>
   countedDates: Set<string>
   requestsByDate: Map<string, RequestEntry[]>
   allowanceAudit: AllowanceAudit[]
@@ -102,6 +104,7 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
     adjustmentDetails,
     attendanceDayFractions,
     isEmployeeWorkingSaturday,
+    makeupWorkDates = new Set<string>(),
     countedDates,
     requestsByDate,
     allowanceAudit,
@@ -194,7 +197,7 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
     const dateStr = `${cur.getUTCFullYear()}-${String(cur.getUTCMonth() + 1).padStart(2, "0")}-${String(cur.getUTCDate()).padStart(2, "0")}`
     const dow = cur.getUTCDay()
     const isSchedWork =
-      dow !== 0 && !(dow === 6 && !isEmployeeWorkingSaturday(dateStr))
+      makeupWorkDates.has(dateStr) || (dow !== 0 && !(dow === 6 && !isEmployeeWorkingSaturday(dateStr)))
     if (isSchedWork) allDates.add(dateStr)
     cur.setUTCDate(cur.getUTCDate() + 1)
   }
@@ -216,7 +219,8 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
     const dowLabel = WEEKDAY_LABEL[dow]
     const isHoliday = holidayMap.has(dateStr)
     const isCompanyHoliday = companyHolidayMap.has(dateStr)
-    const isScheduledOff = dow === 0 || (dow === 6 && !isEmployeeWorkingSaturday(dateStr))
+    const isCompanyMakeupWorkday = makeupWorkDates.has(dateStr)
+    const isScheduledOff = !isCompanyMakeupWorkday && (dow === 0 || (dow === 6 && !isEmployeeWorkingSaturday(dateStr)))
 
     const att = attendanceByDate.get(dateStr)
     const wasCounted = countedDates.has(dateStr)
@@ -233,6 +237,7 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
     const tags: string[] = []
     if (isHoliday) tags.push(`🎉 Lễ: ${holidayMap.get(dateStr)}`)
     if (isCompanyHoliday) tags.push(`🏢 Nghỉ công ty: ${companyHolidayMap.get(dateStr)}`)
+    if (isCompanyMakeupWorkday) tags.push("🔁 Làm bù cho ngày nghỉ công ty (tính như ngày công)")
     if (isScheduledOff && !isHoliday && !isCompanyHoliday) {
       if (dow === 6) {
         // Saturday: phân biệt override vs default
@@ -244,7 +249,7 @@ export function buildDayByDayLog(params: DayLogParams): string[] {
       } else {
         tags.push("⚪ Ngoài lịch")
       }
-    } else if (!isScheduledOff && dow === 6) {
+    } else if (!isScheduledOff && dow === 6 && !isCompanyMakeupWorkday) {
       // Saturday working day — note source
       if (saturdayScheduleMap.has(dateStr)) {
         tags.push("✓ T7 làm (theo phân công)")

@@ -532,6 +532,15 @@ export async function suggestOTType(date: string): Promise<string> {
   // Thứ 7 (dayOfWeek = 6) tính như ngày thường
   const dayOfWeek = new Date(date).getDay()
   if (dayOfWeek === 0) {
+    // CN là ngày làm bù của công ty → ngày công bình thường
+    const supabase = await createClient()
+    const { count } = await supabase
+      .from("special_work_days")
+      .select("*", { count: "exact", head: true })
+      .eq("work_date", date)
+      .eq("is_makeup_workday", true)
+    if ((count || 0) > 0) return "OT_NORMAL"
+
     return "OT_WEEKEND"
   }
 

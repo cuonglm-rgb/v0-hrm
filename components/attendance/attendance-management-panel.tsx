@@ -791,7 +791,8 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     const isHolidayDay = !!holiday
                     const holidayName = holiday?.name || "Nghỉ lễ"
                     const dateObj = logDateOnly ? new Date(logDateOnly) : new Date()
-                    const isWeekendDay = isWeekend(dateObj, log.employee_id || '', saturdaySchedules, saturdayConfig)
+                    // Ngày làm bù của công ty là ngày làm việc kể cả rơi vào CN/T7
+                    const isWeekendDay = !specialDay?.is_makeup_workday && isWeekend(dateObj, log.employee_id || '', saturdaySchedules, saturdayConfig)
 
                     // Kiểm tra phiếu nghỉ
                     const leaveRequest = logDateOnly && log.employee_id ? getLeaveRequestForDate(logDateOnly, log.employee_id, leaveRequests) : null

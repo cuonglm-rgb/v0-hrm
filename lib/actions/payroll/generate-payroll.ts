@@ -8,13 +8,13 @@ import { getEmployeeKPI } from "../kpi-actions"
 import { toDateStringVN } from "@/lib/utils/date-utils"
 import { calculateLeaveEntitlement } from "@/lib/utils/leave-utils"
 import { calculateLeaveDays } from "@/lib/utils/date-utils"
-import { calculateStandardWorkingDays } from "./working-days"
+import { calculateStandardWorkingDays, listMakeupWorkDays } from "./working-days"
 import { getEmployeeViolations } from "./violations"
 import type { ShiftInfo } from "./types"
 import { isSaturdayOff, type SaturdayDefaultConfig } from "./working-days-utils"
 import { isSaturdayOffForEmployee } from "@/lib/utils/saturday-utils"
 import { getSaturdayDefaultConfig } from "../work-schedule-settings-actions"
-import { MAKEUP_CODES, getMakeupDeficitLinks, isMakeupRequestType } from "@/lib/utils/makeup-utils"
+import { MAKEUP_CODES, getMakeupDeficitLinks, isMakeupRequestType, getCompanyHolidayDatesForEmployee, getMakeupStandardAdjustment, type CompanyHolidayLike } from "@/lib/utils/makeup-utils"
 import { PayrollLogger } from "@/lib/utils/payroll-logger"
 import { buildDayByDayLog, type AllowanceAudit, type PenaltyExempt, type RequestEntry } from "./day-by-day-log"
 import { calculateProbationSplit } from "./probation-salary"
@@ -137,12 +137,14 @@ export async function generatePayroll(month: number, year: number) {
 
   const probationRate = await getProbationSalaryRate()
   const saturdayConfig = await getSaturdayDefaultConfig()
+  // Ngày làm bù trong tháng (CN/T7 nghỉ thành ngày công) — công chuẩn được điều chỉnh riêng theo nhân viên
+  const makeupWorkDays = await listMakeupWorkDays(startDate, endDate)
 
   let processedCount = 0
   for (const emp of employees) {
     const result = await processEmployeePayroll(
       supabase, emp, run.id, month, year, startDate, endDate,
-      STANDARD_WORKING_DAYS, adjustmentTypes, shiftMap, probationRate, saturdayConfig
+      STANDARD_WORKING_DAYS, adjustmentTypes, shiftMap, probationRate, saturdayConfig, makeupWorkDays
     )
     if (result) processedCount++
   }
@@ -189,11 +191,12 @@ async function processEmployeePayroll(
   year: number,
   startDate: string,
   endDate: string,
-  STANDARD_WORKING_DAYS: number,
+  companyStandardDays: number,
   adjustmentTypes: any,
   shiftMap: Map<string, any>,
   probationRate: number,
-  saturdayConfig: SaturdayDefaultConfig
+  saturdayConfig: SaturdayDefaultConfig,
+  makeupWorkDays: CompanyHolidayLike[] = []
 ): Promise<boolean> {
   const logger = new PayrollLogger()
   const originalConsoleLog = console.log
@@ -214,6 +217,27 @@ async function processEmployeePayroll(
     return false
   }
   
+  // Query phân công lịch thứ 7 override theo nhân viên
+  const { data: saturdaySchedules } = await supabase
+    .from("saturday_work_schedule")
+    .select("work_date, is_working")
+    .eq("employee_id", emp.id)
+    .gte("work_date", startDate)
+    .lte("work_date", endDate)
+
+  const employeeSaturdaySchedules: { work_date: string; is_working: boolean }[] = (saturdaySchedules || []).map(
+    (s: any) => ({ work_date: s.work_date as string, is_working: s.is_working as boolean })
+  )
+
+  const saturdayScheduleMap = new Map<string, boolean>(
+    employeeSaturdaySchedules.map((s) => [s.work_date, s.is_working] as [string, boolean])
+  )
+
+  // Ngày làm bù áp dụng cho nhân viên này là ngày làm việc (kể cả CN/T7) và cộng công chuẩn riêng
+  const makeupWorkDates = new Set(getCompanyHolidayDatesForEmployee(makeupWorkDays, emp.id))
+  const STANDARD_WORKING_DAYS =
+    companyStandardDays + getMakeupStandardAdjustment(makeupWorkDays, emp.id, employeeSaturdaySchedules, saturdayConfig)
+
   const dailySalary = baseSalary / STANDARD_WORKING_DAYS
 
   logger.section(`TÍNH LƯƠNG: ${emp.full_name} (${emp.employee_code}) - Tháng ${month}/${year}`)
@@ -287,22 +311,6 @@ async function processEmployeePayroll(
     .eq("status", "approved")
     .or(`and(request_date.gte.${startDate},request_date.lte.${effectiveEndDate}),and(from_date.lte.${effectiveEndDate},to_date.gte.${startDate})`)
 
-  // Query phân công lịch thứ 7 override theo nhân viên
-  const { data: saturdaySchedules } = await supabase
-    .from("saturday_work_schedule")
-    .select("work_date, is_working")
-    .eq("employee_id", emp.id)
-    .gte("work_date", startDate)
-    .lte("work_date", endDate)
-
-  const employeeSaturdaySchedules: { work_date: string; is_working: boolean }[] = (saturdaySchedules || []).map(
-    (s: any) => ({ work_date: s.work_date as string, is_working: s.is_working as boolean })
-  )
-
-  const saturdayScheduleMap = new Map<string, boolean>(
-    employeeSaturdaySchedules.map((s) => [s.work_date, s.is_working] as [string, boolean])
-  )
-
   // Thứ 7 của nhân viên: phân công đúng ngày > cấu hình "thứ 7 chưa phân công là ngày nghỉ"
   // (chỉ áp dụng trong tháng có phân công) > lịch mặc định công ty.
   // Dùng chung hàm với màn hình chấm công để payroll và chấm công không lệch nhau.
@@ -311,6 +319,7 @@ async function processEmployeePayroll(
 
   // Ngày nghỉ theo lịch (CN hoặc T7 nghỉ)
   const isOffScheduleDay = (dateStr: string): boolean => {
+    if (makeupWorkDates.has(dateStr)) return false
     const [y, m, d] = dateStr.split('-').map(Number)
     const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay()
     return dow === 0 || (dow === 6 && !isEmployeeWorkingSaturday(dateStr))
@@ -954,6 +963,7 @@ async function processEmployeePayroll(
     adjustmentDetails: adjustmentResult.details,
     attendanceDayFractions,
     isEmployeeWorkingSaturday,
+    makeupWorkDates,
     countedDates,
     requestsByDate,
     allowanceAudit: adjustmentResult.audit.allowances,
@@ -980,6 +990,7 @@ async function processEmployeePayroll(
     dailySalary,
     probationRate,
     saturdayConfig,
+    makeupWorkDates,
   })
   const salaryByWorking = dailySalary * totalPaidDays - probationSplit.probationDiscount
 

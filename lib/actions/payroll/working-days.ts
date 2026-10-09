@@ -3,6 +3,7 @@
 import { listHolidays } from "../overtime-actions"
 import { isSaturdayOff } from "./working-days-utils"
 import { getSaturdayDefaultConfig } from "../work-schedule-settings-actions"
+import { isOffByCompanyDefault, type CompanyHolidayLike } from "@/lib/utils/makeup-utils"
 
 // =============================================
 // TÍNH CÔNG CHUẨN ĐỘNG THEO THÁNG
@@ -15,6 +16,7 @@ export async function calculateStandardWorkingDays(month: number, year: number):
   saturdaysOff: number
   holidays: number
   companyHolidays: number
+  makeupWorkDays: number
   standardDays: number
 }> {
   const holidays = await listHolidays(year)
@@ -32,6 +34,17 @@ export async function calculateStandardWorkingDays(month: number, year: number):
     .lte("work_date", `${year}-${String(month).padStart(2, '0')}-31`)
 
   const companyHolidayDates = new Set((specialDays || []).map(s => s.work_date))
+
+  // Ngày làm bù toàn công ty rơi vào ngày nghỉ mặc định → +1 công chuẩn.
+  // Ngày làm bù chỉ áp dụng cho một số nhân viên được cộng riêng qua getMakeupStandardAdjustment.
+  const monthLastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  const makeupDays = await listMakeupWorkDays(
+    `${year}-${String(month).padStart(2, '0')}-01`,
+    `${year}-${String(month).padStart(2, '0')}-${String(monthLastDay).padStart(2, '0')}`
+  )
+  const makeupWorkDays = makeupDays.filter(
+    m => (m.assigned_employees || []).length === 0 && isOffByCompanyDefault(m.work_date, saturdayConfig)
+  ).length
 
   const lastDay = new Date(Date.UTC(year, month, 0)).getDate()
 
@@ -66,7 +79,7 @@ export async function calculateStandardWorkingDays(month: number, year: number):
   }
 
   // Không trừ ngày lễ và ngày nghỉ công ty nữa - được tính lương luôn
-  const standardDays = lastDay - sundays - saturdaysOff
+  const standardDays = lastDay - sundays - saturdaysOff + makeupWorkDays
 
   return {
     totalDays: lastDay,
@@ -74,6 +87,21 @@ export async function calculateStandardWorkingDays(month: number, year: number):
     saturdaysOff,
     holidays: holidayCount,
     companyHolidays: companyHolidayCount,
+    makeupWorkDays,
     standardDays,
   }
+}
+
+// Danh sách ngày làm bù (special_work_days.is_makeup_workday) trong khoảng ngày, kèm phạm vi nhân viên
+export async function listMakeupWorkDays(startDate: string, endDate: string): Promise<CompanyHolidayLike[]> {
+  const { createClient } = await import("@/lib/supabase/server")
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("special_work_days")
+    .select("work_date, assigned_employees:special_work_day_employees(employee_id)")
+    .eq("is_makeup_workday", true)
+    .gte("work_date", startDate)
+    .lte("work_date", endDate)
+
+  return (data || []) as CompanyHolidayLike[]
 }

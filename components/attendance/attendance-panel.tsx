@@ -543,7 +543,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
       if (filterStatus === "all") return true
 
       const dateObj = new Date(date)
-      const isWeekendDay = isWeekend(dateObj, saturdaySchedules, saturdayConfig)
+      // Ngày làm bù của công ty là ngày làm việc kể cả rơi vào CN/T7
+      const isWeekendDay = !specialDay?.is_makeup_workday && isWeekend(dateObj, saturdaySchedules, saturdayConfig)
       const hasApprovedLeave = !!leaveRequest
       const isHolidayDay = !!holiday
       const isCompanyHoliday = specialDay?.is_company_holiday
@@ -1019,7 +1020,8 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
 
                     // Kiểm tra xem có phải ngày nghỉ cuối tuần không
                     const dateObj = new Date(date)
-                    const isWeekendDay = isWeekend(dateObj, saturdaySchedules, saturdayConfig)
+                    // Ngày làm bù của công ty là ngày làm việc kể cả rơi vào CN/T7
+                    const isWeekendDay = !specialDay?.is_makeup_workday && isWeekend(dateObj, saturdaySchedules, saturdayConfig)
 
                     // Kiểm tra ngày tương lai
                     const isFutureDate = dateObj > new Date()
@@ -1040,6 +1042,16 @@ export function AttendancePanel({ attendanceLogs, shift, leaveRequests = [], off
                           <Badge variant="outline" className="font-mono">
                             {getDayOfWeekVN(date)}
                           </Badge>
+                          {specialDay?.is_makeup_workday && (
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge variant="outline" className="ml-1 text-xs bg-amber-50 text-amber-700">
+                                  Làm bù
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>{specialDay.reason}</TooltipContent>
+                            </Tooltip>
+                          )}
                         </TableCell>
                         <TableCell>
                           {hasNoAttendance ? (

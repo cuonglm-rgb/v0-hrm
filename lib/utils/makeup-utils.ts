@@ -1,4 +1,4 @@
-import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffForEmployee, type SaturdayDefaultConfig } from "./saturday-utils"
+import { DEFAULT_SATURDAY_CONFIG, isSaturdayOffByDefault, isSaturdayOffForEmployee, type SaturdayDefaultConfig } from "./saturday-utils"
 
 export const MAKEUP_CODES = ["late_early_makeup", "full_day_makeup"] as const
 export type MakeupCode = typeof MAKEUP_CODES[number]
@@ -82,16 +82,20 @@ export function isEmployeeOffDay(
   employeeId: string,
   holidays: { holiday_date: string }[] = [],
   config: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG,
-  companyHolidayDates: string[] = []
+  companyHolidayDates: string[] = [],
+  makeupWorkDates: string[] = []
 ): boolean {
   const d = typeof date === "string" ? new Date(date + "T00:00:00Z") : date
   const day = d.getUTCDay()
 
-  if (day === 0) return true
-
   const dateStr = typeof date === "string"
     ? date
     : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+  // Ngày làm bù của công ty (special_work_days.is_makeup_workday) là ngày làm việc, kể cả CN/T7
+  if (makeupWorkDates.includes(dateStr)) return false
+
+  if (day === 0) return true
 
   if (holidays.some(h => h.holiday_date === dateStr)) return true
 
@@ -108,4 +112,49 @@ export function isEmployeeOffDay(
 
 export function isSameMonth(dateA: string, dateB: string): boolean {
   return dateA.slice(0, 7) === dateB.slice(0, 7)
+}
+
+/**
+ * Ngày đó vốn là ngày nghỉ theo lịch mặc định công ty (CN hoặc T7 nghỉ) —
+ * điều kiện để một ngày được chọn làm ngày làm bù.
+ */
+export function isOffByCompanyDefault(
+  dateStr: string,
+  config: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG
+): boolean {
+  const day = new Date(dateStr + "T00:00:00Z").getUTCDay()
+  if (day === 0) return true
+  if (day === 6) return isSaturdayOffByDefault(dateStr, config)
+  return false
+}
+
+/**
+ * Điều chỉnh công chuẩn riêng của 1 nhân viên do ngày làm bù trong tháng.
+ *
+ * calculateStandardWorkingDays đã +1 cho mỗi ngày làm bù TOÀN CÔNG TY (rơi vào ngày nghỉ mặc định).
+ * Ở đây bù phần chênh theo từng nhân viên:
+ *  - Ngày làm bù chỉ áp dụng cho nhân viên được chọn → +1 với người được chọn.
+ *  - T7 làm bù mà nhân viên vốn đã được phân công làm (saturday_work_schedule.is_working) →
+ *    với họ đó đã là ngày làm sẵn, không cộng công chuẩn (toàn công ty: −1, riêng: 0).
+ *
+ * `employeeSatSchedules` phải đã lọc theo đúng nhân viên đang xét.
+ */
+export function getMakeupStandardAdjustment(
+  makeupDays: CompanyHolidayLike[] | null | undefined,
+  employeeId: string,
+  employeeSatSchedules: { work_date: string; is_working: boolean }[],
+  config: SaturdayDefaultConfig = DEFAULT_SATURDAY_CONFIG
+): number {
+  let adjustment = 0
+  for (const m of makeupDays || []) {
+    if (!isOffByCompanyDefault(m.work_date, config)) continue
+    const assigned = m.assigned_employees || []
+    const isCompanyWide = assigned.length === 0
+    if (!isCompanyWide && !assigned.some((ae) => ae.employee_id === employeeId)) continue
+
+    const alreadyWorking = employeeSatSchedules.some((s) => s.work_date === m.work_date && s.is_working)
+    if (isCompanyWide && alreadyWorking) adjustment--
+    else if (!isCompanyWide && !alreadyWorking) adjustment++
+  }
+  return adjustment
 }

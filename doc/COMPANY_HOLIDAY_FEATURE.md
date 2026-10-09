@@ -1,7 +1,7 @@
 # Tính năng Ngày nghỉ công ty
 
 ## Tổng quan
-Thêm loại ngày đặc biệt mới: "Ngày nghỉ công ty" - cho phép đánh dấu các ngày mà toàn bộ công ty nghỉ và sẽ trừ 1 ngày công chuẩn trong tính lương.
+Thêm loại ngày đặc biệt mới: "Ngày nghỉ công ty" - cho phép đánh dấu các ngày mà công ty nghỉ. Ngày nghỉ công ty là **nghỉ có lương**: không trừ công chuẩn, nhân viên không đi làm và không có phiếu nghỉ vẫn được cộng 1 công.
 
 ## Các thay đổi
 
@@ -70,8 +70,21 @@ Thêm loại ngày đặc biệt mới: "Ngày nghỉ công ty" - cho phép đá
 - Hover vào badge để xem lý do
 
 ### 3. Tính lương
-- Khi tính lương, hệ thống sẽ tự động trừ số ngày nghỉ công ty khỏi công chuẩn
-- Ví dụ: Tháng có 26 ngày công chuẩn, có 1 ngày nghỉ công ty → Công chuẩn = 25 ngày
+- Ngày nghỉ công ty KHÔNG trừ công chuẩn; nhân viên không đi làm, không có phiếu nghỉ → được cộng 1 công
+
+## Làm bù (hoán đổi ngày nghỉ)
+Migration: `scripts/056-company-holiday-makeup-workday.sql` (cột `is_makeup_workday`, `makeup_for_id`).
+
+- Khi bật "Ngày nghỉ công ty" có thêm "Có làm bù" + chọn ngày làm bù.
+- Ngày làm bù phải là ngày nghỉ theo lịch mặc định (CN / T7 nghỉ), không phải ngày lễ, chưa có ngày đặc biệt khác.
+- Ngày làm bù lưu thành 1 dòng riêng trong `special_work_days` (trỏ về ngày nghỉ qua `makeup_for_id`,
+  cùng phạm vi nhân viên). Xóa ngày nghỉ → ngày làm bù bị xóa theo.
+- Ngày làm bù là ngày công bình thường: vắng → mất công, đi muộn/về sớm → vi phạm như thường,
+  được xin nghỉ phép (trừ phép), không chọn làm ngày làm bù cá nhân được.
+- Công chuẩn của **tháng chứa ngày làm bù** +1. Ví dụ nghỉ 31/8, làm bù 5/9 → tháng 8 giữ nguyên, tháng 9 từ 24 → 25.
+  - Làm bù chỉ cho một số nhân viên → chỉ những người đó +1.
+  - T7 làm bù mà nhân viên vốn đã được phân công làm → người đó không +1.
+- Bảng lương đã chốt không bị tính lại tự động.
 
 ## Migration
 Chạy script SQL:

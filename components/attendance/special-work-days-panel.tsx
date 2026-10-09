@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plus, Edit, Trash2, Calendar, CloudRain, Clock, Filter, Users } from "lucide-react"
+import { Plus, Edit, Trash2, Calendar, CloudRain, Clock, Filter, Users, Repeat } from "lucide-react"
 import { toast } from "sonner"
 import type { SpecialWorkDayWithEmployees, EmployeeWithRelations } from "@/lib/types/database"
 import {
@@ -49,6 +49,15 @@ import { EmployeeMultiSelect } from "@/components/ui/employee-multi-select"
 
 interface SpecialWorkDaysPanelProps {
   specialDays: SpecialWorkDayWithEmployees[]
+}
+
+const WEEKDAY_NAMES_VN = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]
+
+// Hiển thị YYYY-MM-DD theo dạng "Chủ nhật, 06/09/2026" — parse theo UTC để không lệch ngày
+function formatDateWithWeekday(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-")
+  const dow = new Date(dateStr + "T00:00:00Z").getUTCDay()
+  return `${WEEKDAY_NAMES_VN[dow]}, ${d}/${m}/${y}`
 }
 
 export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps) {
@@ -79,6 +88,8 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
     allow_early_leave: true,
     allow_late_arrival: false,
     is_company_holiday: false,
+    has_makeup: false, // Ngày nghỉ công ty có làm bù vào ngày khác không
+    makeup_date: "",
     apply_to_selected_employees: false, // Mới: toggle chọn nhân viên cụ thể
     selected_employee_ids: [] as string[], // Mới: danh sách ID nhân viên được chọn
     custom_start_time: "",
@@ -96,9 +107,18 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
     }
   }, [formData.apply_to_selected_employees, employees.length])
 
-  const handleOpenDialog = (day?: SpecialWorkDayWithEmployees) => {
+  // Ngày làm bù gắn với 1 ngày nghỉ công ty (makeup_for_id)
+  const getMakeupDayFor = (holidayId: string) =>
+    specialDays.find((d) => d.is_makeup_workday && d.makeup_for_id === holidayId)
+
+  const handleOpenDialog = (target?: SpecialWorkDayWithEmployees) => {
+    // Ngày làm bù được sửa qua ngày nghỉ gốc
+    const day = target?.is_makeup_workday
+      ? specialDays.find((d) => d.id === target.makeup_for_id) || target
+      : target
     if (day) {
       setEditingDay(day)
+      const makeupDay = getMakeupDayFor(day.id)
       // Lấy danh sách employee_ids từ assigned_employees
       const assignedIds = day.assigned_employees?.map(ae => ae.employee_id) || []
       setFormData({
@@ -107,6 +127,8 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
         allow_early_leave: day.allow_early_leave,
         allow_late_arrival: day.allow_late_arrival,
         is_company_holiday: day.is_company_holiday,
+        has_makeup: !!makeupDay,
+        makeup_date: makeupDay?.work_date || "",
         apply_to_selected_employees: assignedIds.length > 0,
         selected_employee_ids: assignedIds,
         custom_start_time: day.custom_start_time || "",
@@ -121,6 +143,8 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
         allow_early_leave: true,
         allow_late_arrival: false,
         is_company_holiday: false,
+        has_makeup: false,
+        makeup_date: "",
         apply_to_selected_employees: false,
         selected_employee_ids: [],
         custom_start_time: "",
@@ -134,6 +158,16 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
   const handleSave = async () => {
     if (!formData.work_date || !formData.reason) {
       toast.error("Vui lòng nhập đầy đủ thông tin")
+      return
+    }
+
+    const withMakeup = formData.is_company_holiday && formData.has_makeup
+    if (withMakeup && !formData.makeup_date) {
+      toast.error("Vui lòng chọn ngày làm bù")
+      return
+    }
+    if (withMakeup && formData.makeup_date === formData.work_date) {
+      toast.error("Ngày làm bù phải khác ngày nghỉ")
       return
     }
 
@@ -160,6 +194,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
             custom_end_time: formData.custom_end_time || null,
             note: formData.note || null,
             employee_ids: employeeIds,
+            makeup_date: withMakeup ? formData.makeup_date : null,
           })
         : await createSpecialWorkDay({
             work_date: formData.work_date,
@@ -171,6 +206,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
             custom_end_time: formData.custom_end_time || null,
             note: formData.note || null,
             employee_ids: employeeIds,
+            makeup_date: withMakeup ? formData.makeup_date : null,
           })
 
       if (result.success) {
@@ -275,8 +311,21 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       {day.is_company_holiday ? (
-                        <Badge variant="outline" className="w-fit text-xs bg-purple-50 text-purple-700">
-                          Ngày nghỉ công ty
+                        <>
+                          <Badge variant="outline" className="w-fit text-xs bg-purple-50 text-purple-700">
+                            Ngày nghỉ công ty
+                          </Badge>
+                          {getMakeupDayFor(day.id) && (
+                            <Badge variant="outline" className="w-fit text-xs bg-amber-50 text-amber-700 gap-1">
+                              <Repeat className="h-3 w-3" />
+                              Làm bù {formatDateWithWeekday(getMakeupDayFor(day.id)!.work_date)}
+                            </Badge>
+                          )}
+                        </>
+                      ) : day.is_makeup_workday ? (
+                        <Badge variant="outline" className="w-fit text-xs bg-amber-50 text-amber-700 gap-1">
+                          <Repeat className="h-3 w-3" />
+                          Ngày làm bù (tính công bình thường)
                         </Badge>
                       ) : (
                         <>
@@ -385,7 +434,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                 <div className="space-y-0.5">
                   <Label htmlFor="is_company_holiday">Ngày nghỉ công ty</Label>
                   <p className="text-xs text-muted-foreground">
-                    Nhân viên nghỉ toàn bộ, trừ 1 ngày công chuẩn trong payroll
+                    Nhân viên nghỉ cả ngày, vẫn được tính lương (không trừ công chuẩn)
                   </p>
                 </div>
                 <Switch
@@ -396,6 +445,43 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
                   }
                 />
               </div>
+
+              {formData.is_company_holiday && (
+                <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50/60 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="has_makeup">Có làm bù</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Làm bù vào 1 ngày nghỉ (CN / T7 nghỉ) — ngày đó thành ngày công bình thường,
+                        tháng chứa ngày làm bù được +1 công chuẩn
+                      </p>
+                    </div>
+                    <Switch
+                      id="has_makeup"
+                      checked={formData.has_makeup}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, has_makeup: checked })
+                      }
+                    />
+                  </div>
+                  {formData.has_makeup && (
+                    <div className="space-y-1">
+                      <Label htmlFor="makeup_date">Ngày làm bù *</Label>
+                      <Input
+                        id="makeup_date"
+                        type="date"
+                        value={formData.makeup_date}
+                        onChange={(e) => setFormData({ ...formData, makeup_date: e.target.value })}
+                      />
+                      {formData.makeup_date && (
+                        <p className="text-xs text-muted-foreground">
+                          Đã chọn: {formatDateWithWeekday(formData.makeup_date)}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               
               {!formData.is_company_holiday && (
                 <>
@@ -555,7 +641,7 @@ export function SpecialWorkDaysPanel({ specialDays }: SpecialWorkDaysPanelProps)
           <AlertDialogHeader>
             <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc muốn xóa ngày làm việc đặc biệt này? Hành động này không thể hoàn tác.
+              Bạn có chắc muốn xóa ngày làm việc đặc biệt này? Nếu là ngày nghỉ công ty có làm bù thì ngày làm bù cũng bị xóa. Hành động này không thể hoàn tác.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

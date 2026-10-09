@@ -531,6 +531,8 @@ export interface SpecialWorkDay {
   allow_early_leave: boolean
   allow_late_arrival: boolean
   is_company_holiday: boolean
+  is_makeup_workday: boolean // Ngày làm bù (CN/T7 nghỉ thành ngày công bình thường)
+  makeup_for_id: string | null // Ngày nghỉ công ty mà ngày này làm bù cho
   custom_start_time: string | null
   custom_end_time: string | null
   note: string | null
