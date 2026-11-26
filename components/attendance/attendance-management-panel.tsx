@@ -250,6 +250,31 @@ function getHolidayForDate(date: string, holidays: Holiday[]): Holiday | undefin
   return holidays.find((h) => h.holiday_date === date)
 }
 
+// Ngày nghỉ theo lịch (CN / T7 nghỉ / lễ) mà nhân viên đi làm theo phiếu tăng ca đã duyệt.
+// Đây là tăng ca thuần: không xét nửa ngày, đi muộn, về sớm theo ca thường (khớp với cách tính lương).
+function isOvertimeOnOffDay(
+  date: string | null,
+  employeeId: string | null | undefined,
+  leaveRequests: EmployeeRequestWithRelations[],
+  holidays: Holiday[],
+  specialDay: { is_makeup_workday?: boolean | null } | null | undefined,
+  saturdaySchedules: SaturdaySchedule[],
+  saturdayConfig: SaturdayDefaultConfig
+): boolean {
+  if (!date || !employeeId) return false
+  const isOffDay =
+    !!getHolidayForDate(date, holidays) ||
+    (!specialDay?.is_makeup_workday && isWeekend(new Date(date), employeeId, saturdaySchedules, saturdayConfig))
+  if (!isOffDay) return false
+  return leaveRequests.some(
+    (r) =>
+      r.employee_id === employeeId &&
+      r.status === "approved" &&
+      (r.request_type as { code?: string })?.code === "overtime" &&
+      r.request_date === date
+  )
+}
+
 // Hàm kiểm tra xem ngày có phiếu nghỉ được duyệt không
 function getLeaveRequestForDate(date: string, employeeId: string, leaveRequests: EmployeeRequestWithRelations[]) {
   return leaveRequests.find((req) => {
@@ -331,10 +356,14 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
         const shift = log.employee?.shift
         const logDateOnly = dateSource.split('T')[0]
         const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
-        const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
+        // Tăng ca vào ngày nghỉ theo lịch: không xét nửa ngày / vi phạm theo ca thường
+        const overtimeOnOffDay = isOvertimeOnOffDay(logDateOnly, log.employee_id, leaveRequests, holidays, specialDay, saturdaySchedules, saturdayConfig)
+        const halfDayInfo = overtimeOnOffDay
+          ? { isHalfDayWork: false, isAfternoonOnly: false, isMorningOnly: false }
+          : detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
         const makeup = logDateOnly && log.employee_id ? getLateEarlyMakeupForDate(logDateOnly, log.employee_id, leaveRequests) : null
         const deficitMakeup = logDateOnly && log.employee_id ? findLateEarlyMakeupForDeficitDate(logDateOnly, log.employee_id, leaveRequests) : null
-        const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo, makeup)
+        const violations = overtimeOnOffDay ? [] : checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo, makeup)
         // Ngày thiếu công gốc đã có phiếu làm bù -> không còn là vi phạm
         const deficitMadeUp = !!deficitMakeup && violations.length > 0 &&
           violations.every((v) => v.type === "late" || v.type === "early_leave")
@@ -760,11 +789,15 @@ export function AttendanceManagementPanel({ attendanceLogs, specialDays = [], ho
                     const dateSource = log.check_in || log.check_out || log.created_at
                     const logDateOnly = dateSource ? dateSource.split('T')[0] : null
                     const specialDay = logDateOnly ? specialDaysMap.get(logDateOnly) : null
-                    const halfDayInfo = detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
+                    // Tăng ca vào ngày nghỉ theo lịch: không xét nửa ngày / vi phạm theo ca thường
+                    const overtimeOnOffDay = isOvertimeOnOffDay(logDateOnly, log.employee_id, leaveRequests, holidays, specialDay, saturdaySchedules, saturdayConfig)
+                    const halfDayInfo = overtimeOnOffDay
+                      ? { isHalfDayWork: false, isAfternoonOnly: false, isMorningOnly: false }
+                      : detectHalfDayWork(log.check_in, log.check_out, shift, specialDay)
                     const makeup = logDateOnly && log.employee_id ? getLateEarlyMakeupForDate(logDateOnly, log.employee_id, leaveRequests) : null
                     // Ngày thiếu công gốc được bù bằng phiếu làm bù nộp ở ngày khác
                     const deficitMakeup = logDateOnly && log.employee_id ? findLateEarlyMakeupForDeficitDate(logDateOnly, log.employee_id, leaveRequests) : null
-                    const violations = checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo, makeup)
+                    const violations = overtimeOnOffDay ? [] : checkViolations(log.check_in, log.check_out, shift, specialDay, halfDayInfo, makeup)
                     const hasViolation = violations.length > 0
                     const isLate = violations.some((v) => v.type === "late")
                     const isEarlyLeave = violations.some((v) => v.type === "early_leave")
